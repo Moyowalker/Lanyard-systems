@@ -1,0 +1,27 @@
+{
+  "name": "lanyard-systems",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lanyard Pharmacy Digital Commerce Platform — monorepo",
+  "packageManager": "pnpm@10.30.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "dev": "turbo run dev",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json,yml,yaml}\"",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.10.2",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,60 @@
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  PaginationQuery,
+  PaginationQuerySchema,
+  VerifyPrescriptionInput,
+  VerifyPrescriptionSchema,
+} from '@lanyard/contracts';
+
+import { CurrentUser, RequirePermissions, RequireRealm } from '../../../core/auth/auth.decorators';
+import { PermissionsGuard, RealmGuard } from '../../../core/auth/authz.guards';
+import { AuthPrincipal } from '../../../core/auth/principal';
+import { ZodValidationPipe } from '../../../core/validation/zod-validation.pipe';
+import { PrescriptionService } from '../application/prescription.service';
+
+/** Pharmacist verification workflow — the regulatory core of the platform. */
+@ApiTags('admin')
+@ApiBearerAuth()
+@Controller('admin/prescriptions')
+@UseGuards(RealmGuard, PermissionsGuard)
+@RequireRealm('staff')
+export class AdminPrescriptionController {
+  constructor(private readonly prescriptions: PrescriptionService) {}
+
+  @Get()
+  @RequirePermissions('rx:read')
+  queue(
+    @CurrentUser() user: AuthPrincipal,
+    @Query(new ZodValidationPipe(PaginationQuerySchema)) query: PaginationQuery,
+  ) {
+    return this.prescriptions.queue(user.branchScope, query);
+  }
+
+  @Get(':id')
+  @RequirePermissions('rx:read')
+  getOne(@CurrentUser() user: AuthPrincipal, @Param('id') id: string) {
+    return this.prescriptions.adminGet(user.branchScope, id);
+  }
+
+  /** Signed URL for a prescription image — PHI access, separately gated by phi:view and audited. */
+  @Get(':id/files/:fileId/url')
+  @RequirePermissions('rx:read', 'phi:view')
+  fileUrl(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+  ) {
+    return this.prescriptions.getAdminFileUrl(user, id, fileId);
+  }
+
+  @Post(':id/verify')
+  @RequirePermissions('rx:verify')
+  verify(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(VerifyPrescriptionSchema)) dto: VerifyPrescriptionInput,
+  ) {
+    return this.prescriptions.verify(user, id, dto);
+  }
+}

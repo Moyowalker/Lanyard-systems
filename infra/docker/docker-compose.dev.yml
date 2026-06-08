@@ -1,0 +1,75 @@
+# Local development backing services for the Lanyard platform.
+#   docker compose -f infra/docker/docker-compose.dev.yml up -d
+#
+# Mongo runs as a single-node REPLICA SET so multi-document transactions
+# (order paid → reserve stock, dispense, refund) work locally. The healthcheck
+# auto-initiates the replica set on first start.
+
+name: lanyard-dev
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: lanyard-mongo
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      # Host port is overridable to avoid collisions with other local projects.
+      - '${LANYARD_MONGO_PORT:-27017}:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Initiate the RS if not already initiated; otherwise report status.
+      test: >
+        mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}).ok }"
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: lanyard-redis
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${LANYARD_REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: lanyard-minio
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '${LANYARD_MINIO_PORT:-9000}:9000' # S3 API
+      - '${LANYARD_MINIO_CONSOLE_PORT:-9001}:9001' # console UI
+    volumes:
+      - minio-data:/data
+
+  # Creates the dev bucket once MinIO is up.
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 2; done;
+      mc mb --ignore-existing local/lanyard-dev;
+      echo 'MinIO bucket ready';
+      "
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: lanyard-mailpit
+    ports:
+      - '${LANYARD_SMTP_PORT:-1025}:1025' # SMTP
+      - '${LANYARD_MAILPIT_UI_PORT:-8025}:8025' # web UI
+    environment:
+      MP_MAX_MESSAGES: 500
+
+volumes:
+  mongo-data:
+  redis-data:
+  minio-data:

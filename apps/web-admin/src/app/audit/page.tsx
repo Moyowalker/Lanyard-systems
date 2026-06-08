@@ -1,0 +1,295 @@
+'use client';
+
+import { useState } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import type { AuditLogDto, Paginated } from '@lanyard/contracts';
+import { formatDateTime, timeAgo } from '@/lib/format';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  Skeleton,
+  TableCard,
+  Td,
+  Th,
+  cn,
+  type Tone,
+} from '@/components/ui';
+import { IconAudit, IconChevronRight, IconShield } from '@/components/icons';
+
+/** Action-prefix quick filters. */
+const ACTION_FILTERS: { key: string; label: string }[] = [
+  { key: '', label: 'All activity' },
+  { key: 'rx.', label: 'Prescriptions' },
+  { key: 'phi.', label: 'PHI access' },
+  { key: 'order.', label: 'Orders' },
+  { key: 'payment.', label: 'Payments' },
+  { key: 'refund.', label: 'Refunds' },
+  { key: 'auth.', label: 'Auth' },
+];
+
+const ACTOR_TYPES = [
+  { key: '', label: 'All actors' },
+  { key: 'staff', label: 'Staff' },
+  { key: 'customer', label: 'Customer' },
+  { key: 'system', label: 'System' },
+];
+
+/** Colour an action by its domain prefix; PHI access is flagged red. */
+function actionTone(action: string): Tone {
+  if (action.startsWith('phi.')) return 'danger';
+  if (action.startsWith('rx.')) return 'info';
+  if (action.startsWith('refund.')) return 'warn';
+  if (action.startsWith('payment.')) return 'success';
+  if (action.startsWith('order.')) return 'info';
+  if (action.startsWith('auth.') || action.startsWith('login')) return 'neutral';
+  return 'neutral';
+}
+
+const ACTOR_TONE: Record<string, Tone> = {
+  staff: 'info',
+  customer: 'neutral',
+  system: 'warn',
+};
+
+export default function AuditLogPage() {
+  const [action, setAction] = useState('');
+  const [actorType, setActorType] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const query = useInfiniteQuery({
+    queryKey: ['audit', action, actorType],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '50' });
+      if (pageParam) params.set('cursor', pageParam);
+      if (action) params.set('action', action);
+      if (actorType) params.set('actorType', actorType);
+      const r = await fetch(`/api/admin/audit?${params.toString()}`);
+      if (!r.ok) throw new Error('Failed to load audit log');
+      return (await r.json()) as Paginated<AuditLogDto>;
+    },
+    getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
+  });
+
+  const rows = query.data?.pages.flatMap((p) => p.data) ?? [];
+
+  return (
+    <div>
+      <PageHeader
+        title="Audit Log"
+        subtitle="Immutable, append-only record of every sensitive action — PCN & NDPA compliance backbone"
+        actions={
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700">
+            <IconShield width={14} height={14} /> Tamper-evident
+          </span>
+        }
+      />
+
+      {/* Filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {ACTION_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setAction(f.key)}
+            className={cn(
+              'rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
+              action === f.key
+                ? 'bg-brand-600 text-white'
+                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+        <select
+          value={actorType}
+          onChange={(e) => setActorType(e.target.value)}
+          className="ml-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-500"
+        >
+          {ACTOR_TYPES.map((a) => (
+            <option key={a.key} value={a.key}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {query.isLoading ? (
+        <Card className="p-5">
+          <div className="space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        </Card>
+      ) : query.isError ? (
+        <Card>
+          <EmptyState
+            title="Couldn’t load the audit log"
+            description="You may not have permission, or the service is unavailable."
+            icon={IconAudit}
+          />
+        </Card>
+      ) : rows.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="No matching activity"
+            description="Nothing has been recorded for this filter yet."
+            icon={IconAudit}
+          />
+        </Card>
+      ) : (
+        <>
+          <TableCard>
+            <thead className="border-b border-slate-100 bg-slate-50/60">
+              <tr>
+                <Th>When</Th>
+                <Th>Action</Th>
+                <Th>Actor</Th>
+                <Th>Target</Th>
+                <Th right>{''}</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((e) => {
+                const isOpen = expanded === e.id;
+                return (
+                  <AuditRow
+                    key={e.id}
+                    entry={e}
+                    open={isOpen}
+                    onToggle={() => setExpanded(isOpen ? null : e.id)}
+                  />
+                );
+              })}
+            </tbody>
+          </TableCard>
+
+          <div className="mt-4 flex justify-center">
+            {query.hasNextPage ? (
+              <Button
+                variant="secondary"
+                onClick={() => query.fetchNextPage()}
+                disabled={query.isFetchingNextPage}
+              >
+                {query.isFetchingNextPage ? 'Loading…' : 'Load more'}
+              </Button>
+            ) : (
+              <span className="text-xs text-slate-400">
+                {rows.length} entr{rows.length === 1 ? 'y' : 'ies'} · end of log
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AuditRow({
+  entry,
+  open,
+  onToggle,
+}: {
+  entry: AuditLogDto;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const target = entry.targetType
+    ? `${entry.targetType}${entry.targetId ? ` · ${entry.targetId.slice(-6)}` : ''}`
+    : '—';
+
+  return (
+    <>
+      <tr className="cursor-pointer transition-colors hover:bg-slate-50/60" onClick={onToggle}>
+        <Td className="whitespace-nowrap">
+          <div className="font-medium text-slate-700">{formatDateTime(entry.at)}</div>
+          <div className="text-xs text-slate-400">{timeAgo(entry.at)}</div>
+        </Td>
+        <Td>
+          <span className="font-mono text-xs font-medium text-slate-700">{entry.action}</span>
+          <span className="ml-2 align-middle">
+            <Badge tone={actionTone(entry.action)}>{entry.action.split('.')[0]}</Badge>
+          </span>
+        </Td>
+        <Td>
+          <Badge tone={ACTOR_TONE[entry.actorType] ?? 'neutral'}>{entry.actorType}</Badge>
+          {entry.actorId && (
+            <span className="ml-2 font-mono text-xs text-slate-400">…{entry.actorId.slice(-6)}</span>
+          )}
+        </Td>
+        <Td className="text-slate-500">{target}</Td>
+        <Td right>
+          <IconChevronRight
+            width={16}
+            height={16}
+            className={cn('inline text-slate-300 transition-transform', open && 'rotate-90')}
+          />
+        </Td>
+      </tr>
+      {open && (
+        <tr className="bg-slate-50/40">
+          <td colSpan={5} className="px-5 py-4">
+            <AuditDetail entry={entry} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function AuditDetail({ entry }: { entry: AuditLogDto }) {
+  const facts: { label: string; value?: string }[] = [
+    { label: 'Action', value: entry.action },
+    { label: 'Actor type', value: entry.actorType },
+    { label: 'Actor ID', value: entry.actorId },
+    { label: 'Target', value: entry.targetType },
+    { label: 'Target ID', value: entry.targetId },
+    { label: 'Branch ID', value: entry.branchId },
+    { label: 'IP', value: entry.ip },
+    { label: 'Trace ID', value: entry.traceId },
+  ].filter((f) => f.value);
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Entry details
+        </h3>
+        <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-sm">
+          {facts.map((f) => (
+            <div key={f.label} className="contents">
+              <dt className="text-slate-400">{f.label}</dt>
+              <dd className="break-all font-mono text-xs text-slate-700">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+        {entry.userAgent && (
+          <p className="mt-2 break-all text-xs text-slate-400">{entry.userAgent}</p>
+        )}
+      </div>
+      <div className="space-y-3">
+        {entry.metadata && <JsonBlock title="Metadata" data={entry.metadata} />}
+        {entry.before && <JsonBlock title="Before" data={entry.before} />}
+        {entry.after && <JsonBlock title="After" data={entry.after} />}
+        {!entry.metadata && !entry.before && !entry.after && (
+          <p className="text-xs text-slate-400">No additional payload recorded.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function JsonBlock({ title, data }: { title: string; data: Record<string, unknown> }) {
+  return (
+    <div>
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
+      <pre className="overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">
+        {JSON.stringify(data, null, 2)}
+      </pre>
+    </div>
+  );
+}

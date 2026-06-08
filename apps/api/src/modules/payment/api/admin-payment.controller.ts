@@ -1,0 +1,39 @@
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { RefundInput, RefundSchema } from '@lanyard/contracts';
+
+import { CurrentUser, RequirePermissions, RequireRealm } from '../../../core/auth/auth.decorators';
+import { PermissionsGuard, RealmGuard } from '../../../core/auth/authz.guards';
+import { AuthPrincipal } from '../../../core/auth/principal';
+import { ZodValidationPipe } from '../../../core/validation/zod-validation.pipe';
+import { PaymentService } from '../application/payment.service';
+import { RefundService } from '../application/refund.service';
+
+@ApiTags('payments')
+@ApiBearerAuth()
+@Controller('admin/payments')
+@UseGuards(RealmGuard, PermissionsGuard)
+@RequireRealm('staff')
+export class AdminPaymentController {
+  constructor(
+    private readonly payments: PaymentService,
+    private readonly refunds: RefundService,
+  ) {}
+
+  /** Manually trigger reconciliation of pending intents (also runnable as a scheduled job). */
+  @Post('reconcile')
+  @RequirePermissions('order:read')
+  reconcile() {
+    return this.payments.reconcile();
+  }
+
+  /** Refund a paid order (releases stock + moves order to REFUNDED). */
+  @Post('refund')
+  @RequirePermissions('refund:create')
+  refund(
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(RefundSchema)) dto: RefundInput,
+  ) {
+    return this.refunds.refund(user, dto);
+  }
+}

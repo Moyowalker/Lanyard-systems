@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+}
+
+/* Authoritative, quiet scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(203 213 225) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(203 213 225);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184);
+  background-clip: content-box;
+}
+
+::selection {
+  background: rgb(45 212 191 / 0.3);
+}
+
+/* Consistent focus ring across interactive elements */
+*:focus-visible {
+  outline: 2px solid rgb(13 148 136);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
