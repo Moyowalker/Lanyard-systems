@@ -27,7 +27,10 @@ import { MockPaymentProvider } from './application/provider/mock.provider';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const secret = config.get<string>('PAYSTACK_SECRET_KEY');
-        return secret ? new PaystackProvider(secret) : new MockPaymentProvider();
+        const webhookSecret = config.get<string>('PAYSTACK_WEBHOOK_SECRET');
+        return secret
+          ? new PaystackProvider(secret, webhookSecret ?? secret)
+          : new MockPaymentProvider();
       },
     },
   ],

@@ -6,11 +6,13 @@ import { SessionService } from './application/session.service';
 import { CustomerAuthService } from './application/customer-auth.service';
 import { StaffAuthService } from './application/staff-auth.service';
 import { AuthService } from './application/auth.service';
+import { StaffDirectoryService } from './application/staff-directory.service';
 import { CustomerAuthController } from './api/customer-auth.controller';
 import { StaffAuthController } from './api/staff-auth.controller';
 import { AuthController } from './api/auth.controller';
 import { MeController } from './api/me.controller';
 import { AdminPingController } from './api/admin-ping.controller';
+import { AdminStaffController } from './api/admin-staff.controller';
 
 /**
  * Identity & authentication. Models come from the global ModelsModule; security
@@ -24,7 +26,15 @@ import { AdminPingController } from './api/admin-ping.controller';
     AuthController,
     MeController,
     AdminPingController,
+    AdminStaffController,
   ],
-  providers: [OtpService, SessionService, CustomerAuthService, StaffAuthService, AuthService],
+  providers: [
+    OtpService,
+    SessionService,
+    CustomerAuthService,
+    StaffAuthService,
+    AuthService,
+    StaffDirectoryService,
+  ],
 })
 export class IdentityModule {}

@@ -8,6 +8,7 @@ export * from './schemas/common';
 export * from './schemas/auth';
 export * from './schemas/catalog';
 export * from './schemas/branch';
+export * from './schemas/inventory';
 export * from './schemas/prescription';
 export * from './schemas/cart';
 export * from './schemas/order';

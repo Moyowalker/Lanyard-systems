@@ -21,3 +21,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
   const body = await req.text();
   return relay(await proxy(target(path, req), { method: 'POST', body: body || undefined }));
 }
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  const { path } = await params;
+  const body = await req.text();
+  return relay(await proxy(target(path, req), { method: 'PUT', body: body || undefined }));
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  const { path } = await params;
+  const body = await req.text();
+  return relay(await proxy(target(path, req), { method: 'PATCH', body: body || undefined }));
+}

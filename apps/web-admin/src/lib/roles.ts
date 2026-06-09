@@ -92,11 +92,10 @@ export const NAV: NavSection[] = [
     heading: 'Finance',
     items: [
       {
-        label: 'Revenue & Payments',
+        label: 'Payments & Refunds',
         href: '/finance',
         icon: 'finance',
-        roles: [RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
-        soon: true,
+        roles: [RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
       },
     ],
   },

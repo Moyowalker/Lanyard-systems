@@ -37,7 +37,7 @@ export default function OrdersPage() {
           <li key={o.id}>
             <Link
               href={`/orders/${o.id}`}
-              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 hover:border-brand-300"
+              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 hover:border-brand-200"
             >
               <div>
                 <div className="font-medium text-gray-900">{o.orderNo}</div>

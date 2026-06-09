@@ -43,6 +43,7 @@ platform handling **money, medicines, and protected health information (PHI)**.
 | [09](09-mvp-definition.md)        | MVP Definition                 | What ships first, and what does not          |
 | [10](10-risks-mitigation.md)      | Engineering Risks & Mitigation | What can hurt us and the plan                |
 | [11](11-render-readiness.md)      | Render Readiness               | Backend validation status, Render setup, Swagger URLs |
+| [12](12-compliance-readiness.md)  | Compliance Readiness           | Go-live checklist for PCN, NDPA, and NAFDAC controls |
 
 ---
 

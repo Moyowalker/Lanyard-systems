@@ -4,8 +4,131 @@
 
 :root {
   color-scheme: light;
+  --page-bg: #f6f4ee;
+  --page-ink: #15302a;
+  --page-muted: #5c6b64;
+  --hairline: rgba(11, 33, 28, 0.08);
 }
 
+html {
+  min-height: 100%;
+  background: var(--page-bg);
+}
+
+/* A single, calm evergreen wash anchored to the top — no neon, no grid. */
 body {
-  @apply bg-gray-50 text-gray-900 antialiased;
+  min-height: 100vh;
+  color: var(--page-ink);
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(39, 106, 86, 0.1), transparent 60%),
+    linear-gradient(180deg, #fbfaf6 0%, var(--page-bg) 42%);
+  background-attachment: fixed;
+  @apply overflow-x-hidden font-sans antialiased;
+}
+
+::selection {
+  background: rgba(39, 106, 86, 0.18);
+  color: #0b211c;
+}
+
+*:focus-visible {
+  outline: none;
+  box-shadow: theme('boxShadow.focus');
+  border-radius: 0.5rem;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-[-0.02em] text-ink-950;
+    font-feature-settings: 'ss01';
+  }
+
+  /* Numerals (prices, stock counts) read cleaner aligned. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Solid, printed-card surface — quiet borders, layered low shadow. */
+  .surface-panel {
+    @apply rounded-card border border-paper-200 bg-white shadow-card;
+  }
+
+  .surface-quiet {
+    @apply rounded-card border border-paper-200 bg-paper-50;
+  }
+
+  /* Eyebrow with a short evergreen rule — editorial, not a floating tag. */
+  .section-kicker {
+    @apply inline-flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-brand-700;
+  }
+
+  .section-kicker::before {
+    content: '';
+    @apply h-px w-6 bg-brand-300;
+  }
+
+  .section-heading {
+    @apply font-display text-[1.9rem] leading-[1.08] text-ink-950 sm:text-4xl;
+  }
+
+  .supporting-copy {
+    color: var(--page-muted);
+    @apply text-sm leading-7 sm:text-[0.975rem];
+  }
+
+  .primary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition duration-200;
+    box-shadow: 0 14px 26px -16px rgba(11, 33, 28, 0.7);
+  }
+
+  .primary-button:hover {
+    @apply -translate-y-0.5 bg-brand-800;
+  }
+
+  .primary-button:active {
+    @apply translate-y-0;
+  }
+
+  .soft-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-paper-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink-800 shadow-sm transition duration-200;
+  }
+
+  .soft-button:hover {
+    @apply -translate-y-0.5 border-brand-200 bg-brand-50 text-brand-800;
+  }
+
+  .metric-card {
+    @apply rounded-2xl border border-paper-200 bg-white p-4 shadow-card;
+  }
+
+  /* A thin clinical hairline used to separate stacked content. */
+  .hairline {
+    @apply border-paper-200;
+  }
+
+  .animate-rise {
+    animation: theme('animation.rise');
+  }
+
+  /* Staggered reveal: set --reveal-delay inline per item. */
+  .reveal {
+    animation: theme('animation.rise');
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

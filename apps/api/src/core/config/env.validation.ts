@@ -103,6 +103,22 @@ export const envSchema = z.object({
       message: 'SMTP_USER and SMTP_PASS must be provided together',
     });
   }
+
+  if (!value.PAYSTACK_SECRET_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['PAYSTACK_SECRET_KEY'],
+      message: 'PAYSTACK_SECRET_KEY is required in production',
+    });
+  }
+
+  if (!value.PAYSTACK_WEBHOOK_SECRET) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['PAYSTACK_WEBHOOK_SECRET'],
+      message: 'PAYSTACK_WEBHOOK_SECRET is required in production',
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

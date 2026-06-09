@@ -7,7 +7,7 @@ export function middleware(req: NextRequest) {
   if (pathname.startsWith('/login') || pathname.startsWith('/api')) {
     return NextResponse.next();
   }
-  if (!req.cookies.get('lny_at')?.value) {
+  if (!req.cookies.get('lny_at')?.value && !req.cookies.get('lny_rt')?.value) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
   return NextResponse.next();

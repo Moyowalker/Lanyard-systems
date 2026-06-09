@@ -1,22 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import type { BranchSummaryDto, Paginated } from '@lanyard/contracts';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { UpsertPriceSchema, type Paginated } from '@lanyard/contracts';
 
 import { IconAlert, IconBranch, IconCatalog, IconCheck, IconPricing } from '@/components/icons';
 import {
   Badge,
+  Button,
   Card,
   EmptyState,
   PageHeader,
   Skeleton,
+  Spinner,
   StatCard,
   TableCard,
   Td,
   Th,
 } from '@/components/ui';
 import { formatKobo } from '@/lib/format';
+
+type BranchOption = { id: string; name: string };
 
 type AdminProductLookup = {
   id: string;
@@ -35,15 +39,45 @@ type PriceRow = {
   isAvailable: boolean;
 };
 
+type PriceDraft = {
+  priceKobo: string;
+  compareAtKobo: string;
+  isAvailable: boolean;
+};
+
+type FormMessage = { tone: 'success' | 'danger'; text: string };
+
+const inputClass =
+  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-brand-500';
+
+function InlineNotice({ message }: { message?: FormMessage }) {
+  if (!message) return null;
+  return (
+    <p
+      className={
+        message.tone === 'success'
+          ? 'rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700'
+          : 'rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700'
+      }
+    >
+      {message.text}
+    </p>
+  );
+}
+
 export default function PricingPage() {
+  const queryClient = useQueryClient();
   const [branchId, setBranchId] = useState('');
+  const [drafts, setDrafts] = useState<Record<string, PriceDraft>>({});
+  const [message, setMessage] = useState<FormMessage>();
+  const [savingProductId, setSavingProductId] = useState<string | null>(null);
 
   const branchesQ = useQuery({
     queryKey: ['admin-branches', 'pricing'],
     queryFn: async () => {
       const res = await fetch('/api/admin/branches?limit=100');
       if (!res.ok) throw new Error('Failed to load branches');
-      return (await res.json()) as Paginated<BranchSummaryDto>;
+      return (await res.json()) as Paginated<BranchOption>;
     },
   });
 
@@ -75,24 +109,97 @@ export default function PricingPage() {
     },
   });
 
-  const productById = new Map(products.map((product) => [product.id, product]));
-  const rows = (pricesQ.data?.data ?? [])
-    .map((row) => ({ row, product: productById.get(row.productId) }))
-    .sort((left, right) =>
-      (left.product?.name ?? left.row.productId).localeCompare(right.product?.name ?? right.row.productId),
-    );
+  const prices = pricesQ.data?.data ?? [];
 
-  const configuredCount = rows.length;
-  const availableCount = rows.filter(({ row }) => row.isAvailable).length;
+  useEffect(() => {
+    if (!branchId || products.length === 0) return;
+
+    const priceMap = new Map(prices.map((row) => [row.productId, row]));
+    const nextDrafts: Record<string, PriceDraft> = {};
+    for (const product of products) {
+      const row = priceMap.get(product.id);
+      nextDrafts[product.id] = {
+        priceKobo: row ? String(row.priceKobo) : '',
+        compareAtKobo: row?.compareAtKobo ? String(row.compareAtKobo) : '',
+        isAvailable: row?.isAvailable ?? true,
+      };
+    }
+    setDrafts(nextDrafts);
+  }, [branchId, prices, products]);
+
+  const priceMutation = useMutation({
+    mutationFn: async (payload: { productId: string; body: unknown }) => {
+      const res = await fetch(`/api/admin/branches/${branchId}/prices`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload.body),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error?.message ?? 'Price save failed');
+      return body;
+    },
+    onSuccess: async (_body, variables) => {
+      setMessage({ tone: 'success', text: 'Price saved.' });
+      setSavingProductId(null);
+      await queryClient.invalidateQueries({ queryKey: ['admin-prices', branchId] });
+      setDrafts((current) => ({
+        ...current,
+        [variables.productId]: current[variables.productId],
+      }));
+    },
+    onError: (error) => {
+      setSavingProductId(null);
+      setMessage({
+        tone: 'danger',
+        text: error instanceof Error ? error.message : 'Price save failed',
+      });
+    },
+  });
+
+  const priceMap = useMemo(() => new Map(prices.map((row) => [row.productId, row])), [prices]);
+  const rows = useMemo(
+    () =>
+      [...products].sort((left, right) => left.name.localeCompare(right.name)).map((product) => ({
+        product,
+        current: priceMap.get(product.id),
+        draft: drafts[product.id] ?? { priceKobo: '', compareAtKobo: '', isAvailable: true },
+      })),
+    [drafts, priceMap, products],
+  );
+
+  const configuredCount = prices.length;
+  const availableCount = prices.filter((row) => row.isAvailable).length;
   const missingCount = Math.max(0, products.length - configuredCount);
   const initialLoading =
     branchesQ.isLoading || productsQ.isLoading || (Boolean(branchId) && pricesQ.isLoading && !pricesQ.data);
+
+  async function saveRow(productId: string) {
+    const draft = drafts[productId];
+    setMessage(undefined);
+    const parsed = UpsertPriceSchema.safeParse({
+      productId,
+      priceKobo: Number(draft?.priceKobo),
+      compareAtKobo: draft?.compareAtKobo ? Number(draft.compareAtKobo) : undefined,
+      isAvailable: draft?.isAvailable ?? true,
+    });
+
+    if (!parsed.success) {
+      setMessage({
+        tone: 'danger',
+        text: parsed.error.issues[0]?.message ?? 'Check the pricing row before saving.',
+      });
+      return;
+    }
+
+    setSavingProductId(productId);
+    await priceMutation.mutateAsync({ productId, body: parsed.data });
+  }
 
   return (
     <div>
       <PageHeader
         title="Pricing"
-        subtitle="Per-branch prices and sellable availability"
+        subtitle="Per-branch price books and sellable availability"
         actions={
           <select
             value={branchId}
@@ -157,51 +264,122 @@ export default function PricingPage() {
             <StatCard label="Catalog products" value={products.length} icon={IconCatalog} tone="amber" />
           </div>
 
-          {rows.length === 0 ? (
-            <Card>
-              <EmptyState
-                title="No price rows for this branch"
-                description="The branch exists, but no per-product prices have been configured yet."
-                icon={IconPricing}
-              />
-            </Card>
-          ) : (
-            <TableCard>
-              <thead className="border-b border-slate-100 bg-slate-50/60">
-                <tr>
-                  <Th>Product</Th>
-                  <Th>Availability</Th>
-                  <Th right>Price</Th>
-                  <Th right>Compare at</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map(({ row, product }) => (
-                  <tr key={row.productId} className="transition-colors hover:bg-slate-50/60">
-                    <Td>
-                      <div className="font-semibold text-slate-900">{product?.name ?? row.productId}</div>
-                      <div className="text-xs text-slate-500">
-                        {[product?.genericName, product?.brand, product?.form, product?.strength]
-                          .filter(Boolean)
-                          .join(' · ') || 'Catalog details unavailable'}
+          <div className="mb-4">
+            <InlineNotice message={message} />
+          </div>
+
+          <TableCard>
+            <thead className="border-b border-slate-100 bg-slate-50/60">
+              <tr>
+                <Th>Product</Th>
+                <Th>Current</Th>
+                <Th>Availability</Th>
+                <Th>Price (kobo)</Th>
+                <Th>Compare at (kobo)</Th>
+                <Th right>{''}</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map(({ product, current, draft }) => (
+                <tr key={product.id} className="transition-colors hover:bg-slate-50/60">
+                  <Td>
+                    <div className="font-semibold text-slate-900">{product.name}</div>
+                    <div className="text-xs text-slate-500">
+                      {[product.genericName, product.brand, product.form, product.strength]
+                        .filter(Boolean)
+                        .join(' · ') || 'Catalog details unavailable'}
+                    </div>
+                  </Td>
+                  <Td>
+                    {current ? (
+                      <div>
+                        <div className="font-semibold text-slate-900">{formatKobo(current.priceKobo, current.currency)}</div>
+                        <div className="text-xs text-slate-500">
+                          {current.compareAtKobo ? formatKobo(current.compareAtKobo, current.currency) : 'No compare-at'}
+                        </div>
                       </div>
-                    </Td>
-                    <Td>
-                      <Badge tone={row.isAvailable ? 'success' : 'neutral'}>
-                        {row.isAvailable ? 'Sellable' : 'Hidden'}
+                    ) : (
+                      <span className="text-sm text-slate-400">Not configured</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <label className="flex items-center gap-2 text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={draft.isAvailable}
+                        onChange={(event) =>
+                          setDrafts((currentDrafts) => ({
+                            ...currentDrafts,
+                            [product.id]: {
+                              ...(currentDrafts[product.id] ?? draft),
+                              isAvailable: event.target.checked,
+                            },
+                          }))
+                        }
+                      />
+                      <Badge tone={draft.isAvailable ? 'success' : 'neutral'}>
+                        {draft.isAvailable ? 'Sellable' : 'Hidden'}
                       </Badge>
-                    </Td>
-                    <Td right className="font-semibold text-slate-900">
-                      {formatKobo(row.priceKobo, row.currency)}
-                    </Td>
-                    <Td right className="text-slate-500">
-                      {formatKobo(row.compareAtKobo, row.currency)}
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </TableCard>
-          )}
+                    </label>
+                  </Td>
+                  <Td>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={draft.priceKobo}
+                      onChange={(event) =>
+                        setDrafts((currentDrafts) => ({
+                          ...currentDrafts,
+                          [product.id]: {
+                            ...(currentDrafts[product.id] ?? draft),
+                            priceKobo: event.target.value,
+                          },
+                        }))
+                      }
+                      className={inputClass}
+                    />
+                  </Td>
+                  <Td>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={draft.compareAtKobo}
+                      onChange={(event) =>
+                        setDrafts((currentDrafts) => ({
+                          ...currentDrafts,
+                          [product.id]: {
+                            ...(currentDrafts[product.id] ?? draft),
+                            compareAtKobo: event.target.value,
+                          },
+                        }))
+                      }
+                      className={inputClass}
+                      placeholder="Optional"
+                    />
+                  </Td>
+                  <Td right>
+                    <Button
+                      variant="secondary"
+                      onClick={() => saveRow(product.id)}
+                      disabled={priceMutation.isPending && savingProductId === product.id}
+                    >
+                      {priceMutation.isPending && savingProductId === product.id ? (
+                        <>
+                          <Spinner className="h-4 w-4" /> Saving...
+                        </>
+                      ) : current ? (
+                        'Update'
+                      ) : (
+                        'Create'
+                      )}
+                    </Button>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </TableCard>
         </>
       )}
     </div>
