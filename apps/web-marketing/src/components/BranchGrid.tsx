@@ -1,4 +1,5 @@
 import type { BranchSummaryDto } from '@lanyard/contracts';
+import { StoreLink } from './StoreLink';
 
 function ServiceBadge({ active, label }: { active: boolean; label: string }) {
   return (
@@ -30,7 +31,7 @@ export function BranchGrid({
 
       <div className="grid gap-4 lg:grid-cols-2">
         {branches.map((branch) => (
-          <article key={branch.id} className="surface-card p-6">
+          <article id={branch.code.toLowerCase()} key={branch.id} className="surface-card p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="pill bg-brand-50 text-brand-800">{branch.code}</div>
@@ -50,6 +51,24 @@ export function BranchGrid({
                   {branch.distanceKm.toFixed(1)} km away
                 </span>
               ) : null}
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <StoreLink
+                source="branches-grid-shop"
+                branchId={branch.id}
+                className="cta-primary px-4 py-2 text-sm"
+              >
+                Shop this branch
+              </StoreLink>
+              <StoreLink
+                source="branches-grid-rx"
+                branchId={branch.id}
+                intent="prescription"
+                className="cta-secondary px-4 py-2 text-sm"
+              >
+                Start a prescription order
+              </StoreLink>
             </div>
           </article>
         ))}

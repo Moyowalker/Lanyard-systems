@@ -8,12 +8,31 @@ export function AccountMenu() {
   const { data: me, isLoading } = useMe();
   const logout = useLogout();
   const router = useRouter();
+  const firstName = me?.profile.firstName ?? 'there';
+  const initial = firstName.charAt(0).toUpperCase() || 'L';
 
-  if (isLoading) return <div className="h-10 w-24 animate-pulse rounded-xl bg-paper-100" />;
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="h-12 w-24 animate-pulse rounded-2xl bg-white/75 shadow-card" />
+        <div className="hidden h-12 w-32 animate-pulse rounded-2xl bg-white/75 shadow-card sm:block" />
+      </div>
+    );
+  }
 
   if (!me) {
     return (
       <Link href="/account/login" className="soft-button">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-4 w-4 text-brand-700"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+        >
+          <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0" />
+        </svg>
         Sign in
       </Link>
     );
@@ -24,15 +43,20 @@ export function AccountMenu() {
       <Link href="/orders" className="soft-button">
         Orders
       </Link>
-      <span className="hidden items-center gap-2 rounded-xl border border-paper-200 bg-white px-4 py-2.5 text-sm text-ink-800 sm:inline-flex">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-[0.72rem] font-bold uppercase text-brand-800">
-          {(me.profile.firstName ?? 'L').charAt(0)}
+      <span className="hidden min-h-[3rem] items-center gap-3 rounded-2xl border border-paper-200/90 bg-white/90 px-4 py-2.5 text-sm text-ink-800 shadow-sm backdrop-blur-sm sm:inline-flex">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-[0.78rem] font-bold uppercase text-brand-800">
+          {initial}
         </span>
-        Hi, {me.profile.firstName ?? 'there'}
+        <span className="flex flex-col leading-none">
+          <span className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-ink-700/52">
+            Signed in
+          </span>
+          <span className="mt-1 font-semibold text-ink-950">Hi, {firstName}</span>
+        </span>
       </span>
       <button
         onClick={() => logout.mutate(undefined, { onSuccess: () => router.refresh() })}
-        className="soft-button"
+        className="soft-button bg-paper-50/80"
       >
         Sign out
       </button>

@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { BranchGrid } from '@/components/BranchGrid';
 import { SectionTitle } from '@/components/SectionTitle';
+import { StoreLink } from '@/components/StoreLink';
 import { getMarketingBranches } from '@/lib/branches';
 import { faqs, heroStats, principles, serviceTracks } from '@/lib/content';
-import { STORE_URL } from '@/lib/config';
+import { branchListJsonLd, marketingOrganizationJsonLd } from '@/lib/seo';
 
 export const revalidate = 300;
 
@@ -13,6 +14,17 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-20 pb-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(marketingOrganizationJsonLd(branches)),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(branchListJsonLd(branches)) }}
+      />
+
       <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:gap-8">
         <div className="hero-shell p-8 sm:p-10 lg:p-12">
           <div className="eyebrow">Pharmacy brand and digital storefront</div>
@@ -25,13 +37,21 @@ export default async function HomePage() {
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <a href={STORE_URL} className="cta-primary">
+            <StoreLink source="home-hero-shop" className="cta-primary">
               Start shopping
-            </a>
+            </StoreLink>
+            <StoreLink source="home-hero-rx" intent="prescription" className="cta-secondary">
+              Start with a prescription
+            </StoreLink>
             <Link href="/branches" className="cta-secondary">
               Explore branches
             </Link>
           </div>
+
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-700/75">
+            Prescription uploads happen inside the storefront checkout flow after medicine selection,
+            with pharmacist verification controlling the next step before fulfilment.
+          </p>
 
           <div className="mt-10 grid gap-4 md:grid-cols-3">
             {heroStats.map((stat) => (
@@ -194,9 +214,19 @@ export default async function HomePage() {
             feel intentional.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a href={STORE_URL} className="cta-primary bg-white text-ink-900 hover:bg-sand-100">
+            <StoreLink
+              source="home-final-shop"
+              className="cta-primary bg-white text-ink-900 hover:bg-sand-100"
+            >
               Enter the store
-            </a>
+            </StoreLink>
+            <StoreLink
+              source="home-final-rx"
+              intent="prescription"
+              className="cta-secondary border-white/20 text-white hover:bg-white/10"
+            >
+              Start a prescription order
+            </StoreLink>
             <Link href="/contact" className="cta-secondary border-white/20 text-white hover:bg-white/10">
               Talk to us
             </Link>

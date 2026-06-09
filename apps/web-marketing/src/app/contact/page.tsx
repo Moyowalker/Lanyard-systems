@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { ContactForm } from '@/components/ContactForm';
+import { StoreLink } from '@/components/StoreLink';
 import { contactChannels } from '@/lib/content';
-import { STORE_URL } from '@/lib/config';
 
 export const metadata: Metadata = {
   title: 'Contact',
@@ -56,9 +56,9 @@ export default function ContactPage() {
               Ask the questions that usually block an order.
             </h2>
           </div>
-          <a href={STORE_URL} className="cta-secondary">
+          <StoreLink source="contact-store-handoff" className="cta-secondary">
             Open customer store
-          </a>
+          </StoreLink>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

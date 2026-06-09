@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { BranchGrid } from '@/components/BranchGrid';
 import { SectionTitle } from '@/components/SectionTitle';
 import { getMarketingBranches } from '@/lib/branches';
+import { branchListJsonLd } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Branches',
@@ -15,6 +16,11 @@ export default async function BranchesPage() {
 
   return (
     <div className="space-y-16 pb-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(branchListJsonLd(branches)) }}
+      />
+
       <section className="hero-shell p-8 sm:p-10 lg:p-12">
         <div className="eyebrow">Branch guide</div>
         <h1 className="mt-4 max-w-3xl font-display text-5xl leading-none text-ink-900 sm:text-6xl">

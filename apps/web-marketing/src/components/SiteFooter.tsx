@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { marketingNav } from '@/lib/content';
 import { STORE_URL } from '@/lib/config';
+import { StoreLink } from './StoreLink';
 
 export function SiteFooter() {
   return (
@@ -16,9 +17,9 @@ export function SiteFooter() {
             handles the compliance-heavy work behind the scenes.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <a href={STORE_URL} className="cta-primary px-5 py-3 text-sm">
+            <StoreLink source="footer-shop" className="cta-primary px-5 py-3 text-sm">
               Enter the store
-            </a>
+            </StoreLink>
             <Link
               href="/branches"
               className="cta-secondary border-white/20 text-white hover:border-white/40 hover:bg-white/10"

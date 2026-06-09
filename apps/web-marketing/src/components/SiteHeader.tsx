@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { marketingNav } from '@/lib/content';
-import { STORE_URL } from '@/lib/config';
+import { StoreLink } from './StoreLink';
 
 export function SiteHeader() {
   return (
@@ -24,9 +24,9 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
-          <a href={STORE_URL} className="cta-primary px-4 py-2 text-sm">
+          <StoreLink source="header-shop" className="cta-primary px-4 py-2 text-sm">
             Shop now
-          </a>
+          </StoreLink>
         </nav>
       </div>
     </header>

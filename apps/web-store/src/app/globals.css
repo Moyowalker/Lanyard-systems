@@ -4,9 +4,9 @@
 
 :root {
   color-scheme: light;
-  --page-bg: #f6f4ee;
-  --page-ink: #15302a;
-  --page-muted: #5c6b64;
+  --page-bg: #f4f4ef;
+  --page-ink: #102720;
+  --page-muted: #5c6a64;
   --hairline: rgba(11, 33, 28, 0.08);
 }
 
@@ -15,15 +15,42 @@ html {
   background: var(--page-bg);
 }
 
-/* A single, calm evergreen wash anchored to the top — no neon, no grid. */
 body {
+  position: relative;
   min-height: 100vh;
   color: var(--page-ink);
   background:
-    radial-gradient(120% 70% at 50% -10%, rgba(39, 106, 86, 0.1), transparent 60%),
-    linear-gradient(180deg, #fbfaf6 0%, var(--page-bg) 42%);
+    radial-gradient(120% 80% at 50% -10%, rgba(39, 106, 86, 0.12), transparent 60%),
+    radial-gradient(80% 50% at 100% 0%, rgba(216, 184, 108, 0.11), transparent 60%),
+    linear-gradient(180deg, #fbfaf6 0%, #f6f4ee 36%, var(--page-bg) 100%);
   background-attachment: fixed;
   @apply overflow-x-hidden font-sans antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(255, 255, 255, 0.72), transparent 18%),
+    radial-gradient(circle at 84% 10%, rgba(219, 236, 228, 0.58), transparent 16%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), transparent 48%);
+  z-index: -2;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.42;
+  background-image:
+    linear-gradient(rgba(11, 33, 28, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(11, 33, 28, 0.03) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.12), transparent 72%);
+  z-index: -1;
 }
 
 ::selection {
@@ -34,7 +61,7 @@ body {
 *:focus-visible {
   outline: none;
   box-shadow: theme('boxShadow.focus');
-  border-radius: 0.5rem;
+  border-radius: 0.9rem;
 }
 
 @layer base {
@@ -44,46 +71,57 @@ body {
   h4 {
     @apply font-display tracking-[-0.02em] text-ink-950;
     font-feature-settings: 'ss01';
+    text-wrap: balance;
   }
 
-  /* Numerals (prices, stock counts) read cleaner aligned. */
   .tnum {
     font-variant-numeric: tabular-nums;
   }
 }
 
 @layer components {
-  /* Solid, printed-card surface — quiet borders, layered low shadow. */
   .surface-panel {
-    @apply rounded-card border border-paper-200 bg-white shadow-card;
+    @apply relative overflow-hidden rounded-[1.65rem] border border-white/70 bg-white shadow-card backdrop-blur-sm;
+    background-color: rgba(255, 255, 255, 0.88);
+  }
+
+  .surface-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0));
   }
 
   .surface-quiet {
-    @apply rounded-card border border-paper-200 bg-paper-50;
+    @apply rounded-[1.5rem] border border-paper-200/90 bg-paper-50/80 backdrop-blur-sm;
   }
 
-  /* Eyebrow with a short evergreen rule — editorial, not a floating tag. */
+  .eyebrow-chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50/80 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-brand-800;
+  }
+
   .section-kicker {
     @apply inline-flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-brand-700;
   }
 
   .section-kicker::before {
     content: '';
-    @apply h-px w-6 bg-brand-300;
+    @apply h-[2px] w-8 rounded-full bg-brand-300;
   }
 
   .section-heading {
-    @apply font-display text-[1.9rem] leading-[1.08] text-ink-950 sm:text-4xl;
+    @apply font-display text-[2rem] leading-[1.03] text-ink-950 sm:text-[2.55rem];
   }
 
   .supporting-copy {
     color: var(--page-muted);
-    @apply text-sm leading-7 sm:text-[0.975rem];
+    @apply text-[0.95rem] leading-7 sm:text-base;
   }
 
   .primary-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition duration-200;
-    box-shadow: 0 14px 26px -16px rgba(11, 33, 28, 0.7);
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-ink-950 px-5 py-3 text-sm font-semibold text-white transition duration-300;
+    box-shadow: 0 18px 36px -22px rgba(11, 33, 28, 0.85);
   }
 
   .primary-button:hover {
@@ -94,31 +132,61 @@ body {
     @apply translate-y-0;
   }
 
+  .secondary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-paper-200 bg-white/90 px-5 py-3 text-sm font-semibold text-ink-900 shadow-sm transition duration-300;
+  }
+
+  .secondary-button:hover {
+    @apply -translate-y-0.5 border-brand-200 bg-brand-50/70 text-brand-800;
+  }
+
   .soft-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-paper-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink-800 shadow-sm transition duration-200;
+    @apply inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-2xl border border-paper-200/90 bg-white/90 px-4 py-2.5 text-sm font-semibold text-ink-800 shadow-sm transition duration-300 backdrop-blur-sm;
   }
 
   .soft-button:hover {
-    @apply -translate-y-0.5 border-brand-200 bg-brand-50 text-brand-800;
+    @apply -translate-y-0.5 border-brand-200 bg-brand-50/80 text-brand-800;
   }
 
   .metric-card {
-    @apply rounded-2xl border border-paper-200 bg-white p-4 shadow-card;
+    @apply rounded-[1.4rem] border border-paper-200/80 bg-white/94 p-4 shadow-card;
   }
 
-  /* A thin clinical hairline used to separate stacked content. */
-  .hairline {
-    @apply border-paper-200;
+  .field-shell {
+    @apply rounded-[1.15rem] border border-paper-200/90 bg-white/90 shadow-card backdrop-blur-sm transition duration-200;
+  }
+
+  .field-shell:hover {
+    @apply border-brand-200;
+  }
+
+  .status-chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-paper-200 bg-paper-50/80 px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.16em] text-ink-700/75;
+  }
+
+  .state-card {
+    @apply rounded-[1.5rem] border border-dashed border-paper-200 bg-paper-50/70 p-6 text-sm text-ink-700/80;
   }
 
   .animate-rise {
-    animation: theme('animation.rise');
+    animation: rise 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
   }
 
-  /* Staggered reveal: set --reveal-delay inline per item. */
   .reveal {
-    animation: theme('animation.rise');
+    animation: rise 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
     animation-delay: var(--reveal-delay, 0ms);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

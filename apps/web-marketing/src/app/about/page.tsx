@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { SectionTitle } from '@/components/SectionTitle';
+import { StoreLink } from '@/components/StoreLink';
 import { principles } from '@/lib/content';
-import { STORE_URL } from '@/lib/config';
 
 export const metadata: Metadata = {
   title: 'About',
@@ -81,9 +81,9 @@ export default function AboutPage() {
           <div className="eyebrow">Next step</div>
           <h2 className="mt-2 font-display text-3xl text-ink-900">See the store behind the story.</h2>
         </div>
-        <a href={STORE_URL} className="cta-primary">
+        <StoreLink source="about-next-step" className="cta-primary">
           Open the storefront
-        </a>
+        </StoreLink>
       </section>
     </div>
   );

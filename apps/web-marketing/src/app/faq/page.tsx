@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { faqs } from '@/lib/content';
+import { faqJsonLd } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'FAQ',
@@ -9,6 +10,11 @@ export const metadata: Metadata = {
 export default function FaqPage() {
   return (
     <div className="space-y-16 pb-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd(faqs)) }}
+      />
+
       <section className="hero-shell p-8 sm:p-10 lg:p-12">
         <div className="eyebrow">Frequently asked questions</div>
         <h1 className="mt-4 max-w-3xl font-display text-5xl leading-none text-ink-900 sm:text-6xl">

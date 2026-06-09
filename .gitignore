@@ -34,3 +34,7 @@ coverage/
 
 # local data volumes
 .docker-data/
+apps/web-marketing/.env.example
+apps/web-marketing/.env.example
+apps/web-marketing/.env.example
+apps/web-marketing/.env.example

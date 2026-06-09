@@ -15,11 +15,11 @@ export function BranchSelector({
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="relative min-w-[14rem]">
+    <div className="relative min-w-[15rem]" aria-busy={pending}>
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
-        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-700"
+        className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-700"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"
@@ -27,6 +27,9 @@ export function BranchSelector({
         <path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11Z" />
         <circle cx="12" cy="10" r="2.5" />
       </svg>
+      <span className="pointer-events-none absolute left-11 top-2.5 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-ink-700/52">
+        Branch
+      </span>
       <select
         aria-label="Select branch"
         defaultValue={selectedId}
@@ -39,7 +42,7 @@ export function BranchSelector({
           });
           startTransition(() => router.refresh());
         }}
-        className="w-full cursor-pointer appearance-none rounded-xl border border-paper-200 bg-white py-2.5 pl-10 pr-9 text-sm font-medium text-ink-800 shadow-sm outline-none transition hover:border-brand-200 focus:border-brand-400 disabled:cursor-not-allowed disabled:opacity-60"
+        className="field-shell h-14 w-full cursor-pointer appearance-none bg-white py-1.5 pl-11 pr-10 pt-5 text-sm font-semibold text-ink-900 outline-none disabled:cursor-not-allowed disabled:opacity-60"
       >
         {branches.length === 0 && <option>No branches</option>}
         {branches.map((b) => (
@@ -48,6 +51,9 @@ export function BranchSelector({
           </option>
         ))}
       </select>
+      {pending ? (
+        <span className="pointer-events-none absolute right-10 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-brand-500 animate-pulse" />
+      ) : null}
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
