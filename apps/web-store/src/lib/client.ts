@@ -19,7 +19,7 @@ export function useMe() {
     queryKey: ['me'],
     queryFn: async () => {
       const res = await fetch('/api/me');
-      if (res.status === 401 || res.status === 403) return null;
+      if (!res.ok) return null;
       return asJson<MeResponse>(res);
     },
   });
@@ -30,7 +30,7 @@ export function useCart() {
     queryKey: ['cart'],
     queryFn: async () => {
       const res = await fetch('/api/cart');
-      if (res.status === 401 || res.status === 403) return null;
+      if (!res.ok) return null;
       return asJson<CartDto>(res);
     },
   });

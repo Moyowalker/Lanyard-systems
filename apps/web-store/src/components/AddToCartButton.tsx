@@ -15,17 +15,16 @@ export function AddToCartButton({
   const add = useAddToCart();
   const router = useRouter();
 
-  const isUnavailable = disabled || !branchId;
   const isPending = add.isPending;
   const isSuccess = add.isSuccess;
   const isError = add.isError;
 
   if (!branchId) {
     return (
-      <div className="space-y-2">
+      <div className="rounded-[1.3rem] border border-dashed border-paper-200 bg-paper-50/75 p-3">
         <button
           disabled
-          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-paper-200 bg-paper-100 px-4 py-3 text-sm font-semibold text-ink-700/45"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-[1rem] border border-paper-200 bg-paper-100 px-4 py-3 text-sm font-semibold text-ink-700/45"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
             <path
@@ -35,14 +34,16 @@ export function AddToCartButton({
             />
             <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.8" />
           </svg>
-          Select a branch to continue
+          Select a branch first
         </button>
-        <p className="px-1 text-xs leading-5 text-ink-700/62">
+        <p className="mt-2 px-1 text-xs leading-5 text-ink-700/62">
           Branch selection keeps pricing, stock, and fulfilment promises accurate.
         </p>
       </div>
     );
   }
+
+  const isUnavailable = Boolean(disabled);
 
   const label = isPending
     ? 'Adding to cart'
@@ -50,11 +51,22 @@ export function AddToCartButton({
       ? 'Added to cart'
       : isError
         ? 'Try again'
-        : 'Add to cart';
+        : isUnavailable
+          ? 'Unavailable right now'
+          : 'Add to cart';
+
+  const helperText = isError
+    ? 'We could not add this item right now. Try again or refresh your session.'
+    : isSuccess
+      ? 'Added to your cart and ready for checkout.'
+      : isUnavailable
+        ? 'Availability or pricing is not ready for checkout at this branch.'
+        : 'Branch context keeps pricing, stock, and fulfilment accurate.';
 
   return (
     <div className="space-y-2">
       <button
+        type="button"
         onClick={() =>
           add.mutate(
             { branchId, productId, quantity: 1 },
@@ -67,12 +79,14 @@ export function AddToCartButton({
         }
         aria-live="polite"
         disabled={isUnavailable || isPending}
-        className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition duration-300 disabled:cursor-not-allowed disabled:opacity-50 ${
+        className={`inline-flex w-full items-center justify-center gap-2 rounded-[1.05rem] px-4 py-3.5 text-sm font-semibold transition duration-300 disabled:cursor-not-allowed disabled:opacity-55 ${
           isSuccess
             ? 'bg-brand-600 text-white shadow-[0_18px_30px_-22px_rgba(11,33,28,0.8)]'
             : isError
               ? 'border border-rose-200 bg-rose-50 text-rose-700 hover:-translate-y-0.5 hover:bg-rose-100'
-              : 'bg-ink-950 text-white shadow-[0_18px_30px_-22px_rgba(11,33,28,0.9)] hover:-translate-y-0.5 hover:bg-brand-800'
+              : isUnavailable
+                ? 'border border-paper-200 bg-paper-100 text-ink-700/45'
+                : 'bg-ink-950 text-white shadow-[0_18px_30px_-22px_rgba(11,33,28,0.9)] hover:-translate-y-0.5 hover:bg-brand-800'
         }`}
       >
         {isPending ? (
@@ -108,11 +122,13 @@ export function AddToCartButton({
         )}
         <span>{label}</span>
       </button>
-      {isError ? (
-        <p className="px-1 text-xs leading-5 text-rose-700">
-          We could not add this item right now. Try again or refresh your session.
-        </p>
-      ) : null}
+      <p
+        aria-live="polite"
+        role="status"
+        className={`px-1 text-xs leading-5 ${isError ? 'text-rose-700' : 'text-ink-700/62'}`}
+      >
+        {helperText}
+      </p>
     </div>
   );
 }

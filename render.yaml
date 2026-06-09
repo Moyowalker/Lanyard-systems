@@ -1,0 +1,191 @@
+previews:
+  generation: off
+
+services:
+  - type: keyvalue
+    name: lanyard-redis
+    plan: starter
+    region: frankfurt
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+
+  - type: web
+    name: lanyard-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    autoDeployTrigger: commit
+    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/api build
+    startCommand: corepack pnpm --filter @lanyard/api start
+    healthCheckPath: /api/v1/health/ready
+    buildFilter:
+      paths:
+        - "apps/api/**"
+        - "packages/contracts/**"
+        - "package.json"
+        - "pnpm-lock.yaml"
+        - "pnpm-workspace.yaml"
+        - "tsconfig.base.json"
+        - "turbo.json"
+        - "render.yaml"
+    envVars:
+      - key: NODE_ENV
+        value: development
+      - key: API_GLOBAL_PREFIX
+        value: api/v1
+      - key: CORS_ORIGINS
+        value: https://lanyard-web-store.onrender.com,https://lanyard-web-admin.onrender.com,https://lanyard-web-marketing.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: lanyard-redis
+          type: keyvalue
+          property: connectionString
+
+  - type: worker
+    name: lanyard-api-worker
+    runtime: node
+    plan: starter
+    region: frankfurt
+    autoDeployTrigger: commit
+    maxShutdownDelaySeconds: 120
+    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/api build
+    startCommand: corepack pnpm --filter @lanyard/api start:worker
+    buildFilter:
+      paths:
+        - "apps/api/**"
+        - "packages/contracts/**"
+        - "package.json"
+        - "pnpm-lock.yaml"
+        - "pnpm-workspace.yaml"
+        - "tsconfig.base.json"
+        - "turbo.json"
+        - "render.yaml"
+    envVars:
+      - key: NODE_ENV
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: NODE_ENV
+      - key: API_GLOBAL_PREFIX
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: API_GLOBAL_PREFIX
+      - key: JWT_SECRET
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: JWT_SECRET
+      - key: MONGODB_URI
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: MONGODB_URI
+      - key: REDIS_URL
+        fromService:
+          name: lanyard-redis
+          type: keyvalue
+          property: connectionString
+
+  - type: web
+    name: lanyard-web-store
+    runtime: node
+    plan: free
+    region: frankfurt
+    autoDeployTrigger: commit
+    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/web-store build
+    startCommand: corepack pnpm --filter @lanyard/web-store start
+    buildFilter:
+      paths:
+        - "apps/web-store/**"
+        - "packages/contracts/**"
+        - "scripts/start-next.mjs"
+        - "package.json"
+        - "pnpm-lock.yaml"
+        - "pnpm-workspace.yaml"
+        - "tsconfig.base.json"
+        - "turbo.json"
+        - "render.yaml"
+    envVars:
+      - key: API_HOSTPORT
+        fromService:
+          name: lanyard-api
+          type: web
+          property: hostport
+      - key: API_GLOBAL_PREFIX
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: API_GLOBAL_PREFIX
+
+  - type: web
+    name: lanyard-web-admin
+    runtime: node
+    plan: free
+    region: frankfurt
+    autoDeployTrigger: commit
+    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/web-admin build
+    startCommand: corepack pnpm --filter @lanyard/web-admin start
+    buildFilter:
+      paths:
+        - "apps/web-admin/**"
+        - "packages/contracts/**"
+        - "scripts/start-next.mjs"
+        - "package.json"
+        - "pnpm-lock.yaml"
+        - "pnpm-workspace.yaml"
+        - "tsconfig.base.json"
+        - "turbo.json"
+        - "render.yaml"
+    envVars:
+      - key: API_HOSTPORT
+        fromService:
+          name: lanyard-api
+          type: web
+          property: hostport
+      - key: API_GLOBAL_PREFIX
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: API_GLOBAL_PREFIX
+
+  - type: web
+    name: lanyard-web-marketing
+    runtime: node
+    plan: free
+    region: frankfurt
+    autoDeployTrigger: commit
+    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/web-marketing build
+    startCommand: corepack pnpm --filter @lanyard/web-marketing start
+    buildFilter:
+      paths:
+        - "apps/web-marketing/**"
+        - "packages/contracts/**"
+        - "scripts/start-next.mjs"
+        - "package.json"
+        - "pnpm-lock.yaml"
+        - "pnpm-workspace.yaml"
+        - "tsconfig.base.json"
+        - "turbo.json"
+        - "render.yaml"
+    envVars:
+      - key: API_HOSTPORT
+        fromService:
+          name: lanyard-api
+          type: web
+          property: hostport
+      - key: API_GLOBAL_PREFIX
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: API_GLOBAL_PREFIX
+      - key: STORE_URL
+        value: https://lanyard-web-store.onrender.com
+      - key: SITE_URL
+        value: https://lanyard-web-marketing.onrender.com
+      - key: NEXT_PUBLIC_GA_ID
+        sync: false

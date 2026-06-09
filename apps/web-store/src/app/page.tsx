@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import type { CategoryDto, Paginated, ProductListItemDto } from '@lanyard/contracts';
-import { apiFetch } from '@/lib/api';
+import { apiTry } from '@/lib/api';
 import { listBranches, resolveBranch } from '@/lib/branch';
 import { COOKIE } from '@/lib/config';
 import { ProductCard } from '@/components/ProductCard';
@@ -57,6 +57,24 @@ const careSignals = [
   },
 ];
 
+const trustMoments = [
+  {
+    label: 'Prescription lane',
+    title: 'Controlled review where it matters.',
+    body: 'Prescription-only medicines remain behind pharmacist checks without making OTC discovery feel heavy.',
+  },
+  {
+    label: 'Branch truth',
+    title: 'Availability that matches the branch you choose.',
+    body: 'Pricing, stock, pickup timing, and delivery confidence stay tied to a real operational context.',
+  },
+  {
+    label: 'Modern checkout',
+    title: 'A cleaner route from search to fulfilment.',
+    body: 'Patients can move quickly when they should and slow down only where safety and verification demand it.',
+  },
+];
+
 const assurances = ['Licensed pharmacists', 'NAFDAC-registered medicines', 'Branch-aware stock'];
 
 function CheckIcon({ className }: { className?: string }) {
@@ -93,58 +111,87 @@ export default async function HomePage() {
   const selected = resolveBranch(branches, (await cookies()).get(COOKIE.branch)?.value);
   const branchQuery = selected ? `?branchId=${selected.id}` : '';
 
-  const [products, categories] = await Promise.all([
-    apiFetch<Paginated<ProductListItemDto>>(`/catalog/products${branchQuery}`),
-    apiFetch<{ data: CategoryDto[] }>(`/catalog/categories`),
+  const [productsResponse, categoriesResponse] = await Promise.all([
+    apiTry<Paginated<ProductListItemDto>>(`/catalog/products${branchQuery}`),
+    apiTry<{ data: CategoryDto[] }>(`/catalog/categories`),
   ]);
 
+  const products = productsResponse?.data ?? [];
+  const categories = categoriesResponse?.data ?? [];
+  const productsUnavailable = productsResponse == null;
+  const categoriesUnavailable = categoriesResponse == null;
+  const storefrontUnavailable = productsUnavailable || categoriesUnavailable;
+
   const trustStats = [
-    { value: `${Math.max(products.data.length, 1)}+`, label: 'Live catalogue picks' },
-    { value: `${Math.max(categories.data.length, 1)}`, label: 'Care categories' },
-    { value: `${Math.max(branches.length, 1)}`, label: 'Branch locations' },
+    {
+      value: productsUnavailable ? 'Live' : `${products.length}`,
+      label: productsUnavailable ? 'Catalogue reconnecting' : 'Live catalogue picks',
+    },
+    {
+      value: categoriesUnavailable ? 'Sync' : `${categories.length}`,
+      label: categoriesUnavailable ? 'Categories reconnecting' : 'Care categories',
+    },
+    { value: `${branches.length}`, label: 'Branch locations' },
   ];
-  const featuredCategories = categories.data.slice(0, 6);
+  const featuredCategories = categories.slice(0, 6);
   const branchSummary = selected
     ? `${selected.address.line1}, ${selected.address.city}. Pricing, stock, and fulfilment promises are now shaped by this branch.`
     : 'Choose a branch from the header to unlock local pricing, availability, and more reliable delivery or pickup expectations.';
 
   return (
-    <div className="space-y-10 pb-8 sm:space-y-16 sm:pb-12">
-      <section className="animate-rise grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-        <div className="surface-panel px-6 py-8 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
-          <div className="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(90%_80%_at_10%_0%,rgba(56,130,107,0.15),transparent_68%)]" />
+    <div className="space-y-10 pb-10 sm:space-y-16 sm:pb-14">
+      <section className="animate-rise grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]">
+        <div className="surface-panel px-6 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-11">
+          <div className="absolute inset-x-0 top-0 h-56 bg-[radial-gradient(90%_90%_at_8%_0%,rgba(29,106,86,0.18),transparent_70%)]" />
           <div className="relative">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="eyebrow-chip">Launch-ready digital pharmacy</span>
-              <span className="status-chip">Branch-aware fulfilment</span>
+              <span className="eyebrow-chip">Premium digital pharmacy</span>
+              <span className="status-chip">Built for safe fulfilment</span>
+              <span className="status-chip">Designed for public launch</span>
             </div>
 
-            <h1 className="mt-5 max-w-3xl font-display text-[2.75rem] font-medium leading-[0.98] text-ink-950 sm:text-[3.4rem] lg:text-[4.25rem]">
-              A premium pharmacy experience that makes safety, speed, and expertise feel obvious.
+            <h1 className="mt-6 max-w-4xl font-display text-[2.9rem] font-medium leading-[0.96] text-ink-950 sm:text-[3.5rem] lg:text-[4.45rem]">
+              Trusted pharmacy care, designed like a premium product and backed by real branch operations.
             </h1>
 
-            <p className="supporting-copy mt-5 max-w-2xl text-base sm:text-lg">
-              Lanyard combines medicine discovery, prescription control, and branch-aware
-              fulfilment in one calm customer journey that feels professional from first search to
-              checkout.
+            <p className="supporting-copy mt-6 max-w-2xl text-base sm:text-lg">
+              Lanyard brings medicine discovery, prescription safeguards, and branch-aware fulfilment into one polished patient journey that feels clinical, modern, and dependable.
               {selected
-                ? ` Today you are browsing against ${selected.name}, ${selected.address.city}.`
-                : ' Select a preferred branch to see accurate local stock and more dependable fulfilment options.'}
+                ? ` You are currently browsing against ${selected.name}, ${selected.address.city}.`
+                : ' Choose a preferred branch to see local pricing, live availability, and more dependable fulfilment options.'}
             </p>
 
-            <div className="mt-7 flex flex-wrap gap-3">
+            {storefrontUnavailable ? (
+              <div className="surface-quiet mt-6 px-4 py-4 sm:px-5">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-[1rem] bg-brand-100 text-brand-800">
+                    <CheckIcon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <div className="text-sm font-semibold text-ink-950">
+                      Live catalogue data is temporarily unavailable.
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-ink-700/80">
+                      The storefront shell is still available while we reconnect to the product and category services. Branch context, care guidance, and browsing structure remain visible.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-8 flex flex-wrap gap-3">
               <Link href="#catalog" className="primary-button">
-                Browse medicines
+                Shop medicines
                 <ArrowIcon className="h-4 w-4" />
               </Link>
               <Link href="#how-it-works" className="secondary-button">
-                How ordering works
+                See how ordering works
               </Link>
             </div>
 
             <ul className="mt-8 grid gap-3 sm:grid-cols-3">
               {assurances.map((assurance) => (
-                <li key={assurance} className="surface-quiet flex items-center gap-3 px-4 py-3 text-sm text-ink-800">
+                <li key={assurance} className="surface-quiet flex items-center gap-3 px-4 py-4 text-sm text-ink-800">
                   <CheckIcon className="h-[18px] w-[18px] text-brand-700" />
                   <span className="font-medium">{assurance}</span>
                 </li>
@@ -154,7 +201,7 @@ export default async function HomePage() {
             <dl className="mt-8 grid gap-3 sm:grid-cols-3">
               {trustStats.map((stat) => (
                 <div key={stat.label} className="metric-card">
-                  <dt className="tnum font-display text-[2rem] leading-none text-ink-950">
+                  <dt className="tnum font-display text-[2.1rem] leading-none text-ink-950">
                     {stat.value}
                   </dt>
                   <dd className="mt-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-ink-700/62">
@@ -166,31 +213,44 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="surface-panel bg-ink-950 px-6 py-7 text-white shadow-lift sm:px-7 sm:py-8">
-            <div className="absolute inset-x-0 -top-24 h-60 bg-[radial-gradient(60%_100%_at_70%_0%,rgba(56,130,107,0.45),transparent_70%)]" />
+        <div className="grid gap-4">
+          <div className="surface-panel-dark px-6 py-7 sm:px-7 sm:py-8">
+            <div className="absolute inset-x-0 -top-24 h-60 bg-[radial-gradient(60%_100%_at_72%_0%,rgba(61,161,126,0.38),transparent_70%)]" />
             <div className="relative">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-brand-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-brand-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-seal-300" />
-                Care standard
+                Operational trust
               </div>
-              <h2 className="mt-5 font-display text-[2rem] leading-[1.06] text-white">
-                Trust signals stay visible from search to fulfilment.
+              <h2 className="mt-5 font-display text-[2.05rem] leading-[1.05] text-white">
+                See the branch, the care lane, and the fulfilment context before checkout.
               </h2>
-              <p className="mt-4 text-sm leading-7 text-white/68">
-                Prescription medicines remain controlled through pharmacist review, while branch
-                context keeps availability and delivery promises honest before payment.
+              <p className="mt-4 text-sm leading-7 text-white/72">
+                Lanyard keeps prescription review visible and keeps branch pricing honest, so the platform feels safer than generic ecommerce from the first interaction.
               </p>
 
-              <div className="mt-6 rounded-[1.4rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur-sm">
+              <div className="mt-6 rounded-[1.55rem] border border-white/10 bg-white/[0.07] p-5 backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-brand-200">
                   <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
                   Active branch context
                 </div>
-                <div className="mt-3 font-display text-xl text-white">
+                <div className="mt-3 font-display text-[1.35rem] text-white">
                   {selected ? selected.name : 'Choose the branch closest to you'}
                 </div>
-                <p className="mt-2 text-sm leading-6 text-white/62">{branchSummary}</p>
+                <p className="mt-2 text-sm leading-6 text-white/68">{branchSummary}</p>
+              </div>
+
+              <div className="mt-6 grid gap-3 md:grid-cols-3 xl:grid-cols-1">
+                {trustMoments.map((moment) => (
+                  <article key={moment.title} className="rounded-[1.4rem] border border-white/10 bg-white/[0.06] p-4 backdrop-blur-sm">
+                    <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-brand-200">
+                      {moment.label}
+                    </div>
+                    <h3 className="mt-3 font-display text-[1.3rem] leading-tight text-white">
+                      {moment.title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-white/68">{moment.body}</p>
+                  </article>
+                ))}
               </div>
             </div>
           </div>
@@ -201,7 +261,7 @@ export default async function HomePage() {
               {careSignals.map((signal, index) => (
                 <div key={signal.title} className="surface-quiet px-4 py-4">
                   <div className="flex items-start gap-3">
-                    <span className="tnum flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-100 font-display text-base text-brand-800">
+                    <span className="tnum flex h-10 w-10 items-center justify-center rounded-[1rem] bg-brand-100 font-display text-base text-brand-800">
                       {index + 1}
                     </span>
                     <div>
@@ -230,22 +290,21 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section id="categories" className="grid gap-6 xl:grid-cols-[0.78fr_1.22fr]">
+      <section id="categories" className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
         <div className="surface-panel px-6 py-8 sm:px-8">
-          <div className="section-kicker">Why Lanyard feels different</div>
+          <div className="section-kicker">Why Lanyard stands out</div>
           <h2 className="section-heading mt-4">
-            Digital pharmacy design with the discipline of real dispensing workflows.
+            Pharmacy-grade trust signals, expressed with the composure of a premium product.
           </h2>
           <p className="supporting-copy mt-4">
-            Every major cue in the experience should reduce uncertainty: where stock lives, what
-            requires review, and how quickly a patient can move to fulfilment.
+            Every major cue in the experience should reduce uncertainty: what requires review, where stock lives, and how quickly a patient can move into fulfilment.
           </p>
 
           <div className="mt-7 space-y-3">
             {carePillars.map((pillar, index) => (
               <div key={pillar.title} className="surface-quiet px-4 py-4">
                 <div className="flex gap-4">
-                  <div className="tnum flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-brand-100 font-display text-base text-brand-800">
+                  <div className="tnum flex h-10 w-10 flex-none items-center justify-center rounded-[1rem] bg-brand-100 font-display text-base text-brand-800">
                     {index + 1}
                   </div>
                   <div>
@@ -259,36 +318,36 @@ export default async function HomePage() {
         </div>
 
         <div className="grid content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {categories.data.length > 0 ? (
-            categories.data.map((category, index) => (
+          {categories.length > 0 ? (
+            categories.map((category, index) => (
               <Link
                 key={category.id}
                 href={`/category/${category.slug}`}
-                className="group surface-panel flex min-h-[15rem] flex-col justify-between px-5 py-6 transition duration-300 hover:-translate-y-1 hover:border-brand-200 hover:shadow-lift"
+                className="group surface-panel flex min-h-[16rem] flex-col justify-between px-5 py-6 transition duration-300 hover:-translate-y-1.5 hover:border-brand-200 hover:shadow-lift"
               >
                 <div>
                   <div className="tnum text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-ink-700/45">
                     {String(index + 1).padStart(2, '0')}
                   </div>
-                  <h3 className="mt-4 font-display text-[1.85rem] leading-[1.05] text-ink-950 transition group-hover:text-brand-800">
+                  <h3 className="mt-4 font-display text-[1.9rem] leading-[1.04] text-ink-950 transition group-hover:text-brand-800">
                     {category.name}
                   </h3>
                   <p className="mt-3 text-sm leading-6 text-ink-700/75">
-                    Browse clinically organised products with clearer prescription and fulfilment
-                    cues from the first click.
+                    Browse clinically organised medicines with clearer prescription cues, tighter product framing, and calmer discovery flows.
                   </p>
                 </div>
 
                 <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700">
-                  Explore category
+                  Open category
                   <ArrowIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />
                 </span>
               </Link>
             ))
           ) : (
             <div className="state-card sm:col-span-2 xl:col-span-3">
-              Categories will appear here once catalogue groupings are available for the selected
-              branch.
+              {categoriesUnavailable
+                ? 'Category browsing is temporarily unavailable while the storefront reconnects to the live catalogue service.'
+                : 'Categories will appear here once catalogue groupings are available for the selected branch.'}
             </div>
           )}
         </div>
@@ -301,8 +360,7 @@ export default async function HomePage() {
             A calmer patient flow, with the right amount of professional friction.
           </h2>
           <p className="supporting-copy mt-4">
-            The journey stays fast for everyday needs and deliberate where regulation or clinical
-            review matters, so the experience feels premium without becoming loose.
+            The journey stays fast for everyday needs and deliberate where regulation or clinical review matters, so the experience feels premium without becoming loose.
           </p>
         </div>
 
@@ -310,7 +368,7 @@ export default async function HomePage() {
           {careJourney.map((item, index) => (
             <article key={item.step} className="surface-quiet px-5 py-5">
               <div className="flex items-center gap-3">
-                <span className="tnum flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-100 font-display text-lg text-brand-800">
+                <span className="tnum flex h-11 w-11 items-center justify-center rounded-[1rem] bg-brand-100 font-display text-lg text-brand-800">
                   {item.step}
                 </span>
                 <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-ink-700/55">
@@ -321,7 +379,7 @@ export default async function HomePage() {
                       : 'Verified fulfilment'}
                 </span>
               </div>
-              <h3 className="mt-5 font-display text-[1.4rem] leading-tight text-ink-950">
+              <h3 className="mt-5 font-display text-[1.45rem] leading-tight text-ink-950">
                 {item.title}
               </h3>
               <p className="mt-2.5 text-sm leading-6 text-ink-700/80">{item.body}</p>
@@ -330,7 +388,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section id="catalog" className="grid gap-6 xl:grid-cols-[minmax(270px,0.36fr)_minmax(0,0.64fr)]">
+      <section id="catalog" className="grid gap-6 xl:grid-cols-[minmax(300px,0.38fr)_minmax(0,0.62fr)]">
         <div className="space-y-4 xl:sticky xl:top-28 xl:self-start">
           <div className="surface-panel px-6 py-8 sm:px-7">
             <div className="section-kicker">Medicine discovery</div>
@@ -338,11 +396,10 @@ export default async function HomePage() {
               {selected ? `Catalogue for ${selected.name}` : 'Start with the medicines you need most'}
             </h2>
             <p className="supporting-copy mt-4">
-              Search, compare, and add with clearer stock, prescription, and pricing cues. The
-              storefront stays grounded in branch reality so checkout feels dependable.
+              Search, compare, and add with clearer stock, prescription, and pricing cues. The storefront stays grounded in branch reality so checkout feels dependable.
             </p>
 
-            <div className="mt-6 rounded-[1.35rem] border border-paper-200 bg-paper-50/80 p-4">
+            <div className="mt-6 rounded-[1.45rem] border border-paper-200 bg-paper-50/85 p-4">
               <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-brand-700">
                 Current fulfilment context
               </div>
@@ -369,14 +426,13 @@ export default async function HomePage() {
 
           <div className="state-card">
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-100 text-brand-800">
+              <span className="flex h-10 w-10 items-center justify-center rounded-[1rem] bg-brand-100 text-brand-800">
                 <CheckIcon className="h-5 w-5" />
               </span>
               <div>
                 <div className="text-sm font-semibold text-ink-950">Designed for repeat care</div>
                 <p className="mt-1 text-sm leading-6 text-ink-700/80">
-                  Orders, branch context, and prescription status stay legible instead of getting
-                  lost inside generic ecommerce chrome.
+                  Orders, branch context, and prescription status stay legible instead of getting lost inside generic ecommerce chrome.
                 </p>
               </div>
             </div>
@@ -391,17 +447,38 @@ export default async function HomePage() {
                 {selected ? `Available at ${selected.name}` : 'Explore available medicines'}
               </h2>
               <p className="supporting-copy mt-3 max-w-2xl">
-                Product cards now surface prescription cues, pricing, and fulfilment readiness in a
-                clearer hierarchy built for public launch review.
+                Product cards surface prescription cues, pricing, and fulfilment readiness in a clearer hierarchy built for launch review.
               </p>
             </div>
             <div className="tnum inline-flex items-center gap-2 self-start rounded-full border border-paper-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ink-700/70 shadow-card sm:self-auto">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-              {products.data.length} items visible
+              {productsUnavailable ? 'Live catalogue unavailable' : `${products.length} items visible`}
             </div>
           </div>
 
-          {products.data.length === 0 ? (
+          {productsUnavailable ? (
+            <div className="state-card flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-brand-100 text-brand-800">
+                <CheckIcon className="h-6 w-6" />
+              </span>
+              <div>
+                <div className="font-display text-2xl text-ink-950">Live catalogue is temporarily unavailable.</div>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-ink-700/80">
+                  We could not reach the product service right now, so medicine cards are temporarily hidden instead of failing the entire homepage.
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-3">
+                {categories.length > 0 ? (
+                  <Link href="#categories" className="secondary-button">
+                    Explore categories
+                  </Link>
+                ) : null}
+                <Link href="#how-it-works" className="secondary-button">
+                  Review care flow
+                </Link>
+              </div>
+            </div>
+          ) : products.length === 0 ? (
             <div className="state-card flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
               <span className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-brand-100 text-brand-800">
                 <CheckIcon className="h-6 w-6" />
@@ -409,8 +486,7 @@ export default async function HomePage() {
               <div>
                 <div className="font-display text-2xl text-ink-950">No medicines are visible yet.</div>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-ink-700/80">
-                  This branch does not currently expose a storefront catalogue. Choose another branch
-                  above or explore category browsing while the inventory becomes available.
+                  This branch does not currently expose a storefront catalogue. Choose another branch above or explore category browsing while the inventory becomes available.
                 </p>
               </div>
               <Link href="#categories" className="secondary-button">
@@ -419,7 +495,7 @@ export default async function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {products.data.map((product, index) => (
+              {products.map((product, index) => (
                 <div
                   key={product.id}
                   className="reveal h-full"
@@ -433,36 +509,28 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="surface-panel overflow-hidden bg-ink-950 px-6 py-8 text-white shadow-lift sm:px-8 sm:py-10">
-        <div className="absolute inset-0 bg-[linear-gradient(135deg,#081512_0%,#123128_62%,#173830_100%)]" />
-        <div className="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(55%_100%_at_15%_0%,rgba(216,184,108,0.2),transparent_72%)]" />
+      <section className="surface-panel-dark px-6 py-8 sm:px-8 sm:py-10">
+        <div className="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(55%_100%_at_15%_0%,rgba(216,184,108,0.18),transparent_72%)]" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-brand-200">
               <span className="h-[2px] w-8 rounded-full bg-brand-300/60" />
               Premium pharmacy, not generic ecommerce
             </div>
-            <h2 className="mt-5 font-display text-[2.3rem] leading-[1.02] text-white sm:text-[2.9rem]">
+            <h2 className="mt-5 font-display text-[2.35rem] leading-[1.02] text-white sm:text-[2.95rem]">
               Make trust visible before the patient ever reaches checkout.
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/75">
-              A modern digital pharmacy should reassure, guide, and convert without hiding the
-              clinical safeguards underneath. That is the tone this storefront now sets.
+              A modern digital pharmacy should reassure, guide, and convert without hiding the clinical safeguards underneath. That is the tone this storefront now sets.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
-              href="#catalog"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink-950 transition duration-300 hover:-translate-y-0.5 hover:bg-paper-100"
-            >
+            <Link href="#catalog" className="inline-flex items-center justify-center gap-2 rounded-[1.15rem] bg-white px-5 py-3.5 text-sm font-semibold text-ink-950 transition duration-300 hover:-translate-y-0.5 hover:bg-paper-100">
               Browse medicines
               <ArrowIcon className="h-4 w-4" />
             </Link>
-            <Link
-              href="#categories"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition duration-300 hover:-translate-y-0.5 hover:bg-white/14"
-            >
+            <Link href="#categories" className="inline-flex items-center justify-center gap-2 rounded-[1.15rem] border border-white/15 bg-white/10 px-5 py-3.5 text-sm font-semibold text-white transition duration-300 hover:-translate-y-0.5 hover:bg-white/14">
               Explore categories
             </Link>
           </div>

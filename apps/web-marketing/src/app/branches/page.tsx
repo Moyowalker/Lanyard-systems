@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: 'Discover Lanyard branch locations and available fulfillment services.',
 };
 
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
 
 export default async function BranchesPage() {
   const { items: branches, isLive } = await getMarketingBranches();

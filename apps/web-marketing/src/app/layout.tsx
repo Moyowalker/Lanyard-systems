@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { MarketingAnalytics } from '@/components/MarketingAnalytics';
 import { SiteHeader } from '@/components/SiteHeader';
 import { SiteFooter } from '@/components/SiteFooter';
@@ -41,7 +41,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <MarketingAnalytics measurementId={GA_MEASUREMENT_ID || undefined} />
+        <Suspense fallback={null}>
+          <MarketingAnalytics measurementId={GA_MEASUREMENT_ID || undefined} />
+        </Suspense>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(marketingWebsiteJsonLd()) }}

@@ -10,7 +10,14 @@ export async function proxy(path: string, init: RequestInit = {}): Promise<Respo
   const headers = new Headers(init.headers);
   if (token) headers.set('authorization', `Bearer ${token}`);
   if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
-  return fetch(`${API_URL}${path}`, { ...init, headers, cache: 'no-store' });
+  try {
+    return await fetch(`${API_URL}${path}`, { ...init, headers, cache: 'no-store' });
+  } catch {
+    return new Response(JSON.stringify({ message: 'Upstream service unavailable' }), {
+      status: 503,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
 }
 
 /** Relay an upstream API Response back through the route handler unchanged. */

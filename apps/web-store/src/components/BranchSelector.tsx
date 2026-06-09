@@ -15,7 +15,7 @@ export function BranchSelector({
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="relative min-w-[15rem]" aria-busy={pending}>
+    <div className="relative min-w-[15.5rem]" aria-busy={pending}>
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
@@ -27,8 +27,8 @@ export function BranchSelector({
         <path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11Z" />
         <circle cx="12" cy="10" r="2.5" />
       </svg>
-      <span className="pointer-events-none absolute left-11 top-2.5 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-ink-700/52">
-        Branch
+      <span className="pointer-events-none absolute left-12 top-[0.78rem] text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-ink-700/52">
+        Branch context
       </span>
       <select
         aria-label="Select branch"
@@ -42,22 +42,22 @@ export function BranchSelector({
           });
           startTransition(() => router.refresh());
         }}
-        className="field-shell h-14 w-full cursor-pointer appearance-none bg-white py-1.5 pl-11 pr-10 pt-5 text-sm font-semibold text-ink-900 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        className="field-shell h-[4rem] w-full cursor-pointer appearance-none bg-white/[0.95] py-2 pl-12 pr-12 pt-5 text-sm font-semibold text-ink-950 outline-none disabled:cursor-not-allowed disabled:opacity-60"
       >
         {branches.length === 0 && <option>No branches</option>}
         {branches.map((b) => (
           <option key={b.id} value={b.id}>
-            {b.name} — {b.address.city}
+            {b.name} - {b.address.city}
           </option>
         ))}
       </select>
       {pending ? (
-        <span className="pointer-events-none absolute right-10 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-brand-500 animate-pulse" />
+        <span className="pointer-events-none absolute right-11 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-brand-500 animate-pulse" />
       ) : null}
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
-        className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-700/50"
+        className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-700/50"
         fill="none"
         stroke="currentColor"
         strokeWidth="2"

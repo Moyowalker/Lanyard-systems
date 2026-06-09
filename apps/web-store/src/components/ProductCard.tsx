@@ -9,8 +9,9 @@ function ProductMedia({ product }: { product: ProductListItemDto }) {
   const initial = product.name.trim().charAt(0).toUpperCase() || 'L';
 
   return (
-    <div className="relative aspect-[5/4] overflow-hidden rounded-[1.35rem] bg-[linear-gradient(180deg,#eef5f1_0%,#f7f5ef_100%)]">
-      <div className="absolute inset-0 bg-[radial-gradient(100%_90%_at_10%_0%,rgba(56,130,107,0.12),transparent_56%)]" />
+    <div className="relative aspect-[4/3] overflow-hidden rounded-[1.5rem] border border-white/60 bg-[linear-gradient(180deg,#eef7f3_0%,#f8f5ef_56%,#f1ede4_100%)]">
+      <div className="absolute inset-0 bg-[radial-gradient(110%_100%_at_0%_0%,rgba(29,106,86,0.18),transparent_58%)]" />
+      <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-ink-950/10 to-transparent" />
       {image ? (
         <img
           src={image}
@@ -73,20 +74,19 @@ export function ProductCard({
     : 'Standard checkout available';
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-[1.55rem] border border-paper-200/90 bg-white p-3 shadow-card transition duration-300 hover:-translate-y-1 hover:border-brand-200 hover:shadow-lift">
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-[1.72rem] border border-white/80 bg-white/[0.94] p-3 shadow-card transition duration-300 hover:-translate-y-1.5 hover:border-brand-200 hover:shadow-lift">
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-brand-200 to-transparent" />
       <div className="relative">
         <Link href={`/products/${product.slug}`} aria-label={product.name}>
           <ProductMedia product={product} />
         </Link>
-        <div className="absolute left-3 top-3 flex flex-col items-start gap-1.5">
+        <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
           {product.requiresPrescription && <RxBadge />}
-        </div>
-        <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2">
           <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.14em] ${
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.14em] backdrop-blur-sm ${
               outOfStock
-                ? 'bg-white/90 text-rose-700 shadow-sm'
-                : 'bg-brand-50/90 text-brand-800 shadow-sm'
+                ? 'border-rose-200 bg-white/[0.94] text-rose-700'
+                : 'border-brand-100 bg-white/[0.92] text-brand-800'
             }`}
           >
             <span
@@ -96,33 +96,28 @@ export function ProductCard({
             />
             {outOfStock ? 'Restocking' : 'Branch ready'}
           </span>
-          {hasDiscount ? (
-            <span className="rounded-full bg-ink-950 px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.12em] text-white shadow-sm">
-              Save {savingsPct}%
-            </span>
-          ) : null}
         </div>
-        {outOfStock ? (
-          <span className="absolute right-3 top-3 rounded-full border border-rose-200 bg-white/90 px-2.5 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.12em] text-rose-700 shadow-sm">
-            Out of stock
+        {hasDiscount ? (
+          <span className="absolute right-3 top-3 rounded-full bg-ink-950 px-3 py-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.12em] text-white shadow-sm">
+            Save {savingsPct}%
           </span>
         ) : null}
       </div>
 
-      <div className="flex flex-1 flex-col px-2 pb-1 pt-4">
+      <div className="flex flex-1 flex-col px-1 pb-1 pt-4">
         <div className="flex items-start gap-3">
           <Link href={`/products/${product.slug}`} className="flex-1">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-brand-700">
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-brand-700">
               {product.genericName ?? product.regulatoryClass}
             </p>
-            <h3 className="mt-1.5 line-clamp-2 font-display text-[1.32rem] leading-[1.1] text-ink-950 transition group-hover:text-brand-800">
+            <h3 className="mt-2 line-clamp-2 font-display text-[1.4rem] leading-[1.08] text-ink-950 transition group-hover:text-brand-800">
               {product.name}
             </h3>
           </Link>
           <Link
             href={`/products/${product.slug}`}
             aria-label={`View details for ${product.name}`}
-            className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-2xl border border-paper-200 bg-white text-ink-700 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 hover:text-brand-800"
+            className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-[1rem] border border-paper-200 bg-white text-ink-700 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 hover:text-brand-800"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
               <path
@@ -139,11 +134,11 @@ export function ProductCard({
         {meta ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-700/75">{meta}</p> : null}
 
         <div className="mt-4 flex flex-wrap gap-2 text-[0.72rem] font-medium">
-          <span className="inline-flex items-center gap-1 rounded-full bg-paper-100 px-2.5 py-1 text-ink-700/80">
+          <span className="inline-flex items-center gap-1 rounded-full bg-paper-100 px-3 py-1 text-ink-700/80">
             {product.regulatoryClass}
           </span>
           <span
-            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 ${
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 ${
               product.requiresPrescription
                 ? 'bg-brand-50 text-brand-800'
                 : 'bg-seal-100 text-ink-900'
@@ -153,11 +148,11 @@ export function ProductCard({
           </span>
         </div>
 
-        <div className="mt-4 rounded-[1.2rem] border border-paper-200 bg-paper-50/80 p-3.5">
+        <div className="mt-5 rounded-[1.3rem] border border-paper-200 bg-paper-50/[0.88] p-4">
           <div className="flex items-end justify-between gap-3">
             <div>
               <div className="flex flex-wrap items-baseline gap-2">
-                <span className="tnum font-display text-[1.58rem] leading-none text-ink-950">
+                <span className="tnum font-display text-[1.62rem] leading-none text-ink-950">
                   {priceKobo == null ? 'Pricing unavailable' : formatKobo(priceKobo)}
                 </span>
                 {hasDiscount ? (

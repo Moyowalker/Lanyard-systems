@@ -1,6 +1,6 @@
 # 11 - Backend Readiness and Render Deployment
 
-Last verified: 2026-06-07
+Last verified: 2026-06-09
 
 This note captures what was validated in the current backend, what still needs work
 before a public production launch, and the exact Swagger URL pattern to share once the
@@ -63,55 +63,92 @@ Recommended Render setup:
 
 - One Web Service for the HTTP API
 - One Background Worker for BullMQ processors
-- Managed MongoDB (for example MongoDB Atlas)
-- Managed Redis
-- S3-compatible object storage
-- SMTP relay and, if required, an SMS provider
+- One Render Key Value instance for Redis-compatible queues/cache
+- One Web Service each for `web-store`, `web-admin`, and `web-marketing`
+- External MongoDB replica set (for example MongoDB Atlas)
+- Optional S3-compatible object storage, SMTP relay, and SMS provider
 
-The repository already includes a container build path at
-`infra/docker/api.Dockerfile`.
+The repository now includes a Render Blueprint at `render.yaml` that wires up this
+shape for a first staging deploy.
 
-Suggested service commands:
+Important platform note:
 
-- Web service: `node dist/main.js`
-- Worker service: `node dist/worker.js`
+- Render does not provide managed MongoDB, and this app expects Mongo transactions.
+  Use a replica-set-backed MongoDB URI from Atlas or another external provider.
 
-Suggested health check path:
+The repository also still includes a container build path at
+`infra/docker/api.Dockerfile`, but the Blueprint currently uses Render's native Node
+runtime for the fastest first deploy.
 
-- `/api/v1/health/ready`
+Blueprint defaults worth knowing:
 
-If you change `API_GLOBAL_PREFIX`, update the health-check and Swagger paths to match.
+- API and worker start in `NODE_ENV=development` on purpose so the first staging deploy
+  does not block on Termii, SMTP, and Paystack production secrets.
+- The three Next.js apps now accept either `API_URL` or Render's internal
+  `API_HOSTPORT` + `API_GLOBAL_PREFIX` to reach the API over the private network.
+- The API health check remains `/api/v1/health/ready`.
+
+If you change `API_GLOBAL_PREFIX`, update the health-check, frontend env values, and
+Swagger paths to match.
 
 ## 4. Environment variables for Render
 
-Minimum boot-critical variables:
+Blueprint-provided values:
 
-- `NODE_ENV=production`
+- `JWT_SECRET` is generated automatically for the API service.
+- `REDIS_URL` is injected from the Render Key Value instance.
+- The Next.js apps receive `API_HOSTPORT` and `API_GLOBAL_PREFIX` for internal API
+  access.
+
+Values you must still set manually for a working Render environment:
+
 - `MONGODB_URI`
-- `JWT_SECRET`
 
-Strongly recommended for a useful staging or production deployment:
+Recommended additions once you move beyond a bare staging deploy:
 
-- `API_GLOBAL_PREFIX` (default is `api/v1`)
 - `CORS_ORIGINS`
-- `REDIS_URL`
 - `S3_ENDPOINT`
 - `S3_REGION`
 - `S3_ACCESS_KEY`
 - `S3_SECRET_KEY`
 - `S3_BUCKET`
-- `PAYSTACK_SECRET_KEY`
-- `PAYSTACK_WEBHOOK_SECRET`
+- `S3_FORCE_PATH_STYLE` (`false` for AWS S3, often `true` for MinIO-style endpoints)
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_FROM`
+- `SMTP_USER` / `SMTP_PASS` when your relay requires auth
+- `TERMII_API_KEY`
+- `TERMII_SENDER_ID`
+- `PAYSTACK_SECRET_KEY`
+- `PAYSTACK_WEBHOOK_SECRET`
+
+Temporary staging note:
+
+- With the Blueprint's default `NODE_ENV=development`, the API can boot without the SMS,
+  SMTP, and Paystack secrets above.
+- Before public launch, switch API + worker to `NODE_ENV=production` and provide the
+  production-grade provider secrets required by `env.validation.ts`.
 
 Feature notes:
 
-- Without `REDIS_URL`, queue-backed workloads are not production-ready.
+- Without `REDIS_URL`, queue-backed workloads degrade or fail; the Blueprint handles this.
 - Without the S3 variables, prescription document flows will not behave correctly.
 - Without Paystack secrets, only mock/dev payment behavior should be expected.
-- Without SMTP or an SMS provider, notifications and OTP delivery remain incomplete.
+- Without SMTP or Termii, notifications and OTP delivery remain incomplete.
+
+## 4.1 First Render sync checklist
+
+Use the `render.yaml` Blueprint and set these values during the first sync:
+
+1. `MONGODB_URI` from MongoDB Atlas (or another replica-set-backed Mongo provider).
+2. Confirm the service names stay as `lanyard-api`, `lanyard-web-store`,
+   `lanyard-web-admin`, and `lanyard-web-marketing` if you want the default `.onrender.com`
+   URLs in the Blueprint to stay correct.
+3. After the first successful deploy, open the API docs and health endpoints, then test:
+   - marketing to store handoff
+   - customer OTP request/verify
+   - staff login from web-admin
+4. Add S3, SMTP, Termii, and Paystack variables incrementally as each flow is required.
 
 ## 5. Swagger URLs
 
