@@ -1,5 +1,26 @@
 import { z } from 'zod';
 
+function usesLocalMongoHost(uri: string): boolean {
+  const normalized = uri.trim();
+
+  if (!normalized.startsWith('mongodb://') && !normalized.startsWith('mongodb+srv://')) {
+    return false;
+  }
+
+  const authority = normalized
+    .replace(/^mongodb(\+srv)?:\/\//, '')
+    .split('/')[0]
+    .split('@')
+    .at(-1);
+
+  if (!authority) return false;
+
+  return authority.split(',').some((segment) => {
+    const host = segment.trim().replace(/^\[/, '').replace(/\](:\d+)?$/, '');
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  });
+}
+
 /**
  * Typed, validated environment. The app fails fast at boot if required vars are
  * missing or malformed (see ConfigModule wiring in app.module.ts).
@@ -132,5 +153,14 @@ export function validateEnv(config: Record<string, unknown>): Env {
       .join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
+
+  if (String(config.RENDER).toLowerCase() === 'true' && usesLocalMongoHost(parsed.data.MONGODB_URI)) {
+    throw new Error(
+      'Invalid environment configuration:\n' +
+        '  - MONGODB_URI: points to localhost, which is unreachable from Render. ' +
+        'Set this to a MongoDB Atlas or other external replica-set URI in the Render service environment.',
+    );
+  }
+
   return parsed.data;
 }
