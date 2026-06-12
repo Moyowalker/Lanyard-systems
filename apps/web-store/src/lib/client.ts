@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CartDto, MeResponse } from '@lanyard/contracts';
+import type { CartDto, MeResponse, ReorderResultDto } from '@lanyard/contracts';
 
 export class AuthRequiredError extends Error {
   constructor() {
@@ -60,6 +60,17 @@ export function useRemoveFromCart() {
       return asJson<CartDto>(res);
     },
     onSuccess: (cart) => qc.setQueryData(['cart'], cart),
+  });
+}
+
+export function useReorder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const res = await fetch(`/api/orders/${orderId}/reorder`, { method: 'POST' });
+      return asJson<ReorderResultDto>(res);
+    },
+    onSuccess: (result) => qc.setQueryData(['cart'], result.cart),
   });
 }
 

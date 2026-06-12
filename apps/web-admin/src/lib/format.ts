@@ -48,6 +48,7 @@ export const statusTone = (s: string): Tone => ORDER_STATUS_TONE[s] ?? 'neutral'
 export const RX_STATUS_TONE: Record<string, Tone> = {
   pending: 'warn',
   under_review: 'info',
+  needs_info: 'warn',
   verified: 'success',
   rejected: 'danger',
 };

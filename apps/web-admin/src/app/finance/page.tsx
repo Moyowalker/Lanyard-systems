@@ -204,8 +204,18 @@ export default function FinancePage() {
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Paid orders" value={paidOrders.length} icon={IconCheck} tone="brand" />
-            <StatCard label="Paid revenue" value={formatKobo(paidRevenue)} icon={IconCash} tone="sky" />
-            <StatCard label="Awaiting payment" value={awaitingPaymentCount} icon={IconClock} tone="amber" />
+            <StatCard
+              label="Paid revenue"
+              value={formatKobo(paidRevenue)}
+              icon={IconCash}
+              tone="sky"
+            />
+            <StatCard
+              label="Awaiting payment"
+              value={awaitingPaymentCount}
+              icon={IconClock}
+              tone="amber"
+            />
             <StatCard label="Refunded orders" value={refundedCount} icon={IconAlert} tone="rose" />
           </div>
 
@@ -245,7 +255,11 @@ export default function FinancePage() {
                   />
                   {selectedRefundOrder ? (
                     <p className="mt-1 text-xs text-slate-500">
-                      Order total: {formatKobo(selectedRefundOrder.totals.totalKobo, selectedRefundOrder.totals.currency)}
+                      Order total:{' '}
+                      {formatKobo(
+                        selectedRefundOrder.totals.totalKobo,
+                        selectedRefundOrder.totals.currency,
+                      )}
                     </p>
                   ) : null}
                 </div>
@@ -262,10 +276,15 @@ export default function FinancePage() {
                 </div>
                 <InlineNotice message={refundMessage} />
                 <InlineNotice message={reconcileMessage} />
-                <Button type="submit" variant="danger" disabled={refundMutation.isPending || paidOrders.length === 0}>
+                <Button
+                  type="submit"
+                  variant="danger"
+                  disabled={refundMutation.isPending || paidOrders.length === 0}
+                >
                   {refundMutation.isPending ? (
                     <>
-                      <Spinner className="h-4 w-4 border-rose-300/40 border-t-rose-700" /> Refunding...
+                      <Spinner className="h-4 w-4 border-rose-300/40 border-t-rose-700" />{' '}
+                      Refunding...
                     </>
                   ) : (
                     'Create refund'
@@ -325,10 +344,14 @@ export default function FinancePage() {
                       <tr key={order.id} className="transition-colors hover:bg-slate-50/60">
                         <Td>
                           <div className="font-semibold text-slate-900">{order.orderNo}</div>
-                          <div className="text-xs capitalize text-slate-500">{order.fulfillment.type}</div>
+                          <div className="text-xs capitalize text-slate-500">
+                            {order.fulfillment.type}
+                          </div>
                         </Td>
                         <Td>
-                          <Badge tone={paymentTone(order.payment.status)}>{order.payment.status}</Badge>
+                          <Badge tone={paymentTone(order.payment.status)}>
+                            {order.payment.status}
+                          </Badge>
                         </Td>
                         <Td>
                           <Badge tone={statusTone(order.status)}>{label(order.status)}</Badge>
@@ -350,7 +373,10 @@ export default function FinancePage() {
                                 Refund
                               </Button>
                             ) : null}
-                            <Link href={`/orders/${order.id}`} className="text-sm font-medium text-brand-700 hover:underline">
+                            <Link
+                              href={`/orders/${order.id}`}
+                              className="text-sm font-medium text-brand-700 hover:underline"
+                            >
                               Open order
                             </Link>
                           </div>

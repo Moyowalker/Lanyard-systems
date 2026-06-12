@@ -16,10 +16,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: { message: 'Send a valid JSON payload.' } },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: { message: 'Send a valid JSON payload.' } }, { status: 400 });
   }
 
   const payload = (body ?? {}) as Record<string, unknown>;
@@ -30,10 +27,7 @@ export async function POST(request: Request) {
   const message = asString(payload.message);
 
   if (name.length < 2 || name.length > 80) {
-    return NextResponse.json(
-      { error: { message: 'Enter a valid name.' } },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: { message: 'Enter a valid name.' } }, { status: 400 });
   }
 
   if (!EMAIL_REGEX.test(email)) {

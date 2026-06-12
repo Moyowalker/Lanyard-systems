@@ -3,13 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { LeadSummaryDto } from '@lanyard/contracts';
 
-import {
-  IconAlert,
-  IconBell,
-  IconBranch,
-  IconCheck,
-  IconClock,
-} from '@/components/icons';
+import { IconAlert, IconBell, IconBranch, IconCheck, IconClock } from '@/components/icons';
 import {
   Badge,
   Card,

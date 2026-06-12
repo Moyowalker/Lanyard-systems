@@ -91,6 +91,7 @@ export enum ProductStatus {
 export enum RxStatus {
   PENDING = 'pending',
   UNDER_REVIEW = 'under_review',
+  NEEDS_INFO = 'needs_info',
   VERIFIED = 'verified',
   REJECTED = 'rejected',
   EXPIRED = 'expired',

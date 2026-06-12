@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { validateEnv } from './core/config/env.validation';
 import { DatabaseModule } from './core/database/database.module';
@@ -39,6 +40,13 @@ import { ContentModule } from './modules/content/content.module';
       validate: validateEnv,
       envFilePath: ['.env'],
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: 300,
+      },
+    ]),
     DatabaseModule,
     ModelsModule,
     SecurityModule,
@@ -60,6 +68,9 @@ import { ContentModule } from './modules/content/content.module';
     PaymentModule,
     AuditModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
 })
 export class AppModule {}

@@ -14,6 +14,17 @@ export const LinkPrescriptionsSchema = z.object({
 });
 export type LinkPrescriptionsInput = z.infer<typeof LinkPrescriptionsSchema>;
 
+export const AnonymousCartSchema = z.object({
+  anonId: z.string().trim().min(32).max(128),
+});
+export type AnonymousCartInput = z.infer<typeof AnonymousCartSchema>;
+
+export const AnonymousAddCartItemSchema = AnonymousCartSchema.merge(AddCartItemSchema);
+export type AnonymousAddCartItemInput = z.infer<typeof AnonymousAddCartItemSchema>;
+
+export const MergeCartSchema = AnonymousCartSchema;
+export type MergeCartInput = z.infer<typeof MergeCartSchema>;
+
 export interface CartLineDto {
   productId: string;
   name: string;

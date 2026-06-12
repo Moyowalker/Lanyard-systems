@@ -73,6 +73,10 @@ export interface BranchSummaryDto {
   name: string;
   status: string;
   address: { line1: string; city: string; state: string; lat: number; lng: number };
-  fulfillment: { pickup: boolean; delivery: boolean };
+  fulfillment: {
+    pickup: boolean;
+    delivery: boolean;
+    deliveryZones?: Array<{ name: string; feeKobo: number; etaMins?: number; radiusKm?: number }>;
+  };
   distanceKm?: number; // present when ?near= supplied
 }

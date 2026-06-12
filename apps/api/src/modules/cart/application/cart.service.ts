@@ -34,6 +34,8 @@ export interface ResolvedCart {
   requiresRxVerification: boolean;
 }
 
+type CartOwner = { customerId: string } | { anonId: string };
+
 @Injectable()
 export class CartService {
   constructor(
@@ -43,21 +45,32 @@ export class CartService {
     private readonly inventory: InventoryService,
   ) {}
 
-  private async getOrCreate(customerId: string) {
-    let cart = await this.cartModel.findOne({ customerId: new Types.ObjectId(customerId) });
-    if (!cart)
-      cart = await this.cartModel.create({ customerId: new Types.ObjectId(customerId), items: [] });
+  private ownerFilter(owner: CartOwner) {
+    return 'customerId' in owner
+      ? { customerId: new Types.ObjectId(owner.customerId) }
+      : { anonId: owner.anonId };
+  }
+
+  private ownerCreate(owner: CartOwner) {
+    return 'customerId' in owner
+      ? { customerId: new Types.ObjectId(owner.customerId) }
+      : { anonId: owner.anonId };
+  }
+
+  private async getOrCreate(owner: CartOwner) {
+    let cart = await this.cartModel.findOne(this.ownerFilter(owner));
+    if (!cart) cart = await this.cartModel.create({ ...this.ownerCreate(owner), items: [] });
     return cart;
   }
 
-  async addItem(customerId: string, input: AddCartItemInput): Promise<CartDto> {
+  async addItem(owner: CartOwner, input: AddCartItemInput): Promise<CartDto> {
     const product = await this.productModel.findOne({
       _id: new Types.ObjectId(input.productId),
       status: ProductStatus.PUBLISHED,
     });
     if (!product) throw new DomainError(ErrorCode.NOT_FOUND, 'Product not available');
 
-    const cart = await this.getOrCreate(customerId);
+    const cart = await this.getOrCreate(owner);
     // Switching branch resets the basket (pricing/availability are per-branch).
     if (cart.branchId && cart.branchId.toString() !== input.branchId) {
       cart.items = [];
@@ -74,26 +87,26 @@ export class CartService {
         requiresPrescription: product.requiresPrescription,
       });
     await cart.save();
-    return this.toDto(customerId);
+    return this.toDto(owner);
   }
 
-  async removeItem(customerId: string, productId: string): Promise<CartDto> {
-    const cart = await this.getOrCreate(customerId);
+  async removeItem(owner: CartOwner, productId: string): Promise<CartDto> {
+    const cart = await this.getOrCreate(owner);
     cart.items = cart.items.filter((i) => i.productId.toString() !== productId);
     await cart.save();
-    return this.toDto(customerId);
+    return this.toDto(owner);
   }
 
   async linkPrescriptions(customerId: string, ids: string[]): Promise<CartDto> {
-    const cart = await this.getOrCreate(customerId);
+    const cart = await this.getOrCreate({ customerId });
     const set = new Set([...cart.prescriptionIds.map(String), ...ids]);
     cart.prescriptionIds = [...set].map((id) => new Types.ObjectId(id));
     await cart.save();
-    return this.toDto(customerId);
+    return this.toDto({ customerId });
   }
 
-  async toDto(customerId: string): Promise<CartDto> {
-    const r = await this.resolve(customerId);
+  async toDto(owner: CartOwner): Promise<CartDto> {
+    const r = await this.resolve(owner);
     const items: CartLineDto[] = r.lines.map((l) => ({
       productId: l.productId,
       name: l.name,
@@ -115,8 +128,8 @@ export class CartService {
   }
 
   /** Authoritative resolution: server-side prices, availability and Rx flags. */
-  async resolve(customerId: string): Promise<ResolvedCart> {
-    const cart = await this.getOrCreate(customerId);
+  async resolve(owner: CartOwner): Promise<ResolvedCart> {
+    const cart = await this.getOrCreate(owner);
     const branchId = cart.branchId?.toString();
     if (!branchId || cart.items.length === 0) {
       return {
@@ -177,5 +190,43 @@ export class CartService {
       { customerId: new Types.ObjectId(customerId) },
       { $set: { items: [], prescriptionIds: [] }, $unset: { branchId: '' } },
     );
+  }
+
+  async merge(anonId: string, customerId: string): Promise<CartDto> {
+    const guest = await this.cartModel.findOne({ anonId });
+    if (!guest) return this.toDto({ customerId });
+
+    const customerObjectId = new Types.ObjectId(customerId);
+    let customer = await this.cartModel.findOne({ customerId: customerObjectId });
+    if (!customer) {
+      guest.customerId = customerObjectId;
+      guest.anonId = undefined;
+      await guest.save();
+      return this.toDto({ customerId });
+    }
+
+    if (guest.branchId) {
+      if (!customer.branchId || customer.branchId.toString() !== guest.branchId.toString()) {
+        customer.branchId = guest.branchId;
+        customer.items = [...guest.items];
+        customer.prescriptionIds = [...guest.prescriptionIds];
+      } else {
+        const byProduct = new Map(customer.items.map((item) => [item.productId.toString(), item]));
+        for (const item of guest.items) {
+          const existing = byProduct.get(item.productId.toString());
+          if (existing) existing.quantity = Math.min(existing.quantity + item.quantity, 99);
+          else customer.items.push(item);
+        }
+        const prescriptionIds = new Set([
+          ...customer.prescriptionIds.map(String),
+          ...guest.prescriptionIds.map(String),
+        ]);
+        customer.prescriptionIds = [...prescriptionIds].map((id) => new Types.ObjectId(id));
+      }
+      await customer.save();
+    }
+
+    await this.cartModel.deleteOne({ _id: guest._id });
+    return this.toDto({ customerId });
   }
 }

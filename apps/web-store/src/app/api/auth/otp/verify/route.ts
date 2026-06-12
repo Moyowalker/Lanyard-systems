@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import type { AuthTokens } from '@lanyard/contracts';
 import { API_URL, COOKIE } from '@/lib/config';
+import { clearAnonId, getAnonId } from '@/lib/anon-cart';
 
 /** BFF: verify a login OTP, then store the tokens in httpOnly cookies. */
 export async function POST(req: NextRequest) {
@@ -31,5 +32,20 @@ export async function POST(req: NextRequest) {
     path: '/',
     maxAge: 60 * 60 * 24 * 30,
   });
+
+  const anonId = await getAnonId();
+  if (anonId) {
+    await fetch(`${API_URL}/cart/merge`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${tokens.accessToken}`,
+      },
+      body: JSON.stringify({ anonId }),
+      cache: 'no-store',
+    }).catch(() => undefined);
+    await clearAnonId();
+  }
+
   return NextResponse.json({ ok: true });
 }

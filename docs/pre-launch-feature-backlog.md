@@ -13,14 +13,14 @@ do not let them jump the P0 queue.
 
 ## Sequencing summary
 
-| # | Ticket | Impact | Effort | Notes |
-| --- | --- | --- | --- | --- |
-| T1 | Guest cart + merge on login | High (conversion) | ~2d | Schema already supports `anonId` |
-| T2 | Reorder / refill from order history | High (pharmacy lifecycle) | ~2d | Order items already snapshotted |
-| T3 | Rx clarification ("needs info") loop | High (safety + saved orders) | ~3d | Additive enum + status |
-| T4 | Product image upload + rendering | Med-High (credibility) | ~2–3d | `Product.images[]` already exists |
-| T5 | Surface trust signals | High (trust, low effort) | ~1–2d | Data already captured |
-| T6 | Delivery ETA + per-zone fee | Medium (promise clarity) | ~1–2d | `deliveryZones.etaMins` already exists |
+| #   | Ticket                               | Impact                       | Effort | Notes                                                                  |
+| --- | ------------------------------------ | ---------------------------- | ------ | ---------------------------------------------------------------------- |
+| T1  | Guest cart + merge on login          | High (conversion)            | ~2d    | Implemented via store BFF `lny_anon` cookie + merge on OTP login       |
+| T2  | Reorder / refill from order history  | High (pharmacy lifecycle)    | ~2d    | Implemented with unavailable-line reporting                            |
+| T3  | Rx clarification ("needs info") loop | High (safety + saved orders) | ~3d    | Implemented with additive `needs_info` status + upload-more-files flow |
+| T4  | Product image upload + rendering     | Med-High (credibility)       | ~2–3d  | Implemented with signed read URLs + admin upload/remove/reorder        |
+| T5  | Surface trust signals                | High (trust, low effort)     | ~1–2d  | Implemented support, policies, and verified-Rx assurance               |
+| T6  | Delivery ETA + per-zone fee          | Medium (promise clarity)     | ~1–2d  | Implemented per-zone picker, fee quote, and persisted ETA              |
 
 Recommended order: **T5 → T1 → T2 → T6 → T4 → T3** (fastest trust/conversion wins first;
 T3 is the most cross-cutting so it lands last).
@@ -28,6 +28,8 @@ T3 is the most cross-cutting so it lands last).
 ---
 
 ## T1 — Guest cart + merge on login
+
+**Status:** implemented in this branch.
 
 **Why:** Cart currently requires a customer token, so anonymous shoppers can't build a
 basket — a measurable conversion tax every comparator avoids.
@@ -37,6 +39,7 @@ already has an indexed `anonId?: string` ("Either customer-owned or anonymous") 
 The persistence layer is done.
 
 **Scope**
+
 - **API — `CartService`** ([cart.service.ts](../apps/api/src/modules/cart/application/cart.service.ts)):
   generalize `getOrCreate(customerId)` → resolve by `{ customerId }` OR `{ anonId }`. Add
   `merge(anonId, customerId)`: fold the guest cart's items/branch into the customer cart
@@ -54,6 +57,7 @@ The persistence layer is done.
 - **Store UI:** `AddToCartButton` works logged-out; `CartLink` count reflects guest cart.
 
 **Acceptance**
+
 - Logged-out user adds items, sees cart, and the basket survives login (merged, not lost).
 - No prescription/checkout action is possible while anonymous (still gated).
 
@@ -63,6 +67,8 @@ The persistence layer is done.
 
 ## T2 — Reorder / refill from order history
 
+**Status:** implemented in this branch.
+
 **Why:** The defining pharmacy behavior. Every comparator leads with 2-tap reorder; Lanyard
 restarts from search each time.
 
@@ -71,6 +77,7 @@ restarts from search each time.
 reorder is "re-add these productIds to the cart," not a data rebuild.
 
 **Scope**
+
 - **API — `OrderService`/`CartService`:** `reorder(customerId, orderId)` → load the order,
   re-add each `productId` + `quantity` to the cart at the order's `branchId` (reuse
   `cart.addItem`, which already re-validates availability/price and resets the basket on
@@ -84,6 +91,7 @@ reorder is "re-add these productIds to the cart," not a data rebuild.
   `/cart` with a toast listing any dropped/unavailable items.
 
 **Acceptance**
+
 - Reorder repopulates the cart with available lines; unavailable items are reported, not
   silently dropped. Rx items still require a fresh prescription at checkout (unchanged).
 
@@ -93,12 +101,15 @@ reorder is "re-add these productIds to the cart," not a data rebuild.
 
 ## T3 — Prescription clarification ("needs info") loop
 
+**Status:** implemented in this branch.
+
 **Why:** Today a pharmacist can only **verify or reject**
 ([prescription.service.ts](../apps/api/src/modules/prescription/application/prescription.service.ts)).
 Any ambiguous Rx becomes a hard rejection = lost order + frustrated patient. Comparators let
 the pharmacy ask for a clearer photo / more info.
 
 **Scope (additive — order state machine untouched)**
+
 - **Contracts — enums** ([enums/index.ts](../packages/contracts/src/enums/index.ts)): add
   `RxStatus.NEEDS_INFO` (append only — persisted values stay stable) and a
   `VerificationDecision`-adjacent `requestInfo` action.
@@ -115,6 +126,7 @@ the pharmacy ask for a clearer photo / more info.
   prescription view): show the pharmacist note and an "Upload a clearer photo" affordance.
 
 **Acceptance**
+
 - Pharmacist can request info with a note; customer is notified, uploads more files, and the
   Rx returns to the queue; the order is never wrongly rejected for a fixable issue.
 
@@ -123,6 +135,8 @@ the pharmacy ask for a clearer photo / more info.
 ---
 
 ## T4 — Product image upload + rendering
+
+**Status:** implemented in this branch using signed object-store URLs.
 
 **Why:** Cards render letter-placeholders. Against Jumia's image-dense grid this reads as
 "not a real store."
@@ -133,6 +147,7 @@ signed/CDN URLs at read time ([catalog.schemas.ts:67](../apps/api/src/modules/ca
 already does `putObject` + signed URLs.
 
 **Scope**
+
 - **API — admin upload:** `POST /admin/catalog/products/:id/images` (catalog:write) using the
   same `FilesInterceptor` + MIME/size pattern as prescriptions; store under
   `products/<id>/<uuid>.<ext>`; push the object key onto `images[]`. Add delete/reorder.
@@ -147,6 +162,7 @@ already does `putObject` + signed URLs.
   once real URLs flow.
 
 **Acceptance**
+
 - Admin uploads an image; it appears on the storefront card and detail page; products without
   images keep the current placeholder.
 
@@ -156,32 +172,42 @@ already does `putObject` + signed URLs.
 
 ## T5 — Surface existing trust signals (highest ROI)
 
-**Why:** You already *capture* strong trust data; you just don't *show* it. Pure UI, no new
+**Status:** implemented in this branch. The storefront now has persistent support hours,
+policy links in the footer, a checkout trust/policy block, first-pass privacy + returns pages,
+and an API-backed verified-pharmacist summary on Rx orders.
+
+**Why:** You already _capture_ strong trust data; you just don't _show_ it. Pure UI, no new
 data model. Closes the gap with CVS/Amazon credibility cues.
 
 **Scope**
+
 - **Pharmacist verification on the order:** the verifying pharmacist + PCN# are stored on the
   prescription `verification` block and in the audit. Surface "Verified by a licensed
   pharmacist" (name/role; PCN optional) on a verified Rx order
   ([orders/[id]/page.tsx](../apps/web-store/src/app/orders/[id]/page.tsx)). May need the order
   read to include a verified-by summary (already on the prescription DTO).
 - **Persistent support channel:** phone / WhatsApp / hours in the store header or footer
-  ([layout.tsx](../apps/web-store/src/app/layout.tsx)) on every page.
+  ([layout.tsx](../apps/web-store/src/app/layout.tsx)) on every page. Baseline added using
+  `NEXT_PUBLIC_SUPPORT_*` env values declared in [render.yaml](../render.yaml).
 - **Policy pages:** returns/refund policy + NDPA data-privacy page (marketing app already has
   the patterns: [web-marketing](../apps/web-marketing/src/app)); link them from checkout and
-  footer.
+  footer. Baseline added at `/returns` and `/privacy`.
 - **Optional:** "X left at this branch" using the `available` value already returned by the
   catalog (also feeds T-conversion below).
 
 **Acceptance**
-- Verified-Rx orders show pharmacist assurance; support contact + policy links present on
-  every storefront page and at checkout.
+
+- [x] Support contact + policy links present on every storefront page and at checkout.
+- [x] Privacy and returns/refunds pages render in the storefront.
+- [x] Verified-Rx orders show pharmacist assurance from real prescription verification data.
 
 **Effort:** ~1–2d. **Risk:** confirm what's appropriate to surface (PCN number visibility) with compliance.
 
 ---
 
 ## T6 — Delivery ETA + address-aware fee surfacing
+
+**Status:** implemented in this branch with a launch-pragmatic per-zone picker.
 
 **Why:** You always quote `deliveryZones[0]` and show no ETA, so patients can't see the
 "delivered today by 6pm" promise Capsule/Amazon lead with.
@@ -190,6 +216,7 @@ data model. Closes the gap with CVS/Amazon credibility cues.
 in [branch.schema.ts](../apps/api/src/modules/branch/infrastructure/branch.schema.ts) + seed.
 
 **Scope (launch-pragmatic — keep manual dispatch)**
+
 - **Contracts/DTO:** include `etaMins` and zone `name` in the quote/branch fulfilment DTO.
 - **API — quote/order:** in `OrderService.quote()`/`createOrder()`
   ([order.service.ts](../apps/api/src/modules/order/application/order.service.ts)) return the
@@ -201,6 +228,7 @@ in [branch.schema.ts](../apps/api/src/modules/branch/infrastructure/branch.schem
   `etaMins`; show it again on the order tracking page.
 
 **Acceptance**
+
 - Delivery checkout shows a real fee + ETA tied to the chosen zone; pickup shows branch
   hours/readiness instead.
 
@@ -211,6 +239,7 @@ in [branch.schema.ts](../apps/api/src/modules/branch/infrastructure/branch.schem
 ## Explicitly post-MVP (do not build now)
 
 These are real roadmap items but should not contend with launch:
+
 - Insurance / HMO claims (major epic; already deferred in the MVP doc).
 - Auto-refill subscriptions + scheduled re-charge.
 - Tele-consult / pharmacist chat.

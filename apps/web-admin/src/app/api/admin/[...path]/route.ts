@@ -18,7 +18,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
-  const body = await req.text();
+  const body = req.headers.get('content-type')?.includes('multipart/form-data')
+    ? await req.formData()
+    : await req.text();
   return relay(await proxy(target(path, req), { method: 'POST', body: body || undefined }));
 }
 
@@ -32,4 +34,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ pa
   const { path } = await params;
   const body = await req.text();
   return relay(await proxy(target(path, req), { method: 'PATCH', body: body || undefined }));
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> },
+) {
+  const { path } = await params;
+  const body = await req.text();
+  return relay(await proxy(target(path, req), { method: 'DELETE', body: body || undefined }));
 }

@@ -1,8 +1,9 @@
 # Production Readiness Checklist — Lanyard Pharmacy
 
-**Status: NOT production-ready.** As deployed today the platform is a staging/dev build
-exposed on public URLs. The blocker list below must be fully closed before any real
-customer, real prescription, or real money touches the system.
+**Status: NOT production-ready.** This branch now closes several repo-controlled P0s,
+but the live Render environment still needs to be synced, provisioned, and smoke-tested.
+The remaining blocker list below must be fully closed before any real customer, real
+prescription, or real money touches the system.
 
 > Validated against the codebase on 2026-06-12. Each item cites the file that is the
 > source of truth. Severity legend: **P0** = launch blocker, **P1** = high, **P2** =
@@ -12,46 +13,43 @@ customer, real prescription, or real money touches the system.
 
 ## 1. Readiness scoreboard
 
-| Area | State | Worst severity |
-| --- | --- | --- |
-| Environment variables | ⚠️ Misconfigured for prod (`NODE_ENV=development`) | **P0** |
-| Secrets management | ⚠️ JWT auto-gen OK; MFA secret stored plaintext | **P0** |
-| Logging | ❌ Default logger only; no structure; PII leak | **P1** |
-| Monitoring | ❌ No metrics, no uptime, no alerting | **P1** |
-| Error tracking | ❌ None (no Sentry/equivalent) | **P1** |
-| Database backups | ❌ Not provisioned/verified | **P0** |
-| SSL/TLS | ✅ Render-managed; ⚠️ no HSTS/redirect proof | **P2** |
-| Rate limiting | ❌ None anywhere | **P0** |
-| API security | ⚠️ Good bones; gaps (CSRF, headers) | **P1** |
-| Authentication | ⚠️ OTP leak in dev mode; staff MFA off | **P0** |
-| Authorization | ✅ RBAC + branch scope solid | **P2** |
-| File uploads | ⚠️ Validated; AV scanner is a stub | **P0** |
-| Payment integration | ⚠️ Solid design; dev-confirm exposed; refund saga gap | **P0** |
-| Notifications | ⚠️ Real adapters exist; off in dev mode | **P1** |
-| Render deployment | ❌ Free plans + dev env | **P0** |
+| Area                  | State                                                              | Worst severity |
+| --------------------- | ------------------------------------------------------------------ | -------------- |
+| Environment variables | ⚠️ Blueprint now production; provider secrets pending              | **P0**         |
+| Secrets management    | ⚠️ JWT auto-gen OK; MFA secret stored plaintext                    | **P0**         |
+| Logging               | ⚠️ Default logger only; OTP PII leak fixed                         | **P1**         |
+| Monitoring            | ❌ No metrics, no uptime, no alerting                              | **P1**         |
+| Error tracking        | ❌ None (no Sentry/equivalent)                                     | **P1**         |
+| Database backups      | ❌ Not provisioned/verified                                        | **P0**         |
+| SSL/TLS               | ✅ Render-managed; ⚠️ no HSTS/redirect proof                       | **P2**         |
+| Rate limiting         | ✅ In-app throttles on auth/leads; add distributed store if scaled | **P2**         |
+| API security          | ⚠️ Good bones; gaps (CSRF, headers)                                | **P1**         |
+| Authentication        | ⚠️ OTP leak in dev mode; staff MFA off                             | **P0**         |
+| Authorization         | ✅ RBAC + branch scope solid                                       | **P2**         |
+| File uploads          | ⚠️ Validated; AV scanner is a stub                                 | **P0**         |
+| Payment integration   | ⚠️ Dev-confirm gated; mock provider until secrets; refund saga gap | **P0**         |
+| Notifications         | ⚠️ Real adapters exist; off in dev mode                            | **P1**         |
+| Render deployment     | ⚠️ Blueprint on starter/prod; live sync required                   | **P0**         |
 
 ---
 
 ## 2. Critical blockers (P0) — do not launch until all are closed
 
-- [ ] **Flip `NODE_ENV` to `production` on API + worker.** `render.yaml` hard-codes
-      `NODE_ENV=development` ([render.yaml:32-33](../render.yaml)). This single flag cascades
-      into the next three blockers.
-- [ ] **Stop returning OTP codes to clients.** `OtpService.issue()` returns `devCode` whenever
-      `NODE_ENV !== production` ([otp.service.ts:67](../apps/api/src/modules/identity/application/otp.service.ts))
-      and the store login renders it ([login/page.tsx](../apps/web-store/src/app/account/login/page.tsx)).
-      In the current deployment **anyone can log in as any customer by phone number alone.**
-- [ ] **Disable the dev payment-confirm endpoint.** `/payments/dev/confirm/:intentId` is only
-      blocked when `NODE_ENV === production`
-      ([payment-webhook.controller.ts:55](../apps/api/src/modules/payment/api/payment-webhook.controller.ts)).
-      Today **anyone can mark any order PAID without paying.** The store even proxies it
-      (`/api/payments/dev-confirm`).
+- [x] **Flip `NODE_ENV` to `production` on API + worker.** `render.yaml` now sets the API
+      to `NODE_ENV=production`, and the worker inherits it. Confirm the live Render services
+      are synced before launch.
+- [x] **Stop returning OTP codes to production clients.** `OtpService.issue()` only includes
+      `devCode` outside production; the Render blueprint now boots production mode, so live
+      clients should not receive OTP codes. Keep the non-prod dev code path for local QA only.
+- [x] **Disable the dev payment-confirm endpoint.** `/payments/dev/confirm/:intentId` now
+      requires both non-production mode and explicit `ENABLE_DEV_PAYMENT_CONFIRM=true`; Render
+      sets the flag to `false`.
 - [ ] **Provision real provider secrets** (Paystack live, Termii, SMTP) so payments and
-      notifications actually work. Until set, the API selects the **mock** payment provider
-      ([payment.module.ts](../apps/api/src/modules/payment/payment.module.ts)) and SMS/email only log.
-- [ ] **Add rate limiting.** There is no `@nestjs/throttler` or any limiter in the codebase.
-      OTP request/verify, staff login, `/auth/refresh`, and the public lead endpoint are all
-      unthrottled → SMS-bombing (direct cost), credential stuffing, brute force.
+      notifications actually work. `render.yaml` now declares the required secret placeholders,
+      but values must be entered in Render before the production boot check will pass.
+- [x] **Add rate limiting.** `@nestjs/throttler` is now globally enabled, with stricter limits
+      on customer OTP request/verify, staff login/MFA, `/auth/refresh`, customer registration,
+      and the public lead endpoint. Add Redis-backed throttler storage before horizontal scale.
 - [ ] **Turn on staff MFA and stop storing the TOTP secret in plaintext.** Seed sets
       `mfaEnabled: false`; there is no enrollment endpoint; `mfaSecretRef` holds the raw secret
       ([staff-auth.service.ts:63](../apps/api/src/modules/identity/application/staff-auth.service.ts)).
@@ -64,9 +62,9 @@ customer, real prescription, or real money touches the system.
       (operator-supplied). Backups are described only as intent in
       [08-infrastructure.md](architecture/08-infrastructure.md) — confirm Atlas automated
       backups + point-in-time recovery are enabled and run one restore drill.
-- [ ] **Move off Render free plans.** API + all three web apps are `plan: free`
-      ([render.yaml](../render.yaml)) → cold-start spin-down (~50s), single instance, no SLA.
-      Unusable for a transactional storefront.
+- [x] **Move off Render free plans in the blueprint.** API + all three web apps now use
+      `plan: starter` in [render.yaml](../render.yaml). Confirm billing/plan changes after
+      the Blueprint sync.
 
 ---
 
@@ -75,9 +73,8 @@ customer, real prescription, or real money touches the system.
 - [ ] **No structured logging.** Only NestJS `Logger`; no JSON logs, no request/correlation IDs
       (`traceId` is merely echoed from an inbound header in
       [all-exceptions.filter.ts](../apps/api/src/core/errors/all-exceptions.filter.ts), never generated).
-- [ ] **PII in logs.** OTP delivery failures log the full phone number
-      ([otp.service.ts:61](../apps/api/src/modules/identity/application/otp.service.ts)); the SMS
-      channel masks correctly — make it consistent and scrub PHI/PII platform-wide.
+- [x] **Mask OTP delivery failure logs.** OTP delivery failures now log a masked target, matching
+      the SMS channel's posture. Still scrub PHI/PII platform-wide when structured logging lands.
 - [ ] **No error tracking.** No Sentry or equivalent — unhandled 500s vanish into stdout.
 - [ ] **No monitoring/alerting.** Health probes exist (`/health/live`, `/health/ready`) but
       nothing scrapes them; no metrics, no uptime checks, no alerts on payment/stock anomalies.
@@ -140,78 +137,95 @@ customer, real prescription, or real money touches the system.
 ## 6. Validated checklist by audit area
 
 ### Environment variables — ⚠️
+
 - [x] Typed + validated at boot via Zod; fails fast
       ([env.validation.ts](../apps/api/src/core/config/env.validation.ts)).
 - [x] Production branch requires Termii/SMTP/Paystack secrets (`superRefine`).
 - [x] Guard rejects localhost Mongo on Render.
-- [ ] **P0:** deployment runs `development`, defeating the production requirements above.
+- [x] **P0:** Render blueprint runs the API in `production`; confirm the live services are synced.
 - [ ] **P2:** CORS origins hard-coded in `render.yaml` rather than env-driven.
 
 ### Secrets management — ⚠️
+
 - [x] `JWT_SECRET` auto-generated by Render (`generateValue: true`); `MONGODB_URI` is `sync:false`.
 - [x] Passwords hashed with Argon2 ([password.service.ts]) ; OTP/refresh stored as SHA-256.
 - [ ] **P0:** TOTP `mfaSecretRef` stored as the raw secret, not a secrets-manager handle.
 - [ ] **P3:** no secret scanning in CI; rotate the seeded staff password before go-live.
 
 ### Logging — ❌
+
 - [ ] **P1:** no structured/JSON logging, no generated correlation IDs.
-- [ ] **P1:** full phone number logged on OTP failure (PII).
+- [x] **P1:** OTP delivery failures mask the target instead of logging the full phone number.
 
 ### Monitoring — ❌
+
 - [x] Liveness/readiness probes exist ([health.controller.ts](../apps/api/src/modules/health/health.controller.ts)).
 - [ ] **P1:** nothing scrapes them; no metrics, uptime checks, or alerting.
 
 ### Error tracking — ❌
+
 - [x] Canonical error envelope; unknown errors logged, internals not leaked to clients.
 - [ ] **P1:** no Sentry/equivalent capturing exceptions with context.
 
 ### Database backups — ❌
+
 - [ ] **P0:** Atlas backups + PITR are documented intent only; provision + run a restore drill.
 
 ### SSL/TLS — ✅/⚠️
+
 - [x] Render-managed certs; `helmet()` security headers enabled.
 - [x] Web cookies `httpOnly` + `secure` (gated on production) + `sameSite=lax`.
 - [ ] **P2:** confirm HSTS + HTTP→HTTPS redirect.
 
-### Rate limiting — ❌
-- [ ] **P0:** none anywhere — OTP, login, refresh, leads all unthrottled.
+### Rate limiting — ✅/⚠️
+
+- [x] **P0:** in-app throttles added for OTP, login/MFA, refresh, registration, and leads.
+- [ ] **P2:** add Redis-backed throttler storage before running multiple API instances.
 
 ### API security — ⚠️
+
 - [x] Global `ValidationPipe` (`whitelist` + `forbidNonWhitelisted`) + per-route Zod
       ([main.ts:31](../apps/api/src/main.ts)).
 - [x] `helmet`, CORS allowlist with `credentials`.
 - [ ] **P1:** no CSRF token; **P1:** access tokens not revocable pre-expiry.
 
 ### Authentication — ⚠️
+
 - [x] Refresh-token rotation + reuse detection (family revoke)
       ([session.service.ts](../apps/api/src/modules/identity/application/session.service.ts)).
-- [ ] **P0:** OTP leak in dev mode; **P0:** staff MFA off + plaintext secret;
-      **P2:** account enumeration.
+- [x] **P0:** production deployment path no longer returns OTP `devCode`.
+- [ ] **P0:** staff MFA off + plaintext secret; **P2:** account enumeration.
 
 ### Authorization — ✅
+
 - [x] Global JWT guard; realm + permission + branch-scope guards
       ([authz.guards.ts](../apps/api/src/core/auth/authz.guards.ts)); Rx verify hard-gated on
       in-date PCN license; PHI access audited. Solid.
 - [ ] **P2:** branch activation doesn't enforce in-date superintendent.
 
 ### File uploads — ⚠️
+
 - [x] MIME allowlist + 10 MB limit + max-5 files
       ([prescription.controller.ts:48](../apps/api/src/modules/prescription/api/prescription.controller.ts)).
 - [x] Stored in a private bucket; signed-URL access only, audited; AV scan **fails closed**.
 - [ ] **P0:** AV scanner is an EICAR stub, not a real engine.
 
 ### Payment integration — ⚠️
+
 - [x] Webhook HMAC-SHA512 verified with `timingSafeEqual`; amount/currency integrity check;
       idempotent event dedup; settlement atomic with stock reservation.
-- [ ] **P0:** dev-confirm endpoint exposed; **P0:** mock provider until secrets set;
-      **P1:** refund saga gap.
+- [x] **P0:** dev-confirm endpoint is gated behind non-production plus explicit opt-in.
+- [ ] **P0:** mock provider until secrets set; **P1:** refund saga gap.
 
 ### Notifications — ⚠️
+
 - [x] Real Termii (SMS) + SMTP (email) adapters; queue-backed; destination masking.
 - [ ] **P1:** only active in production with secrets; verify deliverability before launch.
 
-### Render deployment — ❌
-- [ ] **P0:** API + 3 web apps on `plan: free`; **P0:** `NODE_ENV=development`.
+### Render deployment — ⚠️
+
+- [x] **P0:** blueprint moves API + 3 web apps to `plan: starter` and API `NODE_ENV=production`.
+- [ ] **P0:** sync the Blueprint in Render and verify the live service env/plan match the file.
 - [x] Build filters, health-check path, worker `maxShutdownDelaySeconds`, Redis `keyvalue`
       service, autodeploy-on-commit all configured sensibly ([render.yaml](../render.yaml)).
 
@@ -220,47 +234,54 @@ customer, real prescription, or real money touches the system.
 ## 7. Execution plan to reach production readiness
 
 ### Phase 0 — Stop the bleeding (1–2 days, blocks all customer traffic)
+
 Goal: the deployed environment is no longer a public dev build.
+
 1. Set `NODE_ENV=production` on `lanyard-api` and `lanyard-api-worker`.
 2. Provision MongoDB Atlas (replica set) with automated backups + PITR enabled; set
    `MONGODB_URI`; run one restore drill and record RPO/RTO.
 3. Add Paystack live, Termii, and SMTP secrets; confirm the real Paystack provider is selected
    and the dev-confirm route 404s.
 4. Smoke test: OTP no longer returned in responses; a real test charge settles via webhook only.
-**Exit criteria:** no auth bypass, no free-payment path, data is recoverable.
+   **Exit criteria:** no auth bypass, no free-payment path, data is recoverable.
 
 ### Phase 1 — Security hardening (3–5 days)
+
 1. Add `@nestjs/throttler`; strict limits on OTP request/verify, staff login, `/auth/refresh`,
    `/leads`.
 2. Build staff MFA enrollment; move the TOTP secret to a secrets manager; enforce MFA for
    `phi:view`/`refund:create`; rotate the seeded password; add staff login lockout.
 3. Replace AV stub with ClamAV/clamd (or cloud malware API) behind the existing interface.
 4. Move API + web apps to paid Render plans with ≥1 always-on instance.
-**Exit criteria:** abuse-resistant auth, malware actually scanned, no cold starts.
+   **Exit criteria:** abuse-resistant auth, malware actually scanned, no cold starts.
 
 ### Phase 2 — Observability & money integrity (3–5 days)
+
 1. Structured JSON logging + generated correlation IDs; scrub PII/PHI (fix the phone-in-logs).
 2. Error tracking (Sentry) wired into the exception filter with request context.
 3. Uptime checks against `/health/ready` + alerts on payment/stock anomalies; basic metrics.
 4. Make refunds saga-safe (provider-call-then-DB-fail can't strand money); wire the outbox.
 5. Schedule the reconciliation job on the worker; add idempotency to create-order.
-**Exit criteria:** failures are visible, and no money/stock path can desync.
+   **Exit criteria:** failures are visible, and no money/stock path can desync.
 
 ### Phase 3 — Quality gates & compliance (3–5 days)
+
 1. Run the integration + E2E suites in CI (ephemeral Mongo replica set + Redis).
 2. Add CSRF token for state-changing routes; per-app ESLint; Dependabot + secret scanning.
 3. Close compliance `gap` items: in-date superintendent on branch activation, `phiProcessing`
    consent at registration, NAFDAC completeness at publish, license-expiry alerts.
 4. S3 SSE + restrictive bucket policy + retention lifecycle.
-**Exit criteria:** the launch gates in
-[09-mvp-definition.md](architecture/09-mvp-definition.md) and the compliance checklist are green.
+   **Exit criteria:** the launch gates in
+   [09-mvp-definition.md](architecture/09-mvp-definition.md) and the compliance checklist are green.
 
 ### Phase 4 — Fast-follow (post-launch)
+
 RS256 + key rotation, guest cart, address-aware delivery fees, product image pipeline, password
 reset flows, load testing at projected volume.
 
 ---
 
 ### Go / No-go gate
+
 **Go only when every Phase 0 and Phase 1 box is checked**, Phase 2 observability is live, and the
 compliance `gap` items are either implemented or signed off as named manual controls with an owner.

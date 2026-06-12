@@ -10,14 +10,7 @@ type StoreLinkProps = Omit<ComponentPropsWithoutRef<'a'>, 'href'> & {
   path?: string;
 };
 
-export function StoreLink({
-  children,
-  source,
-  branchId,
-  intent,
-  path,
-  ...props
-}: StoreLinkProps) {
+export function StoreLink({ children, source, branchId, intent, path, ...props }: StoreLinkProps) {
   return (
     <a href={buildStoreHandoffUrl({ source, branchId, intent, path })} {...props}>
       {children}

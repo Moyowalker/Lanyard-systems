@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { RefreshInput, RefreshSchema } from '@lanyard/contracts';
 
 import { CurrentUser, Public } from '../../../core/auth/auth.decorators';
@@ -15,6 +16,7 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   refresh(@Body(new ZodValidationPipe(RefreshSchema)) dto: RefreshInput) {
     return this.auth.refresh(dto.refreshToken);
   }

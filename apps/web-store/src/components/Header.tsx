@@ -6,6 +6,7 @@ import { BranchSelector } from './BranchSelector';
 import { SearchBar } from './SearchBar';
 import { AccountMenu } from './AccountMenu';
 import { CartLink } from './CartLink';
+import { supportContact } from '@/lib/support';
 
 export async function Header() {
   const branches = await listBranches().catch(() => []);
@@ -29,11 +30,33 @@ export async function Header() {
               Branch-based pricing and stock
             </span>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-brand-50/80 px-3 py-1 text-brand-800">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-            {selected
-              ? `Viewing catalogue for ${selected.name}`
-              : 'Choose a branch to unlock local pricing and stock'}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {supportContact.whatsappUrl ? (
+              <a
+                href={supportContact.whatsappUrl}
+                className="inline-flex items-center gap-2 rounded-full bg-seal-100/80 px-3 py-1 text-ink-800 transition hover:bg-seal-200/70"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-seal-400" />
+                WhatsApp support
+              </a>
+            ) : null}
+            {supportContact.phoneHref ? (
+              <a
+                href={supportContact.phoneHref}
+                className="inline-flex items-center gap-2 rounded-full bg-white/75 px-3 py-1 text-ink-800 transition hover:bg-brand-50"
+              >
+                {supportContact.phoneDisplay}
+              </a>
+            ) : null}
+            <span className="inline-flex items-center rounded-full bg-white/75 px-3 py-1 text-ink-800">
+              {supportContact.hours}
+            </span>
+            <div className="inline-flex items-center gap-2 rounded-full bg-brand-50/80 px-3 py-1 text-brand-800">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+              {selected
+                ? `Viewing catalogue for ${selected.name}`
+                : 'Choose a branch to unlock local pricing and stock'}
+            </div>
           </div>
         </div>
 
@@ -47,7 +70,12 @@ export async function Header() {
                   className="relative flex h-12 w-12 flex-none items-center justify-center overflow-hidden rounded-[1.35rem] bg-ink-950 text-white shadow-[0_18px_36px_-22px_rgba(11,33,28,0.9)] transition duration-300 group-hover:-translate-y-0.5 group-hover:bg-brand-800"
                 >
                   <span className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.32),transparent_42%)]" />
-                  <svg viewBox="0 0 24 24" className="relative h-5 w-5" fill="none" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="relative h-5 w-5"
+                    fill="none"
+                    aria-hidden="true"
+                  >
                     <path
                       d="M12 3.5v17M3.5 12h17"
                       stroke="currentColor"

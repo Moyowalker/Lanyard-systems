@@ -68,6 +68,17 @@ export class PrescriptionController {
     return this.prescriptions.getMine(user.sub, id);
   }
 
+  @Post(':id/files')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: MAX_FILE_BYTES } }))
+  addFiles(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    return this.prescriptions.addFiles(user.sub, id, this.mapFiles(files));
+  }
+
   @Get(':id/files/:fileId/url')
   fileUrl(
     @CurrentUser() user: AuthPrincipal,

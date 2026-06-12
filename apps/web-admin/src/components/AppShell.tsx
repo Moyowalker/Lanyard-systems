@@ -8,13 +8,7 @@ import type { MeResponse } from '@lanyard/contracts';
 import { Icons } from './icons';
 import { IconBell, IconClose, IconLogout, IconMenu, IconShield } from './icons';
 import { cn } from './ui';
-import {
-  visibleNav,
-  personaFor,
-  PERSONA_LABEL,
-  initialsOf,
-  type NavItem,
-} from '@/lib/roles';
+import { visibleNav, personaFor, PERSONA_LABEL, initialsOf, type NavItem } from '@/lib/roles';
 
 function useMe(enabled = true) {
   return useQuery({
@@ -66,7 +60,10 @@ function NavLink({
       <Icon
         width={18}
         height={18}
-        className={cn('transition-colors', active ? 'text-brand-300' : 'group-hover:text-brand-200')}
+        className={cn(
+          'transition-colors',
+          active ? 'text-brand-300' : 'group-hover:text-brand-200',
+        )}
       />
       <span>{item.label}</span>
     </Link>

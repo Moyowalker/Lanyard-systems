@@ -6,19 +6,17 @@ import { ProductCard } from '@/components/ProductCard';
 
 export const dynamic = 'force-dynamic';
 
-function EmptyShell({
-  title,
-  body,
-  cta,
-}: {
-  title: string;
-  body: string;
-  cta?: boolean;
-}) {
+function EmptyShell({ title, body, cta }: { title: string; body: string; cta?: boolean }) {
   return (
     <div className="state-card flex flex-col items-center justify-center gap-4 px-6 py-14 text-center">
       <span className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-brand-100 text-brand-800">
-        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <svg
+          viewBox="0 0 24 24"
+          className="h-6 w-6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.5-3.5" />
         </svg>

@@ -16,6 +16,12 @@ export interface OtpIssueResult {
   devCode?: string;
 }
 
+function maskTarget(target: string): string {
+  return target.length <= 4
+    ? '****'
+    : `${'*'.repeat(Math.max(target.length - 4, 4))}${target.slice(-4)}`;
+}
+
 /**
  * Issues and verifies one-time codes. Codes are stored hashed (never plaintext)
  * with an attempt counter and TTL. In non-production the code is logged and
@@ -58,7 +64,7 @@ export class OtpService {
       }
     } catch (err) {
       await this.otpModel.deleteOne({ _id: challenge._id });
-      this.logger.error(`OTP delivery failed for ${target}: ${(err as Error).message}`);
+      this.logger.error(`OTP delivery failed for ${maskTarget(target)}: ${(err as Error).message}`);
       throw new DomainError(ErrorCode.INTERNAL, 'Unable to deliver a one-time code right now');
     }
 

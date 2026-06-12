@@ -11,7 +11,9 @@ export function SiteHeader() {
             LP
           </span>
           <div>
-            <div className="text-lg font-semibold tracking-tight text-ink-900">Lanyard Pharmacy</div>
+            <div className="text-lg font-semibold tracking-tight text-ink-900">
+              Lanyard Pharmacy
+            </div>
             <div className="text-xs uppercase tracking-[0.24em] text-ink-700/50">
               Marketing Site
             </div>
@@ -20,7 +22,11 @@ export function SiteHeader() {
 
         <nav className="flex flex-wrap items-center gap-3 text-sm text-ink-700/80 sm:gap-5">
           {marketingNav.map((item) => (
-            <Link key={item.href} href={item.href} className="transition-colors hover:text-brand-700">
+            <Link
+              key={item.href}
+              href={item.href}
+              className="transition-colors hover:text-brand-700"
+            >
               {item.label}
             </Link>
           ))}

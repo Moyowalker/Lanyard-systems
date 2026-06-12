@@ -14,6 +14,7 @@ import {
   Paginated,
   PaginationQuery,
   QuoteDto,
+  ReorderResultDto,
   RxStatus,
   VerificationDecision,
 } from '@lanyard/contracts';
@@ -63,7 +64,7 @@ export class OrderService {
 
   async createOrder(principal: AuthPrincipal, dto: CreateOrderInput): Promise<OrderDto> {
     const customerId = principal.sub;
-    const res = await this.cart.resolve(customerId);
+    const res = await this.cart.resolve({ customerId });
 
     if (!res.branchId || res.lines.length === 0) {
       throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Cart is empty');
@@ -95,14 +96,21 @@ export class OrderService {
       }
     }
 
-    // Delivery fee from the branch's first delivery zone (flat per-branch for now).
     let deliveryKobo = 0;
+    let deliveryZoneName: string | undefined;
+    let etaMins: number | undefined;
     if (dto.fulfillment.type === FulfillmentType.DELIVERY) {
       const branch = await this.branchModel.findById(res.branchId).lean();
       if (!branch?.fulfillment?.delivery) {
         throw new DomainError(ErrorCode.CONFLICT, 'This branch does not offer delivery');
       }
-      deliveryKobo = branch.fulfillment.deliveryZones?.[0]?.feeKobo ?? 0;
+      const zone = this.selectDeliveryZone(
+        branch.fulfillment.deliveryZones,
+        dto.fulfillment.deliveryZoneName,
+      );
+      deliveryKobo = zone?.feeKobo ?? 0;
+      deliveryZoneName = zone?.name;
+      etaMins = zone?.etaMins;
     }
 
     const subtotalKobo = res.subtotalKobo;
@@ -126,6 +134,8 @@ export class OrderService {
               type: dto.fulfillment.type,
               address: dto.fulfillment.address,
               feeKobo: deliveryKobo,
+              deliveryZoneName,
+              etaMins,
             },
             items: res.lines.map((l) => ({
               productId: new Types.ObjectId(l.productId),
@@ -232,14 +242,22 @@ export class OrderService {
   /* ── quote (no persistence) ── */
 
   async quote(customerId: string, fulfillment: CreateOrderInput['fulfillment']): Promise<QuoteDto> {
-    const res = await this.cart.resolve(customerId);
+    const res = await this.cart.resolve({ customerId });
     if (!res.branchId || res.lines.length === 0) {
       throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Cart is empty');
     }
     let deliveryKobo = 0;
+    let deliveryZoneName: string | undefined;
+    let etaMins: number | undefined;
     if (fulfillment.type === FulfillmentType.DELIVERY) {
       const branch = await this.branchModel.findById(res.branchId).lean();
-      deliveryKobo = branch?.fulfillment?.deliveryZones?.[0]?.feeKobo ?? 0;
+      const zone = this.selectDeliveryZone(
+        branch?.fulfillment?.deliveryZones,
+        fulfillment.deliveryZoneName,
+      );
+      deliveryKobo = zone?.feeKobo ?? 0;
+      deliveryZoneName = zone?.name;
+      etaMins = zone?.etaMins;
     }
     return {
       branchId: res.branchId,
@@ -253,6 +271,8 @@ export class OrderService {
       })),
       subtotalKobo: res.subtotalKobo,
       deliveryKobo,
+      deliveryZoneName,
+      etaMins,
       totalKobo: res.subtotalKobo + deliveryKobo,
       currency: Currency.NGN,
       requiresRxVerification: res.requiresRxVerification,
@@ -285,6 +305,47 @@ export class OrderService {
     const order = await this.getMineOne(customerId, id);
     const doc = await this.orderModel.findById(id).select('statusHistory').lean();
     return { status: order.status, history: doc?.statusHistory ?? [] };
+  }
+
+  async reorder(customerId: string, id: string): Promise<ReorderResultDto> {
+    const order = await this.orderModel.findOne({
+      _id: id,
+      customerId: new Types.ObjectId(customerId),
+    });
+    if (!order) throw new DomainError(ErrorCode.NOT_FOUND, 'Order not found');
+
+    const unavailableItems: ReorderResultDto['unavailableItems'] = [];
+    for (const item of order.items) {
+      try {
+        await this.cart.addItem(
+          { customerId },
+          {
+            branchId: order.branchId.toString(),
+            productId: item.productId.toString(),
+            quantity: item.quantity,
+          },
+        );
+      } catch (error) {
+        unavailableItems.push({
+          productId: item.productId.toString(),
+          name: item.name,
+          reason: error instanceof Error ? error.message : 'Unavailable',
+        });
+      }
+    }
+
+    const cart = await this.cart.toDto({ customerId });
+    for (const line of cart.items) {
+      if (line.unitPriceKobo === undefined || !line.inStock) {
+        unavailableItems.push({
+          productId: line.productId,
+          name: line.name,
+          reason: line.inStock ? 'Pricing unavailable at this branch' : 'Insufficient branch stock',
+        });
+      }
+    }
+
+    return { cart, unavailableItems };
   }
 
   /* ── payment settlement (called by PaymentService inside its transaction) ── */
@@ -538,6 +599,15 @@ export class OrderService {
     return `LNY-${randomBytes(4).toString('hex').toUpperCase()}`;
   }
 
+  private selectDeliveryZone(
+    zones?: Array<{ name: string; feeKobo: number; etaMins?: number }>,
+    requestedName?: string,
+  ) {
+    if (!zones || zones.length === 0) return undefined;
+    if (!requestedName) return zones[0];
+    return zones.find((zone) => zone.name === requestedName) ?? zones[0];
+  }
+
   private toDto(o: OrderDocument): OrderDto {
     return {
       id: o._id.toString(),
@@ -548,6 +618,8 @@ export class OrderService {
       fulfillment: {
         type: o.fulfillment.type,
         address: o.fulfillment.address as Record<string, unknown> | undefined,
+        deliveryZoneName: o.fulfillment.deliveryZoneName,
+        etaMins: o.fulfillment.etaMins,
       },
       items: o.items.map((i) => ({
         productId: i.productId.toString(),

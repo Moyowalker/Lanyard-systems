@@ -12,6 +12,7 @@ import {
   Paginated,
   PaginationQuery,
   PrescriptionDto,
+  RequestPrescriptionInfoInput,
   RxStatus,
   SignedFileUrlDto,
   VerificationDecision,
@@ -132,11 +133,62 @@ export class PrescriptionService {
     return this.issueFileUrl(rx, fileId, principal, ActorType.CUSTOMER);
   }
 
+  async addFiles(
+    customerId: string,
+    id: string,
+    files: UploadedRxFile[],
+  ): Promise<PrescriptionDto> {
+    if (files.length === 0) {
+      throw new DomainError(ErrorCode.VALIDATION_FAILED, 'At least one file is required');
+    }
+    const rx = await this.rxModel.findOne({ _id: id, customerId: new Types.ObjectId(customerId) });
+    if (!rx) throw new DomainError(ErrorCode.NOT_FOUND, 'Prescription not found');
+    if (rx.status !== RxStatus.NEEDS_INFO) {
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        'This prescription is not awaiting more information',
+      );
+    }
+
+    const fileDocs = [];
+    for (const file of files) {
+      const objectKey = `prescriptions/${customerId}/${rx._id.toString()}/${randomUUID()}.${file.ext}`;
+      await this.storage.putObject(objectKey, file.buffer, file.mime);
+      fileDocs.push({
+        objectKey,
+        mime: file.mime,
+        sizeBytes: file.sizeBytes,
+        avScan: AvScanStatus.PENDING,
+        uploadedAt: new Date(),
+      });
+    }
+
+    rx.files.push(...fileDocs);
+    rx.status = RxStatus.PENDING;
+    if (rx.clarificationRequest) rx.clarificationRequest.respondedAt = new Date();
+    await rx.save();
+    await this.avQueue.add(
+      'scan',
+      { prescriptionId: rx._id.toString() },
+      { removeOnComplete: true },
+    );
+    await this.audit.record({
+      actorId: customerId,
+      actorType: ActorType.CUSTOMER,
+      action: 'rx.clarification_submitted',
+      targetType: 'prescription',
+      targetId: rx._id.toString(),
+      branchId: rx.branchId.toString(),
+      metadata: { filesAdded: fileDocs.length },
+    });
+    return this.toDto(rx);
+  }
+
   /* ── pharmacist (staff) ── */
 
   async queue(branchScope: string[], query: PaginationQuery): Promise<Paginated<PrescriptionDto>> {
     const filter: Record<string, unknown> = {
-      status: { $in: [RxStatus.PENDING, RxStatus.UNDER_REVIEW] },
+      status: { $in: [RxStatus.PENDING, RxStatus.UNDER_REVIEW, RxStatus.NEEDS_INFO] },
       ...cursorFilter(query.cursor),
     };
     if (!branchScope.includes('ALL')) {
@@ -239,6 +291,37 @@ export class PrescriptionService {
     return this.toDto(rx);
   }
 
+  async requestInfo(
+    principal: AuthPrincipal,
+    id: string,
+    dto: RequestPrescriptionInfoInput,
+  ): Promise<PrescriptionDto> {
+    const rx = await this.rxModel.findById(id);
+    if (!rx) throw new DomainError(ErrorCode.NOT_FOUND, 'Prescription not found');
+    this.assertBranchScope(principal.branchScope, rx.branchId.toString());
+    if (rx.status !== RxStatus.PENDING && rx.status !== RxStatus.UNDER_REVIEW) {
+      throw new DomainError(ErrorCode.CONFLICT, `Prescription already ${rx.status}`);
+    }
+
+    rx.status = RxStatus.NEEDS_INFO;
+    rx.clarificationRequest = {
+      note: dto.note,
+      requestedByStaffId: new Types.ObjectId(principal.sub),
+      requestedAt: new Date(),
+    };
+    await rx.save();
+    await this.audit.record({
+      actorId: principal.sub,
+      actorType: ActorType.STAFF,
+      action: 'rx.request_info',
+      targetType: 'prescription',
+      targetId: rx._id.toString(),
+      branchId: rx.branchId.toString(),
+    });
+    await this.notifications.notifyRxEvent(rx._id.toString(), 'rx.needs_info');
+    return this.toDto(rx);
+  }
+
   /* ── helpers ── */
 
   private async issueFileUrl(
@@ -288,6 +371,14 @@ export class PrescriptionService {
             decision: rx.verification.decision,
             note: rx.verification.note,
             at: rx.verification.at.toISOString(),
+          }
+        : undefined,
+      clarificationRequest: rx.clarificationRequest
+        ? {
+            note: rx.clarificationRequest.note,
+            requestedByStaffId: rx.clarificationRequest.requestedByStaffId.toString(),
+            requestedAt: rx.clarificationRequest.requestedAt.toISOString(),
+            respondedAt: rx.clarificationRequest.respondedAt?.toISOString(),
           }
         : undefined,
       linkedOrderIds: rx.linkedOrderIds.map(String),

@@ -32,6 +32,11 @@ export const VerifyPrescriptionSchema = z.object({
 });
 export type VerifyPrescriptionInput = z.infer<typeof VerifyPrescriptionSchema>;
 
+export const RequestPrescriptionInfoSchema = z.object({
+  note: z.string().trim().min(1).max(1000),
+});
+export type RequestPrescriptionInfoInput = z.infer<typeof RequestPrescriptionInfoSchema>;
+
 export interface RxFileDto {
   fileId: string;
   mime: string;
@@ -51,6 +56,12 @@ export interface PrescriptionDto {
     decision: string;
     note?: string;
     at: string;
+  };
+  clarificationRequest?: {
+    note: string;
+    requestedByStaffId: string;
+    requestedAt: string;
+    respondedAt?: string;
   };
   linkedOrderIds: string[];
   createdAt: string;

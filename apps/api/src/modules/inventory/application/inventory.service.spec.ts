@@ -101,19 +101,17 @@ describe('InventoryService', () => {
   it('receives stock into a new inventory row and records a manual movement', async () => {
     const expiry = new Date('2026-08-31T00:00:00.000Z');
 
-    inventoryModel.findOne
-      .mockReturnValueOnce(findOneLean(null))
-      .mockReturnValueOnce(
-        findOneLean({
-          _id: new Types.ObjectId(),
-          branchId: new Types.ObjectId(branchId),
-          productId: new Types.ObjectId(productId),
-          onHand: 12,
-          reserved: 0,
-          reorderLevel: 4,
-          batches: [{ batchNo: 'LOT-001', expiry, quantity: 12 }],
-        }),
-      );
+    inventoryModel.findOne.mockReturnValueOnce(findOneLean(null)).mockReturnValueOnce(
+      findOneLean({
+        _id: new Types.ObjectId(),
+        branchId: new Types.ObjectId(branchId),
+        productId: new Types.ObjectId(productId),
+        onHand: 12,
+        reserved: 0,
+        reorderLevel: 4,
+        batches: [{ batchNo: 'LOT-001', expiry, quantity: 12 }],
+      }),
+    );
     productModel.findById.mockReturnValue(
       findOneLean({ _id: new Types.ObjectId(productId), name: 'Cefuroxime' }),
     );
@@ -189,15 +187,13 @@ describe('InventoryService', () => {
       batches: [{ batchNo: 'LOT-009', expiry, quantity: 5 }],
     };
 
-    inventoryModel.findOne
-      .mockReturnValueOnce(findOneLean(snapshot))
-      .mockReturnValueOnce(
-        findOneLean({
-          ...snapshot,
-          onHand: 8,
-          batches: [{ batchNo: 'LOT-009', expiry, quantity: 3 }],
-        }),
-      );
+    inventoryModel.findOne.mockReturnValueOnce(findOneLean(snapshot)).mockReturnValueOnce(
+      findOneLean({
+        ...snapshot,
+        onHand: 8,
+        batches: [{ batchNo: 'LOT-009', expiry, quantity: 3 }],
+      }),
+    );
     inventoryModel.updateOne.mockResolvedValue({ modifiedCount: 1 });
     productModel.findById.mockReturnValue(
       findOneLean({ _id: new Types.ObjectId(productId), name: 'Metformin' }),

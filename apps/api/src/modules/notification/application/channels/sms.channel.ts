@@ -52,14 +52,12 @@ export class SmsChannel implements NotificationChannelPort {
       }),
     });
 
-    const body = (await response.json().catch(() => null)) as
-      | {
-          code?: string;
-          message_id?: string;
-          message?: string;
-          balance?: string;
-        }
-      | null;
+    const body = (await response.json().catch(() => null)) as {
+      code?: string;
+      message_id?: string;
+      message?: string;
+      balance?: string;
+    } | null;
 
     if (!response.ok) {
       const message = body?.message || `SMS provider request failed with status ${response.status}`;

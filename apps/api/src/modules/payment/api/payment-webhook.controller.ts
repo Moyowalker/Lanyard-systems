@@ -52,7 +52,10 @@ export class PaymentWebhookController {
   @Post('payments/dev/confirm/:intentId')
   @HttpCode(200)
   async devConfirm(@Param('intentId') intentId: string) {
-    if (this.config.get<string>('NODE_ENV') === 'production') {
+    if (
+      this.config.get<string>('NODE_ENV') === 'production' ||
+      !this.config.get<boolean>('ENABLE_DEV_PAYMENT_CONFIRM', false)
+    ) {
       throw new NotFoundException();
     }
     return this.payments.devConfirm(intentId);

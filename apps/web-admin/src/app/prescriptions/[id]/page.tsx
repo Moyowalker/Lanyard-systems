@@ -13,6 +13,7 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const router = useRouter();
   const [note, setNote] = useState('');
+  const [requestNote, setRequestNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -53,6 +54,22 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ decision, note: note || undefined }),
+    });
+    const body = await r.json().catch(() => null);
+    setBusy(false);
+    if (!r.ok) return setError(body?.error?.message ?? 'Action failed');
+    await refetch();
+    router.push('/prescriptions');
+  }
+
+  async function requestInfo() {
+    if (!requestNote.trim()) return setError('Add a short note for the customer.');
+    setBusy(true);
+    setError(undefined);
+    const r = await fetch(`/api/admin/prescriptions/${id}/request-info`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ note: requestNote }),
     });
     const body = await r.json().catch(() => null);
     setBusy(false);
@@ -109,6 +126,11 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
           <p className="text-sm text-slate-600">
             This prescription is <strong className="text-slate-900">{rx.status}</strong>.
           </p>
+          {rx.clarificationRequest ? (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              More information requested: {rx.clarificationRequest.note}
+            </p>
+          ) : null}
         </Panel>
       ) : (
         <Panel title="Verification decision">
@@ -131,6 +153,25 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
             </Button>
             <Button variant="danger" onClick={() => decide('rejected')} disabled={busy}>
               Reject
+            </Button>
+          </div>
+          <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
+            <label
+              className="text-xs font-semibold uppercase tracking-wide text-amber-800"
+              htmlFor="request-info"
+            >
+              Request more information
+            </label>
+            <textarea
+              id="request-info"
+              value={requestNote}
+              onChange={(e) => setRequestNote(e.target.value)}
+              placeholder="Tell the customer what to re-upload or clarify"
+              className="mt-2 w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400"
+              rows={2}
+            />
+            <Button className="mt-2" variant="secondary" onClick={requestInfo} disabled={busy}>
+              Request info
             </Button>
           </div>
           {error && (

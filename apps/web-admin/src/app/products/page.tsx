@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CategoryDto, Paginated } from '@lanyard/contracts';
 import {
@@ -45,6 +45,8 @@ type AdminProductRow = {
   status?: string;
   manufacturer?: string;
   nafdacRegNo?: string;
+  images?: string[];
+  imageUrls?: string[];
 };
 
 type ProductFormState = {
@@ -245,6 +247,76 @@ export default function ProductsPage() {
     },
   });
 
+  const imageUploadMutation = useMutation({
+    mutationFn: async (payload: { id: string; files: FileList }) => {
+      const form = new FormData();
+      Array.from(payload.files).forEach((file) => form.append('files', file));
+      const res = await fetch(`/api/admin/catalog/products/${payload.id}/images`, {
+        method: 'POST',
+        body: form,
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error?.message ?? 'Image upload failed');
+      return body;
+    },
+    onSuccess: async () => {
+      setProductMessage({ tone: 'success', text: 'Product image uploaded.' });
+      await queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    },
+    onError: (error) => {
+      setProductMessage({
+        tone: 'danger',
+        text: error instanceof Error ? error.message : 'Image upload failed',
+      });
+    },
+  });
+
+  const imageRemoveMutation = useMutation({
+    mutationFn: async (payload: { id: string; key: string }) => {
+      const res = await fetch(`/api/admin/catalog/products/${payload.id}/images`, {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key: payload.key }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error?.message ?? 'Image removal failed');
+      return body;
+    },
+    onSuccess: async () => {
+      setProductMessage({ tone: 'success', text: 'Product image removed.' });
+      await queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    },
+    onError: (error) => {
+      setProductMessage({
+        tone: 'danger',
+        text: error instanceof Error ? error.message : 'Image removal failed',
+      });
+    },
+  });
+
+  const imageReorderMutation = useMutation({
+    mutationFn: async (payload: { id: string; images: string[] }) => {
+      const res = await fetch(`/api/admin/catalog/products/${payload.id}/images`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ images: payload.images }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error?.message ?? 'Image reorder failed');
+      return body;
+    },
+    onSuccess: async () => {
+      setProductMessage({ tone: 'success', text: 'Product image order updated.' });
+      await queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    },
+    onError: (error) => {
+      setProductMessage({
+        tone: 'danger',
+        text: error instanceof Error ? error.message : 'Image reorder failed',
+      });
+    },
+  });
+
   async function submitProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setProductMessage(undefined);
@@ -280,6 +352,20 @@ export default function ProductsPage() {
       body: parsed.data,
       id: productForm.id,
     });
+  }
+
+  async function uploadImages(event: ChangeEvent<HTMLInputElement>) {
+    if (!productForm.id || !event.target.files || event.target.files.length === 0) return;
+    await imageUploadMutation.mutateAsync({ id: productForm.id, files: event.target.files });
+    event.target.value = '';
+  }
+
+  function moveImage(product: AdminProductRow, index: number, direction: -1 | 1) {
+    const images = [...(product.images ?? [])];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= images.length) return;
+    [images[index], images[targetIndex]] = [images[targetIndex], images[index]];
+    imageReorderMutation.mutate({ id: product.id, images });
   }
 
   async function submitCategory(event: FormEvent<HTMLFormElement>) {
@@ -338,7 +424,12 @@ export default function ProductsPage() {
             <StatCard label="Catalog SKUs" value={rows.length} icon={IconCatalog} tone="brand" />
             <StatCard label="Published" value={publishedCount} icon={IconCheck} tone="sky" />
             <StatCard label="Draft" value={draftCount} icon={IconClock} tone="amber" />
-            <StatCard label="Prescription products" value={prescriptionCount} icon={IconRx} tone="rose" />
+            <StatCard
+              label="Prescription products"
+              value={prescriptionCount}
+              icon={IconRx}
+              tone="rose"
+            />
           </div>
 
           <div className="mb-6 grid gap-4 xl:grid-cols-[1.8fr_1fr]">
@@ -386,7 +477,10 @@ export default function ProductsPage() {
                       id="product-generic"
                       value={productForm.genericName}
                       onChange={(event) =>
-                        setProductForm((current) => ({ ...current, genericName: event.target.value }))
+                        setProductForm((current) => ({
+                          ...current,
+                          genericName: event.target.value,
+                        }))
                       }
                       className={inputClass}
                     />
@@ -507,7 +601,10 @@ export default function ProductsPage() {
                       id="product-nafdac"
                       value={productForm.nafdacRegNo}
                       onChange={(event) =>
-                        setProductForm((current) => ({ ...current, nafdacRegNo: event.target.value }))
+                        setProductForm((current) => ({
+                          ...current,
+                          nafdacRegNo: event.target.value,
+                        }))
                       }
                       className={inputClass}
                     />
@@ -522,7 +619,10 @@ export default function ProductsPage() {
                     id="product-manufacturer"
                     value={productForm.manufacturer}
                     onChange={(event) =>
-                      setProductForm((current) => ({ ...current, manufacturer: event.target.value }))
+                      setProductForm((current) => ({
+                        ...current,
+                        manufacturer: event.target.value,
+                      }))
                     }
                     className={inputClass}
                   />
@@ -541,6 +641,74 @@ export default function ProductsPage() {
                     className={cn(inputClass, 'min-h-24')}
                   />
                 </div>
+
+                {selectedProduct ? (
+                  <div>
+                    <div className={labelClass}>Images</div>
+                    <div className="mt-2 grid gap-3 sm:grid-cols-[repeat(auto-fill,minmax(7rem,1fr))]">
+                      {(selectedProduct.images ?? []).map((key, index) => (
+                        <div
+                          key={key}
+                          className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                        >
+                          <div className="aspect-square bg-slate-100">
+                            {selectedProduct.imageUrls?.[index] ? (
+                              <img
+                                src={selectedProduct.imageUrls[index]}
+                                alt={`${selectedProduct.name} ${index + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : null}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={imageRemoveMutation.isPending}
+                            onClick={() =>
+                              imageRemoveMutation.mutate({ id: selectedProduct.id, key })
+                            }
+                            className="w-full px-2 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                          <div className="grid grid-cols-2 border-t border-slate-100 text-xs font-semibold text-slate-500">
+                            <button
+                              type="button"
+                              disabled={index === 0 || imageReorderMutation.isPending}
+                              onClick={() => moveImage(selectedProduct, index, -1)}
+                              className="px-2 py-2 transition hover:bg-slate-50 disabled:opacity-40"
+                            >
+                              Up
+                            </button>
+                            <button
+                              type="button"
+                              disabled={
+                                index === (selectedProduct.images?.length ?? 0) - 1 ||
+                                imageReorderMutation.isPending
+                              }
+                              onClick={() => moveImage(selectedProduct, index, 1)}
+                              className="border-l border-slate-100 px-2 py-2 transition hover:bg-slate-50 disabled:opacity-40"
+                            >
+                              Down
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-sm font-semibold text-slate-600 transition hover:border-brand-300 hover:bg-brand-50">
+                        {imageUploadMutation.isPending ? 'Uploading...' : 'Upload image'}
+                        <span className="text-xs font-normal text-slate-500">
+                          JPG, PNG, or WebP
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          multiple
+                          onChange={uploadImages}
+                          className="sr-only"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div>
                   <div className={labelClass}>Categories</div>
@@ -588,7 +756,8 @@ export default function ProductsPage() {
 
                 {selectedProduct ? (
                   <p className="text-xs text-slate-500">
-                    Editing {selectedProduct.name}. Saving keeps the same product id unless you change the slug or metadata.
+                    Editing {selectedProduct.name}. Saving keeps the same product id unless you
+                    change the slug or metadata.
                   </p>
                 ) : (
                   <p className="text-xs text-slate-500">
@@ -623,7 +792,10 @@ export default function ProductsPage() {
               </form>
             </Panel>
 
-            <Panel title="Create category" subtitle="Helper for product classification and storefront filtering">
+            <Panel
+              title="Create category"
+              subtitle="Helper for product classification and storefront filtering"
+            >
               <form className="space-y-4" onSubmit={submitCategory}>
                 <div>
                   <label className={labelClass} htmlFor="category-name">
@@ -683,7 +855,10 @@ export default function ProductsPage() {
                     step="1"
                     value={categoryForm.displayOrder}
                     onChange={(event) =>
-                      setCategoryForm((current) => ({ ...current, displayOrder: event.target.value }))
+                      setCategoryForm((current) => ({
+                        ...current,
+                        displayOrder: event.target.value,
+                      }))
                     }
                     className={inputClass}
                   />
@@ -767,7 +942,9 @@ export default function ProductsPage() {
                         </Badge>
                       </Td>
                       <Td>
-                        <Badge tone={productStatusTone(row.status)}>{humanizeToken(row.status)}</Badge>
+                        <Badge tone={productStatusTone(row.status)}>
+                          {humanizeToken(row.status)}
+                        </Badge>
                       </Td>
                       <Td className="text-slate-500">/{row.slug}</Td>
                     </tr>

@@ -159,11 +159,13 @@ export default function PricingPage() {
   const priceMap = useMemo(() => new Map(prices.map((row) => [row.productId, row])), [prices]);
   const rows = useMemo(
     () =>
-      [...products].sort((left, right) => left.name.localeCompare(right.name)).map((product) => ({
-        product,
-        current: priceMap.get(product.id),
-        draft: drafts[product.id] ?? { priceKobo: '', compareAtKobo: '', isAvailable: true },
-      })),
+      [...products]
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map((product) => ({
+          product,
+          current: priceMap.get(product.id),
+          draft: drafts[product.id] ?? { priceKobo: '', compareAtKobo: '', isAvailable: true },
+        })),
     [drafts, priceMap, products],
   );
 
@@ -171,7 +173,9 @@ export default function PricingPage() {
   const availableCount = prices.filter((row) => row.isAvailable).length;
   const missingCount = Math.max(0, products.length - configuredCount);
   const initialLoading =
-    branchesQ.isLoading || productsQ.isLoading || (Boolean(branchId) && pricesQ.isLoading && !pricesQ.data);
+    branchesQ.isLoading ||
+    productsQ.isLoading ||
+    (Boolean(branchId) && pricesQ.isLoading && !pricesQ.data);
 
   async function saveRow(productId: string) {
     const draft = drafts[productId];
@@ -258,10 +262,30 @@ export default function PricingPage() {
       ) : (
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Configured prices" value={configuredCount} icon={IconPricing} tone="brand" />
-            <StatCard label="Available to sell" value={availableCount} icon={IconCheck} tone="sky" />
-            <StatCard label="Missing price rows" value={missingCount} icon={IconAlert} tone="rose" />
-            <StatCard label="Catalog products" value={products.length} icon={IconCatalog} tone="amber" />
+            <StatCard
+              label="Configured prices"
+              value={configuredCount}
+              icon={IconPricing}
+              tone="brand"
+            />
+            <StatCard
+              label="Available to sell"
+              value={availableCount}
+              icon={IconCheck}
+              tone="sky"
+            />
+            <StatCard
+              label="Missing price rows"
+              value={missingCount}
+              icon={IconAlert}
+              tone="rose"
+            />
+            <StatCard
+              label="Catalog products"
+              value={products.length}
+              icon={IconCatalog}
+              tone="amber"
+            />
           </div>
 
           <div className="mb-4">
@@ -293,9 +317,13 @@ export default function PricingPage() {
                   <Td>
                     {current ? (
                       <div>
-                        <div className="font-semibold text-slate-900">{formatKobo(current.priceKobo, current.currency)}</div>
+                        <div className="font-semibold text-slate-900">
+                          {formatKobo(current.priceKobo, current.currency)}
+                        </div>
                         <div className="text-xs text-slate-500">
-                          {current.compareAtKobo ? formatKobo(current.compareAtKobo, current.currency) : 'No compare-at'}
+                          {current.compareAtKobo
+                            ? formatKobo(current.compareAtKobo, current.currency)
+                            : 'No compare-at'}
                         </div>
                       </div>
                     ) : (

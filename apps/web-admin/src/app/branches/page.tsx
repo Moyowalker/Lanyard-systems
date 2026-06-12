@@ -173,10 +173,7 @@ export default function BranchesPage() {
   });
 
   const rows = branchesQ.data?.data ?? [];
-  const selectedBranch = useMemo(
-    () => rows.find((row) => row.id === form.id),
-    [form.id, rows],
-  );
+  const selectedBranch = useMemo(() => rows.find((row) => row.id === form.id), [form.id, rows]);
   const activeCount = rows.filter((row) => row.status === BranchStatus.ACTIVE).length;
   const deliveryCount = rows.filter((row) => row.fulfillment?.delivery).length;
   const shouldLookupSuperintendent =
@@ -196,7 +193,9 @@ export default function BranchesPage() {
   });
 
   const staffOptions = staffLookupQ.data?.data ?? [];
-  const selectedSuperintendent = staffOptions.find((staff) => staff.id === form.superintendentStaffId);
+  const selectedSuperintendent = staffOptions.find(
+    (staff) => staff.id === form.superintendentStaffId,
+  );
 
   const branchMutation = useMutation({
     mutationFn: async (payload: { mode: 'create' | 'update'; body: unknown; id?: string }) => {
@@ -247,7 +246,10 @@ export default function BranchesPage() {
         lat: Number(form.lat),
         lng: Number(form.lng),
       },
-      contact: form.phone || form.email ? { phone: form.phone || undefined, email: form.email || undefined } : undefined,
+      contact:
+        form.phone || form.email
+          ? { phone: form.phone || undefined, email: form.email || undefined }
+          : undefined,
       pcnPremisesNo: form.pcnPremisesNo || undefined,
       superintendentStaffId: form.superintendentStaffId || undefined,
       fulfillment: {
@@ -319,9 +321,19 @@ export default function BranchesPage() {
       ) : (
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <StatCard label="Registered branches" value={rows.length} icon={IconBranch} tone="brand" />
+            <StatCard
+              label="Registered branches"
+              value={rows.length}
+              icon={IconBranch}
+              tone="brand"
+            />
             <StatCard label="Active branches" value={activeCount} icon={IconCheck} tone="sky" />
-            <StatCard label="Delivery enabled" value={deliveryCount} icon={IconOrders} tone="amber" />
+            <StatCard
+              label="Delivery enabled"
+              value={deliveryCount}
+              icon={IconOrders}
+              tone="amber"
+            />
           </div>
 
           <div className="mb-6 grid gap-4 xl:grid-cols-[1.25fr_1.75fr]">
@@ -339,10 +351,16 @@ export default function BranchesPage() {
                       id="branch-code"
                       value={form.code}
                       disabled={Boolean(form.id)}
-                      onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, code: event.target.value }))
+                      }
                       className={inputClass}
                     />
-                    {form.id ? <p className="mt-1 text-xs text-slate-500">Code is immutable after creation.</p> : null}
+                    {form.id ? (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Code is immutable after creation.
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <label className={labelClass} htmlFor="branch-name">
@@ -351,7 +369,9 @@ export default function BranchesPage() {
                     <input
                       id="branch-name"
                       value={form.name}
-                      onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, name: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -366,7 +386,10 @@ export default function BranchesPage() {
                       id="branch-status"
                       value={form.status}
                       onChange={(event) =>
-                        setForm((current) => ({ ...current, status: event.target.value as BranchStatus }))
+                        setForm((current) => ({
+                          ...current,
+                          status: event.target.value as BranchStatus,
+                        }))
                       }
                       className={inputClass}
                     >
@@ -419,7 +442,9 @@ export default function BranchesPage() {
                           {selectedSuperintendent?.pcnLicenseNo
                             ? ` · PCN ${selectedSuperintendent.pcnLicenseNo}`
                             : ''}
-                          {selectedSuperintendent?.isSuperintendent ? ' · Current superintendent' : ''}
+                          {selectedSuperintendent?.isSuperintendent
+                            ? ' · Current superintendent'
+                            : ''}
                         </div>
                       </div>
                     ) : null}
@@ -439,7 +464,9 @@ export default function BranchesPage() {
                             Type at least 2 characters to search.
                           </div>
                         ) : staffOptions.length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-slate-500">No matching pharmacists found.</div>
+                          <div className="px-3 py-2 text-sm text-slate-500">
+                            No matching pharmacists found.
+                          </div>
                         ) : (
                           <div className="divide-y divide-slate-100">
                             {staffOptions.map((staff) => (
@@ -460,7 +487,9 @@ export default function BranchesPage() {
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <div>
-                                    <div className="font-medium text-slate-900">{staff.fullName}</div>
+                                    <div className="font-medium text-slate-900">
+                                      {staff.fullName}
+                                    </div>
                                     <div className="text-xs text-slate-500">
                                       {staff.email}
                                       {staff.phone ? ` · ${staff.phone}` : ''}
@@ -488,7 +517,9 @@ export default function BranchesPage() {
                     <input
                       id="branch-line1"
                       value={form.line1}
-                      onChange={(event) => setForm((current) => ({ ...current, line1: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, line1: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -499,7 +530,9 @@ export default function BranchesPage() {
                     <input
                       id="branch-line2"
                       value={form.line2}
-                      onChange={(event) => setForm((current) => ({ ...current, line2: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, line2: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -513,7 +546,9 @@ export default function BranchesPage() {
                     <input
                       id="branch-city"
                       value={form.city}
-                      onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, city: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -524,7 +559,9 @@ export default function BranchesPage() {
                     <input
                       id="branch-state"
                       value={form.state}
-                      onChange={(event) => setForm((current) => ({ ...current, state: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, state: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -535,7 +572,9 @@ export default function BranchesPage() {
                     <input
                       id="branch-country"
                       value={form.country}
-                      onChange={(event) => setForm((current) => ({ ...current, country: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, country: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -548,7 +587,9 @@ export default function BranchesPage() {
                       type="number"
                       step="0.000001"
                       value={form.lat}
-                      onChange={(event) => setForm((current) => ({ ...current, lat: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, lat: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -561,7 +602,9 @@ export default function BranchesPage() {
                       type="number"
                       step="0.000001"
                       value={form.lng}
-                      onChange={(event) => setForm((current) => ({ ...current, lng: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, lng: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -575,7 +618,9 @@ export default function BranchesPage() {
                     <input
                       id="branch-phone"
                       value={form.phone}
-                      onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, phone: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -586,7 +631,9 @@ export default function BranchesPage() {
                     <input
                       id="branch-email"
                       value={form.email}
-                      onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, email: event.target.value }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -597,7 +644,9 @@ export default function BranchesPage() {
                     <input
                       type="checkbox"
                       checked={form.pickup}
-                      onChange={(event) => setForm((current) => ({ ...current, pickup: event.target.checked }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, pickup: event.target.checked }))
+                      }
                     />
                     Pickup enabled
                   </label>
@@ -605,7 +654,9 @@ export default function BranchesPage() {
                     <input
                       type="checkbox"
                       checked={form.delivery}
-                      onChange={(event) => setForm((current) => ({ ...current, delivery: event.target.checked }))}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, delivery: event.target.checked }))
+                      }
                     />
                     Delivery enabled
                   </label>
@@ -617,7 +668,8 @@ export default function BranchesPage() {
                   </p>
                 ) : (
                   <p className="text-xs text-slate-500">
-                    Branch creation now searches active pharmacists instead of requiring manual staff ids.
+                    Branch creation now searches active pharmacists instead of requiring manual
+                    staff ids.
                   </p>
                 )}
 
@@ -636,7 +688,11 @@ export default function BranchesPage() {
                     )}
                   </Button>
                   {form.id ? (
-                    <Button type="button" variant="secondary" onClick={() => setForm(EMPTY_BRANCH_FORM)}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setForm(EMPTY_BRANCH_FORM)}
+                    >
                       Clear selection
                     </Button>
                   ) : null}
@@ -683,7 +739,9 @@ export default function BranchesPage() {
                           <div className="text-xs text-slate-500">{row.code}</div>
                         </Td>
                         <Td>
-                          <Badge tone={branchStatusTone(row.status)}>{humanizeToken(row.status)}</Badge>
+                          <Badge tone={branchStatusTone(row.status)}>
+                            {humanizeToken(row.status)}
+                          </Badge>
                         </Td>
                         <Td>
                           <div className="text-slate-700">{row.address.line1}</div>

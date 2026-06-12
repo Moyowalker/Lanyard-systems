@@ -55,4 +55,9 @@ export class OrderController {
   tracking(@CurrentUser() user: AuthPrincipal, @Param('id') id: string) {
     return this.orders.tracking(user.sub, id);
   }
+
+  @Post('orders/:id/reorder')
+  reorder(@CurrentUser() user: AuthPrincipal, @Param('id') id: string) {
+    return this.orders.reorder(user.sub, id);
+  }
 }

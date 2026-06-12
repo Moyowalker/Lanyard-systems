@@ -99,11 +99,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {loading ? (
-        <KpiSkeleton />
-      ) : (
-        <KpiRow persona={persona} m={m} pendingRx={pendingRx} />
-      )}
+      {loading ? <KpiSkeleton /> : <KpiRow persona={persona} m={m} pendingRx={pendingRx} />}
 
       {/* Charts row */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -194,9 +190,27 @@ function KpiRow({
   if (persona === 'pharmacist') {
     return (
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Prescriptions to verify" value={pendingRx} icon={IconRx} tone="amber" hint="awaiting review" />
-        <StatCard label="Orders awaiting ℞" value={m.awaitingRx} icon={IconClock} tone="amber" hint="blocked on verification" />
-        <StatCard label="℞ orders total" value={m.rxOrders} icon={IconCheck} tone="brand" hint="all time" />
+        <StatCard
+          label="Prescriptions to verify"
+          value={pendingRx}
+          icon={IconRx}
+          tone="amber"
+          hint="awaiting review"
+        />
+        <StatCard
+          label="Orders awaiting ℞"
+          value={m.awaitingRx}
+          icon={IconClock}
+          tone="amber"
+          hint="blocked on verification"
+        />
+        <StatCard
+          label="℞ orders total"
+          value={m.rxOrders}
+          icon={IconCheck}
+          tone="brand"
+          hint="all time"
+        />
         <StatCard label="Orders today" value={m.todayOrders} icon={IconOrders} tone="sky" />
       </div>
     );
@@ -204,9 +218,27 @@ function KpiRow({
   if (persona === 'manager') {
     return (
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Ready to fulfil" value={m.toFulfil} icon={IconOrders} tone="brand" hint="paid, awaiting pick" />
-        <StatCard label="In fulfilment" value={m.inFulfilment} icon={IconClock} tone="sky" hint="fulfilling / ready / out" />
-        <StatCard label="Stock holds" value={m.stockHolds} icon={IconAlert} tone="rose" hint="paid but short stock" />
+        <StatCard
+          label="Ready to fulfil"
+          value={m.toFulfil}
+          icon={IconOrders}
+          tone="brand"
+          hint="paid, awaiting pick"
+        />
+        <StatCard
+          label="In fulfilment"
+          value={m.inFulfilment}
+          icon={IconClock}
+          tone="sky"
+          hint="fulfilling / ready / out"
+        />
+        <StatCard
+          label="Stock holds"
+          value={m.stockHolds}
+          icon={IconAlert}
+          tone="rose"
+          hint="paid but short stock"
+        />
         <StatCard label="Prescriptions to verify" value={pendingRx} icon={IconRx} tone="amber" />
       </div>
     );
@@ -228,8 +260,20 @@ function KpiRow({
         tone="sky"
         hint={`${formatKobo(m.todayRevenueKobo)} today`}
       />
-      <StatCard label="Avg. order value" value={formatKobo(m.aovKobo)} icon={IconCheck} tone="slate" hint={`${m.paidCount} paid orders`} />
-      <StatCard label="Prescriptions to verify" value={pendingRx} icon={IconRx} tone="amber" hint="compliance queue" />
+      <StatCard
+        label="Avg. order value"
+        value={formatKobo(m.aovKobo)}
+        icon={IconCheck}
+        tone="slate"
+        hint={`${m.paidCount} paid orders`}
+      />
+      <StatCard
+        label="Prescriptions to verify"
+        value={pendingRx}
+        icon={IconRx}
+        tone="amber"
+        hint="compliance queue"
+      />
     </div>
   );
 }
@@ -358,21 +402,30 @@ function RecentOrders({ orders, loading }: { orders: OrderDto[]; loading: boolea
         {orders.length === 0 ? (
           <tr>
             <td colSpan={6}>
-              <EmptyState title="No orders yet" description="Orders will appear here as customers check out." icon={IconOrders} />
+              <EmptyState
+                title="No orders yet"
+                description="Orders will appear here as customers check out."
+                icon={IconOrders}
+              />
             </td>
           </tr>
         ) : (
           orders.map((o) => (
             <tr key={o.id} className="transition-colors hover:bg-slate-50/60">
               <Td>
-                <Link href={`/orders/${o.id}`} className="font-semibold text-brand-700 hover:underline">
+                <Link
+                  href={`/orders/${o.id}`}
+                  className="font-semibold text-brand-700 hover:underline"
+                >
                   {o.orderNo}
                 </Link>
               </Td>
               <Td>
                 <Badge tone={statusTone(o.status)}>{label(o.status)}</Badge>
               </Td>
-              <Td>{o.requiresRxVerification ? <span className="text-brand-700">℞ Rx</span> : 'OTC'}</Td>
+              <Td>
+                {o.requiresRxVerification ? <span className="text-brand-700">℞ Rx</span> : 'OTC'}
+              </Td>
               <Td className="text-slate-400">{timeAgo(o.createdAt)}</Td>
               <Td right className="font-semibold text-slate-900">
                 {formatKobo(o.totals.totalKobo)}

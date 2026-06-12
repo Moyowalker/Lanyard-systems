@@ -49,8 +49,8 @@ export default async function HomePage() {
           </div>
 
           <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-700/75">
-            Prescription uploads happen inside the storefront checkout flow after medicine selection,
-            with pharmacist verification controlling the next step before fulfilment.
+            Prescription uploads happen inside the storefront checkout flow after medicine
+            selection, with pharmacist verification controlling the next step before fulfilment.
           </p>
 
           <div className="mt-10 grid gap-4 md:grid-cols-3">
@@ -70,7 +70,9 @@ export default async function HomePage() {
               <div className="text-xs uppercase tracking-[0.24em] text-white/60">
                 Prescription lane
               </div>
-              <h2 className="mt-3 font-display text-3xl">Verification is built into the experience.</h2>
+              <h2 className="mt-3 font-display text-3xl">
+                Verification is built into the experience.
+              </h2>
               <p className="mt-3 text-sm leading-7 text-white/80">
                 Prescription uploads route into the staff console, where pharmacist review and
                 auditability sit behind a cleaner customer-facing flow.
@@ -79,8 +81,12 @@ export default async function HomePage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <article className="rounded-[24px] bg-white/12 p-5 backdrop-blur-sm">
-                <div className="text-xs uppercase tracking-[0.24em] text-white/55">Branch-aware</div>
-                <div className="mt-3 font-display text-2xl">{branches.length} locations surfaced</div>
+                <div className="text-xs uppercase tracking-[0.24em] text-white/55">
+                  Branch-aware
+                </div>
+                <div className="mt-3 font-display text-2xl">
+                  {branches.length} locations surfaced
+                </div>
                 <p className="mt-2 text-sm leading-6 text-white/80">
                   {branchLead
                     ? `Lead branch right now: ${branchLead.name}, ${branchLead.address.city}.`
@@ -88,7 +94,9 @@ export default async function HomePage() {
                 </p>
               </article>
               <article className="rounded-[24px] bg-white/12 p-5 backdrop-blur-sm">
-                <div className="text-xs uppercase tracking-[0.24em] text-white/55">Store handoff</div>
+                <div className="text-xs uppercase tracking-[0.24em] text-white/55">
+                  Store handoff
+                </div>
                 <div className="mt-3 font-display text-2xl">From marketing to conversion</div>
                 <p className="mt-2 text-sm leading-6 text-white/80">
                   The site sets tone, answers objections, and then hands customers into a live
@@ -227,7 +235,10 @@ export default async function HomePage() {
             >
               Start a prescription order
             </StoreLink>
-            <Link href="/contact" className="cta-secondary border-white/20 text-white hover:bg-white/10">
+            <Link
+              href="/contact"
+              className="cta-secondary border-white/20 text-white hover:bg-white/10"
+            >
               Talk to us
             </Link>
           </div>

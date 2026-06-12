@@ -5,7 +5,10 @@ import { z } from 'zod';
 import { RequirePermissions, RequireRealm } from '../../../core/auth/auth.decorators';
 import { PermissionsGuard, RealmGuard } from '../../../core/auth/authz.guards';
 import { ZodValidationPipe } from '../../../core/validation/zod-validation.pipe';
-import { StaffDirectoryService, type StaffLookupQuery } from '../application/staff-directory.service';
+import {
+  StaffDirectoryService,
+  type StaffLookupQuery,
+} from '../application/staff-directory.service';
 
 const StaffLookupQuerySchema = z.object({
   q: z.string().trim().min(2).max(80),

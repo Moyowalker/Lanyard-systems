@@ -77,7 +77,13 @@ export default function LoginPage() {
           ].map((point) => (
             <li key={point} className="flex items-center gap-3 text-sm text-white/85">
               <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-white/10">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 text-brand-200" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 text-brand-200"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
@@ -138,7 +144,8 @@ export default function LoginPage() {
             </div>
             {devCode && (
               <p className="rounded-[1rem] border border-paper-200 bg-paper-50/80 px-3 py-2 text-xs text-ink-700/70">
-                Dev code: <span className="tnum font-mono font-semibold text-ink-950">{devCode}</span>
+                Dev code:{' '}
+                <span className="tnum font-mono font-semibold text-ink-950">{devCode}</span>
               </p>
             )}
             <button
@@ -159,7 +166,13 @@ export default function LoginPage() {
 
         {error && (
           <p className="mt-4 flex items-start gap-2 rounded-[1rem] border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-            <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 flex-none" fill="none" stroke="currentColor" strokeWidth="1.9">
+            <svg
+              viewBox="0 0 24 24"
+              className="mt-0.5 h-4 w-4 flex-none"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+            >
               <circle cx="12" cy="12" r="9" />
               <path d="M12 8v5m0 3h.01" strokeLinecap="round" />
             </svg>

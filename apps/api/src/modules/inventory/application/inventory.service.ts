@@ -72,7 +72,10 @@ export class InventoryService {
     const rows = await this.listBranchInventory(branchId);
     return rows
       .filter((row) => row.isLowStock)
-      .sort((left, right) => left.available - right.available || left.productName.localeCompare(right.productName));
+      .sort(
+        (left, right) =>
+          left.available - right.available || left.productName.localeCompare(right.productName),
+      );
   }
 
   async receive(
@@ -177,7 +180,14 @@ export class InventoryService {
     if (res.modifiedCount !== 1) {
       throw new DomainError(ErrorCode.CONFLICT, 'Cannot dispense: stock reservation missing');
     }
-    await this.movement(StockMovementType.DISPENSE, branchId, productId, -qty, { orderId }, session);
+    await this.movement(
+      StockMovementType.DISPENSE,
+      branchId,
+      productId,
+      -qty,
+      { orderId },
+      session,
+    );
   }
 
   /** Release a previously held reservation (e.g. cancellation/refund/expiry). */
@@ -288,18 +298,12 @@ export class InventoryService {
           throw err;
         }
 
-        await this.movement(
-          input.movementType,
-          branchId,
-          input.productId,
-          input.quantityDelta,
-          {
-            actorId,
-            reason: input.reason,
-            batchNo: input.batchNo,
-            refType: 'manual',
-          },
-        );
+        await this.movement(input.movementType, branchId, input.productId, input.quantityDelta, {
+          actorId,
+          reason: input.reason,
+          batchNo: input.batchNo,
+          refType: 'manual',
+        });
         return;
       }
 
@@ -334,18 +338,12 @@ export class InventoryService {
 
       if (update.modifiedCount !== 1) continue;
 
-      await this.movement(
-        input.movementType,
-        branchId,
-        input.productId,
-        input.quantityDelta,
-        {
-          actorId,
-          reason: input.reason,
-          batchNo: input.batchNo,
-          refType: 'manual',
-        },
-      );
+      await this.movement(input.movementType, branchId, input.productId, input.quantityDelta, {
+        actorId,
+        reason: input.reason,
+        batchNo: input.batchNo,
+        refType: 'manual',
+      });
       return;
     }
 
@@ -388,11 +386,9 @@ export class InventoryService {
 
     if (index === -1) {
       if (quantityDelta < 0) {
-        throw new DomainError(
-          ErrorCode.VALIDATION_FAILED,
-          'Batch not found for stock adjustment',
-          [{ field: 'batchNo', issue: 'unknown batch' }],
-        );
+        throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Batch not found for stock adjustment', [
+          { field: 'batchNo', issue: 'unknown batch' },
+        ]);
       }
 
       batches.push({ batchNo, expiry: batchExpiry, quantity: quantityDelta });
@@ -415,7 +411,8 @@ export class InventoryService {
 
   private sortBatches(batches: Array<{ batchNo: string; expiry: Date; quantity: number }>) {
     return [...batches].sort(
-      (left, right) => left.expiry.getTime() - right.expiry.getTime() || left.batchNo.localeCompare(right.batchNo),
+      (left, right) =>
+        left.expiry.getTime() - right.expiry.getTime() || left.batchNo.localeCompare(right.batchNo),
     );
   }
 

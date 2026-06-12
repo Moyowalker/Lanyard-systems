@@ -166,7 +166,11 @@ export function ContactForm() {
           Delivery uses the configured SMTP relay. In local development, Mailpit is typically on
           port 1025 for SMTP and 8025 for inbox review.
         </p>
-        <button type="submit" disabled={isSubmitting} className="cta-primary disabled:cursor-not-allowed disabled:opacity-60">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="cta-primary disabled:cursor-not-allowed disabled:opacity-60"
+        >
           {isSubmitting ? 'Sending...' : 'Send message'}
         </button>
       </div>

@@ -4,12 +4,12 @@ Use this before promoting to a real Paystack test-key environment.
 
 ## 1 · Environment variables
 
-| Variable | Required in staging | Notes |
-|---|---|---|
-| `PAYSTACK_SECRET_KEY` | ✅ | Test key (`sk_test_…`). Production env validation now requires it. |
-| `PAYSTACK_WEBHOOK_SECRET` | ✅ | Used explicitly for webhook HMAC verification. In Paystack this is normally the same `sk_test_…` value. |
-| `MONGODB_URI` | ✅ | Replica set required (transactions used in settlement). |
-| `REDIS_URL` | ✅ | BullMQ reconcile queue. |
+| Variable                  | Required in staging | Notes                                                                                                   |
+| ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `PAYSTACK_SECRET_KEY`     | ✅                  | Test key (`sk_test_…`). Production env validation now requires it.                                      |
+| `PAYSTACK_WEBHOOK_SECRET` | ✅                  | Used explicitly for webhook HMAC verification. In Paystack this is normally the same `sk_test_…` value. |
+| `MONGODB_URI`             | ✅                  | Replica set required (transactions used in settlement).                                                 |
+| `REDIS_URL`               | ✅                  | BullMQ reconcile queue.                                                                                 |
 
 ## 2 · Paystack dashboard config
 
@@ -65,4 +65,5 @@ Use this before promoting to a real Paystack test-key environment.
 - [ ] Retry with a successful payment → flow completes, no duplicate transactions
 
 ---
+
 > Related code: `apps/api/src/modules/payment/`, `docs/architecture/03-backend-module-design.md §6`, `docs/architecture/10-risks-mitigation.md`

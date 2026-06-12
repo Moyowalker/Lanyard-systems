@@ -12,7 +12,7 @@ services:
   - type: web
     name: lanyard-api
     runtime: node
-    plan: free
+    plan: starter
     region: frankfurt
     autoDeployTrigger: commit
     buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/api build
@@ -20,17 +20,17 @@ services:
     healthCheckPath: /api/v1/health/ready
     buildFilter:
       paths:
-        - "apps/api/**"
-        - "packages/contracts/**"
-        - "package.json"
-        - "pnpm-lock.yaml"
-        - "pnpm-workspace.yaml"
-        - "tsconfig.base.json"
-        - "turbo.json"
-        - "render.yaml"
+        - 'apps/api/**'
+        - 'packages/contracts/**'
+        - 'package.json'
+        - 'pnpm-lock.yaml'
+        - 'pnpm-workspace.yaml'
+        - 'tsconfig.base.json'
+        - 'turbo.json'
+        - 'render.yaml'
     envVars:
       - key: NODE_ENV
-        value: development
+        value: production
       - key: API_GLOBAL_PREFIX
         value: api/v1
       - key: CORS_ORIGINS
@@ -44,6 +44,26 @@ services:
           name: lanyard-redis
           type: keyvalue
           property: connectionString
+      - key: TERMII_API_KEY
+        sync: false
+      - key: TERMII_SENDER_ID
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+      - key: ENABLE_DEV_PAYMENT_CONFIRM
+        value: 'false'
 
   - type: worker
     name: lanyard-api-worker
@@ -56,14 +76,14 @@ services:
     startCommand: corepack pnpm --filter @lanyard/api start:worker
     buildFilter:
       paths:
-        - "apps/api/**"
-        - "packages/contracts/**"
-        - "package.json"
-        - "pnpm-lock.yaml"
-        - "pnpm-workspace.yaml"
-        - "tsconfig.base.json"
-        - "turbo.json"
-        - "render.yaml"
+        - 'apps/api/**'
+        - 'packages/contracts/**'
+        - 'package.json'
+        - 'pnpm-lock.yaml'
+        - 'pnpm-workspace.yaml'
+        - 'tsconfig.base.json'
+        - 'turbo.json'
+        - 'render.yaml'
     envVars:
       - key: NODE_ENV
         fromService:
@@ -94,22 +114,22 @@ services:
   - type: web
     name: lanyard-web-store
     runtime: node
-    plan: free
+    plan: starter
     region: frankfurt
     autoDeployTrigger: commit
     buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/web-store build
     startCommand: corepack pnpm --filter @lanyard/web-store start
     buildFilter:
       paths:
-        - "apps/web-store/**"
-        - "packages/contracts/**"
-        - "scripts/start-next.mjs"
-        - "package.json"
-        - "pnpm-lock.yaml"
-        - "pnpm-workspace.yaml"
-        - "tsconfig.base.json"
-        - "turbo.json"
-        - "render.yaml"
+        - 'apps/web-store/**'
+        - 'packages/contracts/**'
+        - 'scripts/start-next.mjs'
+        - 'package.json'
+        - 'pnpm-lock.yaml'
+        - 'pnpm-workspace.yaml'
+        - 'tsconfig.base.json'
+        - 'turbo.json'
+        - 'render.yaml'
     envVars:
       - key: API_HOSTPORT
         fromService:
@@ -121,26 +141,34 @@ services:
           name: lanyard-api
           type: web
           envVarKey: API_GLOBAL_PREFIX
+      - key: NEXT_PUBLIC_SUPPORT_PHONE_E164
+        sync: false
+      - key: NEXT_PUBLIC_SUPPORT_PHONE_DISPLAY
+        sync: false
+      - key: NEXT_PUBLIC_SUPPORT_WHATSAPP_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPPORT_HOURS
+        value: Daily pharmacy support
 
   - type: web
     name: lanyard-web-admin
     runtime: node
-    plan: free
+    plan: starter
     region: frankfurt
     autoDeployTrigger: commit
     buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/web-admin build
     startCommand: corepack pnpm --filter @lanyard/web-admin start
     buildFilter:
       paths:
-        - "apps/web-admin/**"
-        - "packages/contracts/**"
-        - "scripts/start-next.mjs"
-        - "package.json"
-        - "pnpm-lock.yaml"
-        - "pnpm-workspace.yaml"
-        - "tsconfig.base.json"
-        - "turbo.json"
-        - "render.yaml"
+        - 'apps/web-admin/**'
+        - 'packages/contracts/**'
+        - 'scripts/start-next.mjs'
+        - 'package.json'
+        - 'pnpm-lock.yaml'
+        - 'pnpm-workspace.yaml'
+        - 'tsconfig.base.json'
+        - 'turbo.json'
+        - 'render.yaml'
     envVars:
       - key: API_HOSTPORT
         fromService:
@@ -156,22 +184,22 @@ services:
   - type: web
     name: lanyard-web-marketing
     runtime: node
-    plan: free
+    plan: starter
     region: frankfurt
     autoDeployTrigger: commit
     buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/web-marketing build
     startCommand: corepack pnpm --filter @lanyard/web-marketing start
     buildFilter:
       paths:
-        - "apps/web-marketing/**"
-        - "packages/contracts/**"
-        - "scripts/start-next.mjs"
-        - "package.json"
-        - "pnpm-lock.yaml"
-        - "pnpm-workspace.yaml"
-        - "tsconfig.base.json"
-        - "turbo.json"
-        - "render.yaml"
+        - 'apps/web-marketing/**'
+        - 'packages/contracts/**'
+        - 'scripts/start-next.mjs'
+        - 'package.json'
+        - 'pnpm-lock.yaml'
+        - 'pnpm-workspace.yaml'
+        - 'tsconfig.base.json'
+        - 'turbo.json'
+        - 'render.yaml'
     envVars:
       - key: API_HOSTPORT
         fromService:

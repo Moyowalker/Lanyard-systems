@@ -62,6 +62,7 @@ export class OrderFulfillment {
   address?: Address; // snapshot for delivery
 
   @Prop(OPTIONAL_KOBO) feeKobo?: number;
+  @Prop({ type: String, trim: true }) deliveryZoneName?: string;
   @Prop({ type: Number, min: 0 }) etaMins?: number;
 }
 export const OrderFulfillmentSchema = SchemaFactory.createForClass(OrderFulfillment);

@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CreateLeadInput, CreateLeadSchema } from '@lanyard/contracts';
 
 import { Public } from '../../../core/auth/auth.decorators';
@@ -13,6 +14,7 @@ export class LeadController {
 
   @Public()
   @Post()
+  @Throttle({ default: { limit: 5, ttl: 10 * 60_000 } })
   capture(@Body(new ZodValidationPipe(CreateLeadSchema)) dto: CreateLeadInput) {
     return this.leads.capture(dto);
   }

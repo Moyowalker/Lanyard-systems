@@ -1,27 +1,71 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { OrderDto, PaymentInitDto, PrescriptionDto } from '@lanyard/contracts';
-import { useCart } from '@/lib/client';
+import { useQuery } from '@tanstack/react-query';
+import type { OrderDto, PaymentInitDto, PrescriptionDto, QuoteDto } from '@lanyard/contracts';
+import { useCart, useMe } from '@/lib/client';
 import { formatKobo } from '@/lib/format';
+import { supportContact } from '@/lib/support';
 
 type Fulfillment = 'pickup' | 'delivery';
+type DeliveryZone = { name: string; feeKobo: number; etaMins?: number };
+type BranchDetail = { fulfillment?: { deliveryZones?: DeliveryZone[] } };
 
 export default function CheckoutPage() {
   const { data: cart, isLoading } = useCart();
+  const { data: me, isLoading: isMeLoading } = useMe();
   const router = useRouter();
 
   const [fulfillment, setFulfillment] = useState<Fulfillment>('pickup');
+  const [deliveryZoneName, setDeliveryZoneName] = useState('');
   const [address, setAddress] = useState({ line1: '', city: '', state: '' });
   const [files, setFiles] = useState<FileList | null>(null);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState('');
   const [error, setError] = useState<string | undefined>();
 
-  if (isLoading) return <p className="text-ink-700/60">Loading…</p>;
-  if (!cart)
+  const { data: branch } = useQuery({
+    queryKey: ['branch', cart?.branchId],
+    enabled: Boolean(cart?.branchId),
+    queryFn: async () => {
+      const res = await fetch(`/api/branches/${cart?.branchId}`);
+      if (!res.ok) return null;
+      return res.json() as Promise<BranchDetail>;
+    },
+  });
+  const deliveryZones = branch?.fulfillment?.deliveryZones ?? [];
+
+  useEffect(() => {
+    if (fulfillment !== 'delivery') return;
+    if (!deliveryZoneName && deliveryZones[0]) setDeliveryZoneName(deliveryZones[0].name);
+  }, [deliveryZoneName, deliveryZones, fulfillment]);
+
+  const quoteInput = {
+    fulfillment: {
+      type: fulfillment,
+      deliveryZoneName:
+        fulfillment === 'delivery' && deliveryZoneName ? deliveryZoneName : undefined,
+      address: fulfillment === 'delivery' ? { ...address, country: 'NG' } : undefined,
+    },
+  };
+  const { data: quote } = useQuery({
+    queryKey: ['checkout-quote', quoteInput],
+    enabled: Boolean(me && cart && cart.items.length > 0),
+    queryFn: async () => {
+      const res = await fetch('/api/checkout/quote', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(quoteInput),
+      });
+      if (!res.ok) return null;
+      return res.json() as Promise<QuoteDto>;
+    },
+  });
+
+  if (isLoading || isMeLoading) return <p className="text-ink-700/60">Loading…</p>;
+  if (!me)
     return (
       <div className="state-card mx-auto max-w-md text-center">
         <p className="text-ink-700/80">
@@ -30,6 +74,14 @@ export default function CheckoutPage() {
             sign in
           </Link>{' '}
           to check out.
+        </p>
+      </div>
+    );
+  if (!cart)
+    return (
+      <div className="state-card mx-auto max-w-md text-center">
+        <p className="text-ink-700/80">
+          We could not load your cart. Please refresh and try again.
         </p>
       </div>
     );
@@ -81,6 +133,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           fulfillment: {
             type: fulfillment,
+            deliveryZoneName: fulfillment === 'delivery' ? deliveryZoneName : undefined,
             address: fulfillment === 'delivery' ? { ...address, country: 'NG' } : undefined,
           },
           prescriptionIds,
@@ -120,6 +173,8 @@ export default function CheckoutPage() {
   }
 
   const fileNames = files && files.length > 0 ? Array.from(files).map((f) => f.name) : [];
+  const deliveryKobo = quote?.deliveryKobo ?? 0;
+  const totalKobo = quote?.totalKobo ?? cart.subtotalKobo + deliveryKobo;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -134,8 +189,14 @@ export default function CheckoutPage() {
           {/* Fulfillment */}
           <section className="surface-panel px-5 py-6 sm:px-7">
             <div className="section-kicker">Fulfilment</div>
-            <h2 className="mt-3 font-display text-xl text-ink-950">How would you like to receive it?</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Fulfilment method">
+            <h2 className="mt-3 font-display text-xl text-ink-950">
+              How would you like to receive it?
+            </h2>
+            <div
+              className="mt-4 grid gap-3 sm:grid-cols-2"
+              role="radiogroup"
+              aria-label="Fulfilment method"
+            >
               {(['pickup', 'delivery'] as Fulfillment[]).map((opt) => {
                 const active = fulfillment === opt;
                 return (
@@ -173,6 +234,26 @@ export default function CheckoutPage() {
 
             {fulfillment === 'delivery' && (
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {deliveryZones.length > 0 ? (
+                  <div className="sm:col-span-2">
+                    <label htmlFor="delivery-zone" className="field-label">
+                      Delivery zone
+                    </label>
+                    <select
+                      id="delivery-zone"
+                      value={deliveryZoneName}
+                      onChange={(e) => setDeliveryZoneName(e.target.value)}
+                      className="input-field"
+                    >
+                      {deliveryZones.map((zone) => (
+                        <option key={zone.name} value={zone.name}>
+                          {zone.name} · {formatKobo(zone.feeKobo)}
+                          {zone.etaMins ? ` · ${zone.etaMins} min` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
                 <div className="sm:col-span-2">
                   <label htmlFor="addr-line1" className="field-label">
                     Address line
@@ -235,8 +316,18 @@ export default function CheckoutPage() {
                 className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[1.3rem] border-2 border-dashed border-seal-200/80 bg-seal-100/40 px-4 py-8 text-center transition hover:border-seal-300 hover:bg-seal-100/70"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-white text-seal-400 shadow-sm">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M12 16V4m0 0L8 8m4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  >
+                    <path
+                      d="M12 16V4m0 0L8 8m4-4 4 4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                     <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" />
                   </svg>
                 </span>
@@ -261,7 +352,13 @@ export default function CheckoutPage() {
                       key={name}
                       className="flex items-center gap-2 rounded-[1rem] border border-paper-200 bg-white px-3 py-2 text-sm text-ink-800"
                     >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 flex-none text-brand-700" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-4 w-4 flex-none text-brand-700"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      >
                         <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                       <span className="truncate">{name}</span>
@@ -293,23 +390,39 @@ export default function CheckoutPage() {
             <div className="mt-3 space-y-2 border-t border-paper-200 pt-3 text-sm">
               <div className="flex justify-between text-ink-700/75">
                 <span>Subtotal</span>
-                <span className="tnum font-medium text-ink-900">{formatKobo(cart.subtotalKobo)}</span>
+                <span className="tnum font-medium text-ink-900">
+                  {formatKobo(cart.subtotalKobo)}
+                </span>
               </div>
               <div className="flex justify-between text-ink-700/60">
                 <span>Delivery</span>
-                <span>{fulfillment === 'delivery' ? 'Added by branch' : 'Free pickup'}</span>
+                <span className="tnum">
+                  {fulfillment === 'delivery' ? formatKobo(deliveryKobo) : 'Free pickup'}
+                </span>
               </div>
+              {fulfillment === 'delivery' && quote?.etaMins ? (
+                <div className="flex justify-between text-ink-700/60">
+                  <span>Estimated delivery</span>
+                  <span>{quote.etaMins} min</span>
+                </div>
+              ) : null}
             </div>
             <div className="mt-4 flex items-baseline justify-between border-t border-paper-200 pt-4">
               <span className="font-semibold text-ink-950">Total due</span>
               <span className="tnum font-display text-2xl text-ink-950">
-                {formatKobo(cart.subtotalKobo)}
+                {formatKobo(totalKobo)}
               </span>
             </div>
 
             {error && (
               <p className="mt-4 flex items-start gap-2 rounded-[1rem] border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 flex-none" fill="none" stroke="currentColor" strokeWidth="1.9">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="mt-0.5 h-4 w-4 flex-none"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.9"
+                >
                   <circle cx="12" cy="12" r="9" />
                   <path d="M12 8v5m0 3h.01" strokeLinecap="round" />
                 </svg>
@@ -326,12 +439,46 @@ export default function CheckoutPage() {
             </button>
 
             <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-ink-700/55">
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
                 <rect x="5" y="11" width="14" height="9" rx="2" />
                 <path d="M8 11V8a4 4 0 0 1 8 0v3" />
               </svg>
               Encrypted, pharmacist-reviewed checkout
             </p>
+
+            <div className="mt-4 rounded-[1rem] border border-paper-200 bg-paper-50/85 p-3 text-xs leading-5 text-ink-700/72">
+              <div className="font-semibold text-ink-950">Need help before payment?</div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                {supportContact.whatsappUrl ? (
+                  <a
+                    href={supportContact.whatsappUrl}
+                    className="font-semibold text-brand-800 hover:underline"
+                  >
+                    WhatsApp support
+                  </a>
+                ) : null}
+                {supportContact.phoneHref ? (
+                  <a
+                    href={supportContact.phoneHref}
+                    className="font-semibold text-brand-800 hover:underline"
+                  >
+                    {supportContact.phoneDisplay}
+                  </a>
+                ) : null}
+                <Link href="/returns" className="font-semibold text-brand-800 hover:underline">
+                  Returns policy
+                </Link>
+                <Link href="/privacy" className="font-semibold text-brand-800 hover:underline">
+                  Privacy notice
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>

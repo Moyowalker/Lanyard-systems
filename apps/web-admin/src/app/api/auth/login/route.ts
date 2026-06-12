@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: {
-          message: 'Authentication service unavailable. Start the API on http://localhost:4000/api/v1.',
+          message:
+            'Authentication service unavailable. Start the API on http://localhost:4000/api/v1.',
         },
       },
       { status: 503 },

@@ -69,6 +69,16 @@ export class RxVerification {
 }
 export const RxVerificationSchema = SchemaFactory.createForClass(RxVerification);
 
+@Schema({ _id: false })
+export class RxClarificationRequest {
+  @Prop({ type: String, trim: true, required: true }) note: string;
+  @Prop({ type: Types.ObjectId, ref: 'StaffUser', required: true })
+  requestedByStaffId: Types.ObjectId;
+  @Prop({ type: Date, required: true, default: () => new Date() }) requestedAt: Date;
+  @Prop({ type: Date }) respondedAt?: Date;
+}
+export const RxClarificationRequestSchema = SchemaFactory.createForClass(RxClarificationRequest);
+
 @Schema({ ...baseSchemaOptions, collection: 'prescriptions' })
 export class Prescription {
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true, index: true })
@@ -91,6 +101,9 @@ export class Prescription {
 
   @Prop({ type: RxVerificationSchema })
   verification?: RxVerification;
+
+  @Prop({ type: RxClarificationRequestSchema })
+  clarificationRequest?: RxClarificationRequest;
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Order' }], default: [] })
   linkedOrderIds: Types.ObjectId[];

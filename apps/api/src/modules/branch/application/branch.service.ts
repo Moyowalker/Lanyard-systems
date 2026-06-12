@@ -159,6 +159,12 @@ export class BranchService {
       fulfillment: {
         pickup: b.fulfillment?.pickup ?? false,
         delivery: b.fulfillment?.delivery ?? false,
+        deliveryZones: b.fulfillment?.deliveryZones?.map((zone) => ({
+          name: zone.name,
+          feeKobo: zone.feeKobo,
+          etaMins: zone.etaMins,
+          radiusKm: zone.radiusKm,
+        })),
       },
       ...(distanceM !== undefined ? { distanceKm: Math.round(distanceM / 100) / 10 } : {}),
     };

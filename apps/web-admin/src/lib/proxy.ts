@@ -55,7 +55,9 @@ async function refreshAccessToken(): Promise<string | undefined> {
 function withAuth(init: RequestInit, token?: string): Headers {
   const headers = new Headers(init.headers);
   if (token) headers.set('authorization', `Bearer ${token}`);
-  if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
+  if (init.body && !headers.has('content-type') && !(init.body instanceof FormData)) {
+    headers.set('content-type', 'application/json');
+  }
   return headers;
 }
 

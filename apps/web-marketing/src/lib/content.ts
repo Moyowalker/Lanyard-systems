@@ -18,17 +18,29 @@ export const serviceTracks = [
   {
     title: 'Pickup that feels immediate',
     body: 'Reserve medicines online, switch branches in seconds, and head to the counter with less friction.',
-    bullets: ['Live branch-aware pricing', 'Fast reorder-friendly experience', 'Clear pickup status updates'],
+    bullets: [
+      'Live branch-aware pricing',
+      'Fast reorder-friendly experience',
+      'Clear pickup status updates',
+    ],
   },
   {
     title: 'Prescription-first digital care',
     body: 'Upload a prescription online, route it into verification, and keep customers informed without compromising compliance.',
-    bullets: ['Pharmacist review workflow', 'Secure prescription handling', 'Order progression after verification'],
+    bullets: [
+      'Pharmacist review workflow',
+      'Secure prescription handling',
+      'Order progression after verification',
+    ],
   },
   {
     title: 'Delivery when you need reach',
     body: 'Support patients who cannot walk in, while keeping fulfillment grounded in real branch inventory and dispatch status.',
-    bullets: ['Delivery-ready checkout', 'Branch-scoped availability', 'Order tracking after payment'],
+    bullets: [
+      'Delivery-ready checkout',
+      'Branch-scoped availability',
+      'Order tracking after payment',
+    ],
   },
 ] as const;
 

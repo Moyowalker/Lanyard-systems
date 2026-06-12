@@ -19,4 +19,5 @@ export const COOKIE = {
   access: 'lny_at',
   refresh: 'lny_rt',
   branch: 'lny_branch',
+  anon: 'lny_anon',
 } as const;

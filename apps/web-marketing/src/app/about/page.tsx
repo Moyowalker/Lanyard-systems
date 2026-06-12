@@ -48,7 +48,10 @@ export default function AboutPage() {
             {[
               ['Marketing', 'Storytelling, credibility, branch discovery, and confidence-building'],
               ['Store', 'Branch-aware browsing, cart, prescription upload, checkout, and tracking'],
-              ['Admin', 'Verification, fulfillment, pricing, inventory, and audit-heavy operations'],
+              [
+                'Admin',
+                'Verification, fulfillment, pricing, inventory, and audit-heavy operations',
+              ],
             ].map(([title, body]) => (
               <div key={title} className="rounded-[24px] bg-white/10 p-5 backdrop-blur-sm">
                 <div className="font-display text-2xl">{title}</div>
@@ -79,7 +82,9 @@ export default function AboutPage() {
       <section className="surface-card flex flex-col gap-5 p-8 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="eyebrow">Next step</div>
-          <h2 className="mt-2 font-display text-3xl text-ink-900">See the store behind the story.</h2>
+          <h2 className="mt-2 font-display text-3xl text-ink-900">
+            See the store behind the story.
+          </h2>
         </div>
         <StoreLink source="about-next-step" className="cta-primary">
           Open the storefront

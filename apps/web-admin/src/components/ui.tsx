@@ -179,7 +179,8 @@ type BtnVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 const BTN: Record<BtnVariant, string> = {
   primary:
     'bg-brand-600 text-white shadow-sm shadow-brand-900/10 hover:bg-brand-700 hover:shadow-card-hover active:translate-y-px',
-  secondary: 'border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50',
+  secondary:
+    'border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50',
   danger: 'border border-rose-300 bg-white text-rose-700 hover:bg-rose-50',
   ghost: 'text-slate-600 hover:bg-slate-100',
 };

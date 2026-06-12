@@ -61,7 +61,8 @@ export default function PrescriptionQueue() {
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-slate-900">Rx {rx.id.slice(-6)}</div>
                     <div className="mt-0.5 text-sm text-slate-500">
-                      {rx.files.length} file{rx.files.length === 1 ? '' : 's'} · {timeAgo(rx.createdAt)}
+                      {rx.files.length} file{rx.files.length === 1 ? '' : 's'} ·{' '}
+                      {timeAgo(rx.createdAt)}
                     </div>
                   </div>
                   <Badge tone={clean ? 'success' : 'warn'}>

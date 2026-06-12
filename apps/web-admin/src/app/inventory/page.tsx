@@ -412,7 +412,10 @@ export default function InventoryPage() {
                         step="1"
                         value={receiveForm.quantity}
                         onChange={(event) =>
-                          setReceiveForm((current) => ({ ...current, quantity: event.target.value }))
+                          setReceiveForm((current) => ({
+                            ...current,
+                            quantity: event.target.value,
+                          }))
                         }
                         className={inputClass}
                         placeholder="e.g. 24"
@@ -429,7 +432,10 @@ export default function InventoryPage() {
                         step="1"
                         value={receiveForm.reorderLevel}
                         onChange={(event) =>
-                          setReceiveForm((current) => ({ ...current, reorderLevel: event.target.value }))
+                          setReceiveForm((current) => ({
+                            ...current,
+                            reorderLevel: event.target.value,
+                          }))
                         }
                         className={inputClass}
                         placeholder="e.g. 8"
@@ -485,7 +491,8 @@ export default function InventoryPage() {
 
                   {selectedReceiveInventory?.batchCount ? (
                     <p className="text-xs text-slate-500">
-                      This SKU already has tracked batches. Enter both batch number and expiry to keep the ledger aligned.
+                      This SKU already has tracked batches. Enter both batch number and expiry to
+                      keep the ledger aligned.
                     </p>
                   ) : null}
 
@@ -536,7 +543,8 @@ export default function InventoryPage() {
                     </select>
                     {selectedAdjustInventory ? (
                       <p className="mt-1 text-xs text-slate-500">
-                        {selectedAdjustInventory.available} available, {selectedAdjustInventory.reserved} reserved, reorder at{' '}
+                        {selectedAdjustInventory.available} available,{' '}
+                        {selectedAdjustInventory.reserved} reserved, reorder at{' '}
                         {selectedAdjustInventory.reorderLevel}.
                       </p>
                     ) : null}
@@ -553,7 +561,10 @@ export default function InventoryPage() {
                         step="1"
                         value={adjustForm.quantityDelta}
                         onChange={(event) =>
-                          setAdjustForm((current) => ({ ...current, quantityDelta: event.target.value }))
+                          setAdjustForm((current) => ({
+                            ...current,
+                            quantityDelta: event.target.value,
+                          }))
                         }
                         className={inputClass}
                         placeholder="Use negative values to reduce stock"
@@ -570,10 +581,17 @@ export default function InventoryPage() {
                         step="1"
                         value={adjustForm.reorderLevel}
                         onChange={(event) =>
-                          setAdjustForm((current) => ({ ...current, reorderLevel: event.target.value }))
+                          setAdjustForm((current) => ({
+                            ...current,
+                            reorderLevel: event.target.value,
+                          }))
                         }
                         className={inputClass}
-                        placeholder={selectedAdjustInventory ? `${selectedAdjustInventory.reorderLevel}` : 'Optional'}
+                        placeholder={
+                          selectedAdjustInventory
+                            ? `${selectedAdjustInventory.reorderLevel}`
+                            : 'Optional'
+                        }
                       />
                     </div>
                   </div>
@@ -626,7 +644,8 @@ export default function InventoryPage() {
 
                   {selectedAdjustInventory?.batchCount ? (
                     <p className="text-xs text-slate-500">
-                      This SKU is batch-tracked. Adjust the specific batch to avoid orphaning expiry counts.
+                      This SKU is batch-tracked. Adjust the specific batch to avoid orphaning expiry
+                      counts.
                     </p>
                   ) : null}
 
@@ -678,8 +697,9 @@ export default function InventoryPage() {
                         <div>
                           <p className="font-semibold text-slate-900">{row.productName}</p>
                           <p className="text-xs text-slate-500">
-                            {[row.genericName, row.brand, row.form, row.strength].filter(Boolean).join(' · ') ||
-                              'Catalog details unavailable'}
+                            {[row.genericName, row.brand, row.form, row.strength]
+                              .filter(Boolean)
+                              .join(' · ') || 'Catalog details unavailable'}
                           </p>
                         </div>
                         <Badge tone={stockTone(row)}>
@@ -735,8 +755,9 @@ export default function InventoryPage() {
                     <Td>
                       <div className="font-semibold text-slate-900">{row.productName}</div>
                       <div className="text-xs text-slate-500">
-                        {[row.genericName, row.brand, row.form, row.strength].filter(Boolean).join(' · ') ||
-                          'Catalog details unavailable'}
+                        {[row.genericName, row.brand, row.form, row.strength]
+                          .filter(Boolean)
+                          .join(' · ') || 'Catalog details unavailable'}
                       </div>
                     </Td>
                     <Td>

@@ -2,11 +2,15 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import type { OrderDto, Paginated } from '@lanyard/contracts';
 import { formatKobo } from '@/lib/format';
 import { statusLabel, statusTone } from '@/lib/orders';
+import { useReorder } from '@/lib/client';
 
 export default function OrdersPage() {
+  const router = useRouter();
+  const reorder = useReorder();
   const { data, isLoading } = useQuery({
     queryKey: ['orders'],
     queryFn: async () => {
@@ -45,7 +49,13 @@ export default function OrdersPage() {
       <div className="state-card mx-auto max-w-md text-center">
         <div className="flex flex-col items-center gap-4 py-6">
           <span className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-brand-100 text-brand-800">
-            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+            >
               <path d="M8 7h10M8 12h10M8 17h6" strokeLinecap="round" />
             </svg>
           </span>
@@ -71,14 +81,20 @@ export default function OrdersPage() {
 
       <ul className="space-y-3">
         {data.data.map((o) => (
-          <li key={o.id}>
-            <Link
-              href={`/orders/${o.id}`}
-              className="surface-panel group flex items-center justify-between gap-3 px-5 py-4 transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lift"
-            >
+          <li
+            key={o.id}
+            className="surface-panel group px-5 py-4 transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lift"
+          >
+            <Link href={`/orders/${o.id}`} className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-4">
                 <span className="flex h-11 w-11 flex-none items-center justify-center rounded-[1rem] bg-brand-50 text-brand-700">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                  >
                     <path d="M6 2h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" />
                     <path d="M9 12h6M9 16h4" strokeLinecap="round" />
                   </svg>
@@ -91,10 +107,33 @@ export default function OrdersPage() {
                   </div>
                 </div>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(o.status)}`}>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(o.status)}`}
+              >
                 {statusLabel(o.status)}
               </span>
             </Link>
+            <div className="mt-3 flex justify-end border-t border-paper-200/70 pt-3">
+              <button
+                type="button"
+                disabled={reorder.isPending}
+                onClick={() =>
+                  reorder.mutate(o.id, {
+                    onSuccess: (result) => {
+                      const unavailable = result.unavailableItems
+                        .map((item) => item.name)
+                        .join(', ');
+                      const params = new URLSearchParams({ reordered: '1' });
+                      if (unavailable) params.set('unavailable', unavailable);
+                      router.push(`/cart?${params.toString()}`);
+                    },
+                  })
+                }
+                className="secondary-button min-h-0 rounded-[0.95rem] px-3 py-2 text-xs disabled:opacity-50"
+              >
+                Reorder
+              </button>
+            </div>
           </li>
         ))}
       </ul>

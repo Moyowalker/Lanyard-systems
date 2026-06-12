@@ -45,13 +45,7 @@ function maskEmail(value: string): string {
   return `${local.slice(0, 2)}${'•'.repeat(Math.max(local.length - 2, 3))}@${domain}`;
 }
 
-function HealthBanner({
-  health,
-  onRetry,
-}: {
-  health: HealthState;
-  onRetry: () => void;
-}) {
+function HealthBanner({ health, onRetry }: { health: HealthState; onRetry: () => void }) {
   return (
     <div
       className={cn(
@@ -165,9 +159,10 @@ export default function LoginPage() {
   async function checkHealth() {
     try {
       const res = await fetch('/api/health', { cache: 'no-store' });
-      const body = (await res.json().catch(() => null)) as
-        | { title?: string; message?: string }
-        | null;
+      const body = (await res.json().catch(() => null)) as {
+        title?: string;
+        message?: string;
+      } | null;
 
       if (!res.ok) {
         setHealth({
@@ -273,7 +268,8 @@ export default function LoginPage() {
               </h1>
               <p className="mt-5 max-w-lg text-base leading-8 text-white/70">
                 Authenticate once, verify high-trust actions with MFA, and enter a console built for
-                prescription review, inventory control, finance operations, and auditable branch work.
+                prescription review, inventory control, finance operations, and auditable branch
+                work.
               </p>
             </div>
 
@@ -302,7 +298,10 @@ export default function LoginPage() {
           <div className="relative mt-10 space-y-6">
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
               {ENTERPRISE_PILLARS.map((item) => (
-                <div key={item.title} className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
+                >
                   <div className="text-sm font-semibold">{item.title}</div>
                   <p className="mt-2 text-sm leading-6 text-white/65">{item.body}</p>
                 </div>
@@ -311,7 +310,10 @@ export default function LoginPage() {
 
             <div className="flex flex-wrap gap-2 text-xs text-white/60">
               {CONTROL_POINTS.map((item) => (
-                <span key={item} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                <span
+                  key={item}
+                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5"
+                >
                   {item}
                 </span>
               ))}
@@ -358,7 +360,10 @@ export default function LoginPage() {
               </div>
 
               {error ? (
-                <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-rose-900" aria-live="polite">
+                <div
+                  className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-rose-900"
+                  aria-live="polite"
+                >
                   <div className="flex items-start gap-3">
                     <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-700">
                       <IconAlert width={16} height={16} />
@@ -415,12 +420,17 @@ export default function LoginPage() {
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
                     <div className="font-semibold text-slate-900">Before you continue</div>
                     <p className="mt-1 leading-6">
-                      The system status above helps distinguish connectivity problems from real sign-in failures.
-                      If the backend is unavailable, restore it first before retrying credentials.
+                      The system status above helps distinguish connectivity problems from real
+                      sign-in failures. If the backend is unavailable, restore it first before
+                      retrying credentials.
                     </p>
                   </div>
 
-                  <Button type="submit" disabled={!canSubmitLogin} className="w-full rounded-2xl py-3 text-sm">
+                  <Button
+                    type="submit"
+                    disabled={!canSubmitLogin}
+                    className="w-full rounded-2xl py-3 text-sm"
+                  >
                     {busy ? 'Verifying credentials…' : 'Continue to secure sign in'}
                   </Button>
                 </form>
@@ -433,10 +443,13 @@ export default function LoginPage() {
                   }}
                 >
                   <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-4 text-sm text-slate-700">
-                    <div className="font-semibold text-slate-900">Authenticator challenge issued</div>
+                    <div className="font-semibold text-slate-900">
+                      Authenticator challenge issued
+                    </div>
                     <p className="mt-1 leading-6">
-                      Enter the current code from the authenticator app assigned to <span className="font-medium">{maskedEmail}</span>.
-                      Codes typically rotate every 30 seconds.
+                      Enter the current code from the authenticator app assigned to{' '}
+                      <span className="font-medium">{maskedEmail}</span>. Codes typically rotate
+                      every 30 seconds.
                     </p>
                   </div>
 
@@ -459,7 +472,11 @@ export default function LoginPage() {
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Button type="submit" disabled={!canSubmitMfa} className="w-full rounded-2xl py-3 text-sm">
+                    <Button
+                      type="submit"
+                      disabled={!canSubmitMfa}
+                      className="w-full rounded-2xl py-3 text-sm"
+                    >
                       {busy ? 'Confirming MFA…' : 'Verify and enter console'}
                     </Button>
                     <Button
@@ -483,19 +500,26 @@ export default function LoginPage() {
                   <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                     Security
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">Short-lived access tokens with refresh-backed session continuity.</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    Short-lived access tokens with refresh-backed session continuity.
+                  </p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                     Oversight
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">Operational actions remain tied to branch scope, roles, and audit records.</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    Operational actions remain tied to branch scope, roles, and audit records.
+                  </p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                     Support
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">If sign-in fails repeatedly, confirm backend health before escalating credentials.</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    If sign-in fails repeatedly, confirm backend health before escalating
+                    credentials.
+                  </p>
                 </div>
               </div>
             </div>

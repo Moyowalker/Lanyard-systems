@@ -3,7 +3,9 @@ import { StoreLink } from './StoreLink';
 
 function ServiceBadge({ active, label }: { active: boolean; label: string }) {
   return (
-    <span className={active ? 'pill bg-brand-50 text-brand-800' : 'pill bg-slate-100 text-slate-500'}>
+    <span
+      className={active ? 'pill bg-brand-50 text-brand-800' : 'pill bg-slate-100 text-slate-500'}
+    >
       {label}
     </span>
   );
@@ -19,7 +21,9 @@ export function BranchGrid({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3 text-sm text-ink-700/70">
-        <span className={isLive ? 'pill bg-brand-100 text-brand-800' : 'pill bg-sand-100 text-ink-800'}>
+        <span
+          className={isLive ? 'pill bg-brand-100 text-brand-800' : 'pill bg-sand-100 text-ink-800'}
+        >
           {isLive ? 'Live branch feed' : 'Preview branch feed'}
         </span>
         <span>
@@ -40,7 +44,9 @@ export function BranchGrid({
                   {branch.address.line1}, {branch.address.city}, {branch.address.state}
                 </p>
               </div>
-              <span className="pill bg-ink-900 text-white/90">{branch.status.replace(/_/g, ' ')}</span>
+              <span className="pill bg-ink-900 text-white/90">
+                {branch.status.replace(/_/g, ' ')}
+              </span>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">

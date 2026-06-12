@@ -3,6 +3,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   PaginationQuery,
   PaginationQuerySchema,
+  RequestPrescriptionInfoInput,
+  RequestPrescriptionInfoSchema,
   VerifyPrescriptionInput,
   VerifyPrescriptionSchema,
 } from '@lanyard/contracts';
@@ -56,5 +58,15 @@ export class AdminPrescriptionController {
     @Body(new ZodValidationPipe(VerifyPrescriptionSchema)) dto: VerifyPrescriptionInput,
   ) {
     return this.prescriptions.verify(user, id, dto);
+  }
+
+  @Post(':id/request-info')
+  @RequirePermissions('rx:verify')
+  requestInfo(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RequestPrescriptionInfoSchema)) dto: RequestPrescriptionInfoInput,
+  ) {
+    return this.prescriptions.requestInfo(user, id, dto);
   }
 }

@@ -14,6 +14,11 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: false, rawBody: true });
   const config = app.get(ConfigService);
 
+  const httpServer = app.getHttpAdapter().getInstance();
+  if (typeof httpServer.set === 'function') {
+    httpServer.set('trust proxy', 1);
+  }
+
   const prefix = config.get<string>('API_GLOBAL_PREFIX', 'api/v1');
   app.setGlobalPrefix(prefix);
 

@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, Ip, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   StaffLoginInput,
   StaffLoginSchema,
@@ -19,6 +20,7 @@ export class StaffAuthController {
   @Public()
   @Post('login')
   @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 5 * 60_000 } })
   login(@Body(new ZodValidationPipe(StaffLoginSchema)) dto: StaffLoginInput, @Ip() ip: string) {
     return this.staffAuth.login(dto.email, dto.password, { ip });
   }
@@ -26,6 +28,7 @@ export class StaffAuthController {
   @Public()
   @Post('mfa/verify')
   @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 5 * 60_000 } })
   verifyMfa(
     @Body(new ZodValidationPipe(StaffMfaVerifySchema)) dto: StaffMfaVerifyInput,
     @Ip() ip: string,

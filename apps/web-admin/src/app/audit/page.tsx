@@ -218,7 +218,9 @@ function AuditRow({
         <Td>
           <Badge tone={ACTOR_TONE[entry.actorType] ?? 'neutral'}>{entry.actorType}</Badge>
           {entry.actorId && (
-            <span className="ml-2 font-mono text-xs text-slate-400">…{entry.actorId.slice(-6)}</span>
+            <span className="ml-2 font-mono text-xs text-slate-400">
+              …{entry.actorId.slice(-6)}
+            </span>
           )}
         </Td>
         <Td className="text-slate-500">{target}</Td>

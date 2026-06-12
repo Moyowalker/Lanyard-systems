@@ -117,7 +117,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               ['NAFDAC', 'Registered'],
               ['Branch', 'Local stock'],
             ].map(([title, sub]) => (
-              <div key={title} className="rounded-[1.1rem] border border-paper-200 bg-paper-50/80 px-3 py-2.5 text-center">
+              <div
+                key={title}
+                className="rounded-[1.1rem] border border-paper-200 bg-paper-50/80 px-3 py-2.5 text-center"
+              >
                 <div className="text-[0.72rem] font-bold uppercase tracking-[0.1em] text-brand-800">
                   {title}
                 </div>

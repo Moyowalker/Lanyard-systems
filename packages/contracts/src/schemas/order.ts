@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { FulfillmentType, OrderStatus } from '../enums';
+import type { CartDto } from './cart';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
 
 const fulfillmentSchema = z.object({
   type: z.nativeEnum(FulfillmentType),
+  deliveryZoneName: z.string().trim().min(1).max(120).optional(),
   address: z
     .object({
       line1: z.string().trim().min(1),
@@ -47,7 +49,12 @@ export interface OrderDto {
   customerId: string;
   branchId: string;
   status: OrderStatus;
-  fulfillment: { type: string; address?: Record<string, unknown> };
+  fulfillment: {
+    type: string;
+    address?: Record<string, unknown>;
+    deliveryZoneName?: string;
+    etaMins?: number;
+  };
   items: OrderItemDto[];
   prescriptionIds: string[];
   requiresRxVerification: boolean;
@@ -67,7 +74,20 @@ export interface QuoteDto {
   items: OrderItemDto[];
   subtotalKobo: number;
   deliveryKobo: number;
+  deliveryZoneName?: string;
+  etaMins?: number;
   totalKobo: number;
   currency: string;
   requiresRxVerification: boolean;
+}
+
+export interface ReorderUnavailableItemDto {
+  productId: string;
+  name: string;
+  reason: string;
+}
+
+export interface ReorderResultDto {
+  cart: CartDto;
+  unavailableItems: ReorderUnavailableItemDto[];
 }

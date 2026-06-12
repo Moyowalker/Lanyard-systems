@@ -7,14 +7,16 @@ import { NormalizedCharge } from './provider/payment-provider.interface';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function makeIntent(overrides: Partial<{
-  ourRef: string;
-  providerRef: string;
-  amountKobo: number;
-  currency: string;
-  status: PaymentIntentStatus;
-  orderId: Types.ObjectId;
-}> = {}) {
+function makeIntent(
+  overrides: Partial<{
+    ourRef: string;
+    providerRef: string;
+    amountKobo: number;
+    currency: string;
+    status: PaymentIntentStatus;
+    orderId: Types.ObjectId;
+  }> = {},
+) {
   return {
     _id: new Types.ObjectId(),
     ourRef: overrides.ourRef ?? 'LNYPAY_abc123',
@@ -137,9 +139,9 @@ describe('PaymentService.applyChargeEvent', () => {
       txnExists: jest.fn().mockResolvedValue(null),
     });
 
-    await expect(
-      service.applyChargeEvent(makeCharge({ currency: 'USD' })),
-    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    await expect(service.applyChargeEvent(makeCharge({ currency: 'USD' }))).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
   });
 
   it('marks intent SUCCEEDED and records txn on successful charge', async () => {
@@ -175,9 +177,7 @@ describe('PaymentService.applyChargeEvent', () => {
 describe('PaymentService.reconcile', () => {
   it('settles a pending intent when verify returns success', async () => {
     const intent = makeIntent({ status: PaymentIntentStatus.PENDING });
-    const applyMock = jest
-      .fn()
-      .mockResolvedValue({ status: 'ok' });
+    const applyMock = jest.fn().mockResolvedValue({ status: 'ok' });
 
     const { service, provider } = buildService({
       provider: {

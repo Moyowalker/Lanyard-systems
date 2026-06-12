@@ -37,7 +37,11 @@ describe('EmailChannel', () => {
   });
 
   it('marks SMTP 5xx response errors as non-retryable', async () => {
-    sendMail.mockRejectedValue({ message: 'Mailbox unavailable', responseCode: 550, code: 'EENVELOPE' });
+    sendMail.mockRejectedValue({
+      message: 'Mailbox unavailable',
+      responseCode: 550,
+      code: 'EENVELOPE',
+    });
 
     const channel = new EmailChannel(
       new ConfigService({

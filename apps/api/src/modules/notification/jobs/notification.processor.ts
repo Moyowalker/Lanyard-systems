@@ -9,7 +9,10 @@ import { Notification } from '../infrastructure/notification.schema';
 import { Customer } from '../../identity/infrastructure/identity.schemas';
 import { EmailChannel } from '../application/channels/email.channel';
 import { SmsChannel } from '../application/channels/sms.channel';
-import { NotificationChannelPort, NotificationDeliveryError } from '../application/channels/channel.types';
+import {
+  NotificationChannelPort,
+  NotificationDeliveryError,
+} from '../application/channels/channel.types';
 import { renderTemplate } from '../application/templates';
 import { NOTIFICATION_QUEUE, NotificationJobData } from '../../../core/queue/queue.constants';
 
@@ -29,8 +32,7 @@ export class NotificationProcessor extends WorkerHost {
 
   async process(job: Job<NotificationJobData>): Promise<void> {
     if (job.data.direct) {
-      const channel =
-        job.data.direct.channel === NotificationChannel.EMAIL ? this.email : this.sms;
+      const channel = job.data.direct.channel === NotificationChannel.EMAIL ? this.email : this.sms;
       try {
         await channel.send({
           to: job.data.direct.to,

@@ -90,9 +90,7 @@ export function ProductCard({
             }`}
           >
             <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                outOfStock ? 'bg-rose-500' : 'bg-brand-500'
-              }`}
+              className={`h-1.5 w-1.5 rounded-full ${outOfStock ? 'bg-rose-500' : 'bg-brand-500'}`}
             />
             {outOfStock ? 'Restocking' : 'Branch ready'}
           </span>
@@ -131,7 +129,9 @@ export function ProductCard({
           </Link>
         </div>
 
-        {meta ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-700/75">{meta}</p> : null}
+        {meta ? (
+          <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-700/75">{meta}</p>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2 text-[0.72rem] font-medium">
           <span className="inline-flex items-center gap-1 rounded-full bg-paper-100 px-3 py-1 text-ink-700/80">

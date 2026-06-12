@@ -124,7 +124,9 @@ describe('NotificationProcessor', () => {
     findByIdLean.mockResolvedValue({ email: 'customer@example.com', firstName: 'Ada' });
     email.send.mockRejectedValue(new NotificationDeliveryError('mailbox unavailable', false));
 
-    await expect(processor.process({ data: { notificationId: 'n2' } } as Job)).resolves.toBeUndefined();
+    await expect(
+      processor.process({ data: { notificationId: 'n2' } } as Job),
+    ).resolves.toBeUndefined();
     expect(notification.status).toBe(NotificationStatus.FAILED);
     expect(notification.attempts).toBe(1);
     expect(save).toHaveBeenCalled();

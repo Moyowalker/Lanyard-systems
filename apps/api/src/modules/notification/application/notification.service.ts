@@ -56,7 +56,12 @@ export class NotificationService {
     }
   }
 
-  async notifyOtp(target: string, purpose: OtpPurpose, code: string, ttlSeconds: number): Promise<void> {
+  async notifyOtp(
+    target: string,
+    purpose: OtpPurpose,
+    code: string,
+    ttlSeconds: number,
+  ): Promise<void> {
     const template = `otp.${purpose}`;
     const rendered = renderTemplate(template, {
       code,

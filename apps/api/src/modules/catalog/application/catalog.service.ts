@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import {
   CategoryDto,
   CreateCategoryInput,
@@ -22,6 +23,13 @@ import { PricingService, PriceEntry } from '../../pricing/application/pricing.se
 import { InventoryService } from '../../inventory/application/inventory.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { cursorFilter, paginate } from '../../../core/pagination/cursor';
+import { StorageService } from '../../../core/storage/storage.service';
+
+export interface UploadedProductImage {
+  buffer: Buffer;
+  mime: string;
+  ext: string;
+}
 
 @Injectable()
 export class CatalogService {
@@ -30,6 +38,7 @@ export class CatalogService {
     @InjectModel(Category.name) private readonly categoryModel: Model<Category>,
     private readonly pricing: PricingService,
     private readonly inventory: InventoryService,
+    private readonly storage: StorageService,
   ) {}
 
   /* ── public reads ── */
@@ -128,6 +137,55 @@ export class CatalogService {
     return product;
   }
 
+  async addProductImages(id: string, files: UploadedProductImage[]): Promise<ProductDocument> {
+    if (files.length === 0) {
+      throw new DomainError(ErrorCode.VALIDATION_FAILED, 'At least one image is required');
+    }
+    const product = await this.productModel.findById(id).select('_id');
+    if (!product) throw new DomainError(ErrorCode.NOT_FOUND, 'Product not found');
+
+    const keys: string[] = [];
+    for (const file of files) {
+      const objectKey = `products/${id}/${randomUUID()}.${file.ext}`;
+      await this.storage.putObject(objectKey, file.buffer, file.mime);
+      keys.push(objectKey);
+    }
+
+    const updated = await this.productModel.findByIdAndUpdate(
+      id,
+      { $push: { images: { $each: keys } } },
+      { new: true },
+    );
+    if (!updated) throw new DomainError(ErrorCode.NOT_FOUND, 'Product not found');
+    return updated;
+  }
+
+  async removeProductImage(id: string, key: string): Promise<ProductDocument> {
+    const product = await this.productModel.findByIdAndUpdate(
+      id,
+      { $pull: { images: key } },
+      { new: true },
+    );
+    if (!product) throw new DomainError(ErrorCode.NOT_FOUND, 'Product not found');
+    return product;
+  }
+
+  async reorderProductImages(id: string, images: string[]): Promise<ProductDocument> {
+    const product = await this.productModel.findById(id);
+    if (!product) throw new DomainError(ErrorCode.NOT_FOUND, 'Product not found');
+    const current = new Set(product.images);
+    const next = new Set(images);
+    if (current.size !== next.size || images.some((key) => !current.has(key))) {
+      throw new DomainError(
+        ErrorCode.VALIDATION_FAILED,
+        'Image order does not match product images',
+      );
+    }
+    product.images = images;
+    await product.save();
+    return product;
+  }
+
   async createCategory(input: CreateCategoryInput): Promise<Category & { id: string }> {
     const slug = input.slug ?? this.slugify(input.name);
     try {
@@ -157,7 +215,13 @@ export class CatalogService {
       .sort({ _id: 1 })
       .limit(query.limit + 1)
       .lean();
-    const mapped = rows.map((r) => ({ ...r, id: r._id.toString() }));
+    const mapped = await Promise.all(
+      rows.map(async (r) => ({
+        ...r,
+        id: r._id.toString(),
+        imageUrls: await this.signedImages(r.images ?? []),
+      })),
+    );
     return paginate(mapped, query.limit);
   }
 
@@ -178,35 +242,45 @@ export class CatalogService {
       ]);
     }
 
-    return rows.map((r) => {
-      const id = r._id.toString();
-      const price = priceMap.get(id);
-      const available = availMap.get(id);
-      const base: ProductListItemDto = {
-        id,
-        slug: r.slug as string,
-        name: r.name as string,
-        genericName: r.genericName as string | undefined,
-        brand: r.brand as string | undefined,
-        form: r.form as string,
-        strength: r.strength as string | undefined,
-        requiresPrescription: Boolean(r.requiresPrescription),
-        regulatoryClass: r.regulatoryClass as string,
-        images: (r.images as string[]) ?? [],
-      };
-      if (branchId) {
-        if (price && price.isAvailable) {
-          base.price = {
-            priceKobo: price.priceKobo,
-            compareAtKobo: price.compareAtKobo,
-            currency: price.currency,
-          };
+    return Promise.all(
+      rows.map(async (r) => {
+        const id = r._id.toString();
+        const price = priceMap.get(id);
+        const available = availMap.get(id);
+        const base: ProductListItemDto = {
+          id,
+          slug: r.slug as string,
+          name: r.name as string,
+          genericName: r.genericName as string | undefined,
+          brand: r.brand as string | undefined,
+          form: r.form as string,
+          strength: r.strength as string | undefined,
+          requiresPrescription: Boolean(r.requiresPrescription),
+          regulatoryClass: r.regulatoryClass as string,
+          images: await this.signedImages((r.images as string[]) ?? []),
+        };
+        if (branchId) {
+          if (price && price.isAvailable) {
+            base.price = {
+              priceKobo: price.priceKobo,
+              compareAtKobo: price.compareAtKobo,
+              currency: price.currency,
+            };
+          }
+          base.available = available ?? 0;
+          base.inStock = (available ?? 0) > 0;
         }
-        base.available = available ?? 0;
-        base.inStock = (available ?? 0) > 0;
-      }
-      return base;
-    });
+        return base;
+      }),
+    );
+  }
+
+  private async signedImages(keys: string[]): Promise<string[]> {
+    return Promise.all(
+      keys.map((key) =>
+        key.startsWith('http') ? Promise.resolve(key) : this.storage.getSignedDownloadUrl(key),
+      ),
+    );
   }
 
   private slugify(name: string): string {

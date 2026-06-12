@@ -1,6 +1,8 @@
 'use client';
 
+import { Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useCart, useRemoveFromCart } from '@/lib/client';
 import { formatKobo } from '@/lib/format';
 
@@ -12,7 +14,8 @@ function CartShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function CartPage() {
+function CartContent() {
+  const searchParams = useSearchParams();
   const { data: cart, isLoading } = useCart();
   const remove = useRemoveFromCart();
 
@@ -29,7 +32,13 @@ export default function CartPage() {
     return (
       <CartShell>
         <span className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-brand-100 text-brand-800">
-          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          >
             <path d="M4 5h2l1.6 10.2a1.5 1.5 0 0 0 1.5 1.3h7.7a1.5 1.5 0 0 0 1.5-1.2L20 8H7" />
             <circle cx="9.5" cy="20" r="1.2" />
             <circle cx="18" cy="20" r="1.2" />
@@ -52,7 +61,13 @@ export default function CartPage() {
     return (
       <CartShell>
         <span className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-brand-100 text-brand-800">
-          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          >
             <path d="M4 5h2l1.6 10.2a1.5 1.5 0 0 0 1.5 1.3h7.7a1.5 1.5 0 0 0 1.5-1.2L20 8H7" />
             <circle cx="9.5" cy="20" r="1.2" />
             <circle cx="18" cy="20" r="1.2" />
@@ -72,6 +87,8 @@ export default function CartPage() {
   }
 
   const itemCount = cart.items.reduce((n, i) => n + i.quantity, 0);
+  const reordered = searchParams.get('reordered') === '1';
+  const unavailable = searchParams.get('unavailable');
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -79,6 +96,22 @@ export default function CartPage() {
         <div className="page-eyebrow">Your basket</div>
         <h1 className="page-title mt-2">Cart</h1>
       </div>
+
+      {reordered ? (
+        <div className="rx-note mb-5">
+          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[0.9rem] bg-brand-100 font-display text-sm font-bold text-brand-800">
+            ↻
+          </span>
+          <div>
+            <div className="font-semibold text-ink-950">Order items added back to your cart</div>
+            <p className="mt-1 text-ink-700/80">
+              {unavailable
+                ? `Some items need review before checkout: ${unavailable}.`
+                : 'Prices and availability were refreshed for your selected branch.'}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-4">
@@ -112,7 +145,13 @@ export default function CartPage() {
                       className="rounded-full p-2 text-ink-700/45 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                       aria-label={`Remove ${item.name}`}
                     >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.9"
+                      >
                         <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
                       </svg>
                     </button>
@@ -126,7 +165,13 @@ export default function CartPage() {
             href="/"
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition hover:text-brand-800"
           >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+            >
               <path d="M19 12H5m6-6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Continue shopping
@@ -160,7 +205,13 @@ export default function CartPage() {
 
             <Link href="/checkout" className="primary-button mt-5 w-full">
               Proceed to checkout
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+              >
                 <path d="M5 12h14m-6-6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
@@ -188,5 +239,13 @@ export default function CartPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CartPage() {
+  return (
+    <Suspense fallback={<p className="text-ink-700/60">Loading...</p>}>
+      <CartContent />
+    </Suspense>
   );
 }
