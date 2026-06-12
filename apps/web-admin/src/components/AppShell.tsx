@@ -52,14 +52,22 @@ function NavLink({
     <Link
       href={item.href}
       onClick={onSelect}
+      aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+        'group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150',
         active
-          ? 'bg-brand-500/15 text-white shadow-[inset_2px_0_0_0] shadow-brand-400'
-          : 'text-white/65 hover:bg-white/5 hover:text-white',
+          ? 'bg-white/10 text-white shadow-sm'
+          : 'text-white/60 hover:bg-white/[0.06] hover:text-white',
       )}
     >
-      <Icon width={18} height={18} className={active ? 'text-brand-300' : ''} />
+      {active && (
+        <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand-400" />
+      )}
+      <Icon
+        width={18}
+        height={18}
+        className={cn('transition-colors', active ? 'text-brand-300' : 'group-hover:text-brand-200')}
+      />
       <span>{item.label}</span>
     </Link>
   );
@@ -96,9 +104,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-ink-900 lg:flex">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-gradient-to-b from-ink-800 via-ink-900 to-ink-950 shadow-sidebar lg:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-white">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-lg shadow-brand-900/40">
             <IconShield width={20} height={20} />
           </span>
           <div className="leading-tight">
@@ -229,7 +237,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Main column */}
       <div className="flex min-h-screen flex-1 flex-col lg:pl-64">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-5 backdrop-blur lg:px-8">
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200/80 bg-white/70 px-5 backdrop-blur-xl lg:px-8">
           <button
             onClick={() => setMobileNavOpen(true)}
             className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 lg:hidden"
@@ -245,7 +253,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
 
           <div className="ml-auto flex items-center gap-3">
-            <span className="hidden items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 sm:inline-flex">
+            <span className="hidden items-center gap-1.5 rounded-full border border-brand-100 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 sm:inline-flex">
               <Icons.branch width={14} height={14} />
               {branchLabel}
             </span>

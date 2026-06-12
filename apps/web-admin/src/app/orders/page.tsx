@@ -66,10 +66,10 @@ export default function OrdersList() {
               key={f.key}
               onClick={() => setFilter(f.key)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
+                'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-all duration-150',
                 filter === f.key
-                  ? 'bg-brand-600 text-white'
-                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/15'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
               )}
             >
               {f.label}

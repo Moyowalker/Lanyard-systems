@@ -99,7 +99,7 @@ const EMPTY_CATEGORY_FORM: CategoryFormState = {
 };
 
 const inputClass =
-  'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-brand-500';
+  'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
 const labelClass = 'text-xs font-semibold uppercase tracking-wide text-slate-500';
 
 function humanizeToken(value?: string): string {

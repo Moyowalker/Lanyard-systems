@@ -72,11 +72,31 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Greeting */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          {greeting()}, {firstName}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">{PERSONA_FOCUS[persona]}</p>
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-ink-800 via-ink-900 to-ink-950 px-6 py-6 text-white shadow-card-raised sm:px-7">
+        <div className="absolute -right-16 -top-16 h-52 w-52 rounded-full bg-brand-500/20 blur-3xl" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-400/40 to-transparent" />
+        <div className="relative flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-200">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              Live operations
+            </div>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-[1.7rem]">
+              {greeting()}, {firstName}
+            </h1>
+            <p className="mt-1 text-sm text-white/65">{PERSONA_FOCUS[persona]}</p>
+          </div>
+          <div className="hidden text-right sm:block">
+            <div className="text-xs uppercase tracking-wider text-white/45">Today</div>
+            <div className="mt-0.5 text-sm font-semibold text-white/90">
+              {new Date().toLocaleDateString('en-NG', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
       {loading ? (

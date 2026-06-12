@@ -53,9 +53,9 @@ export default function PrescriptionQueue() {
               <li key={rx.id}>
                 <Link
                   href={`/prescriptions/${rx.id}`}
-                  className="group flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-card transition-shadow hover:shadow-card-hover"
+                  className="group flex items-center gap-4 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-card-raised transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200/70 hover:shadow-card-hover"
                 >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-brand-700 ring-1 ring-inset ring-brand-600/10">
                     <IconRx width={22} height={22} />
                   </span>
                   <div className="min-w-0 flex-1">

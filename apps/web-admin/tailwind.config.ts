@@ -41,7 +41,9 @@ const config: Config = {
       },
       boxShadow: {
         card: '0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)',
-        'card-hover': '0 4px 12px -2px rgb(15 23 42 / 0.10), 0 2px 6px -2px rgb(15 23 42 / 0.06)',
+        'card-hover': '0 6px 20px -6px rgb(15 23 42 / 0.12), 0 2px 8px -3px rgb(15 23 42 / 0.08)',
+        'card-raised': '0 1px 2px rgb(15 23 42 / 0.04), 0 10px 28px -12px rgb(15 23 42 / 0.16)',
+        sidebar: 'inset -1px 0 0 0 rgb(255 255 255 / 0.06)',
       },
       borderRadius: {
         xl: '0.875rem',
@@ -52,9 +54,14 @@ const config: Config = {
           '0%': { opacity: '0', transform: 'translateY(4px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        'fade-in-up': {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 0.25s ease-out both',
+        'fade-in-up': 'fade-in-up 0.35s cubic-bezier(0.22,0.61,0.36,1) both',
       },
     },
   },

@@ -4,86 +4,189 @@ import Link from 'next/link';
 import { useCart, useRemoveFromCart } from '@/lib/client';
 import { formatKobo } from '@/lib/format';
 
+function CartShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="state-card mx-auto max-w-md text-center">
+      <div className="flex flex-col items-center gap-4 py-6">{children}</div>
+    </div>
+  );
+}
+
 export default function CartPage() {
   const { data: cart, isLoading } = useCart();
   const remove = useRemoveFromCart();
 
-  if (isLoading) return <p className="text-gray-500">Loading your cart…</p>;
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div className="h-8 w-40 animate-pulse rounded-full bg-white/70" />
+        <div className="surface-panel h-56 animate-pulse" />
+      </div>
+    );
+  }
 
   if (!cart) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-6 text-center">
-        <p className="text-gray-600">
-          Please{' '}
-          <Link href="/account/login" className="font-medium text-brand-700 hover:underline">
-            sign in
-          </Link>{' '}
-          to view your cart.
-        </p>
-      </div>
+      <CartShell>
+        <span className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-brand-100 text-brand-800">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path d="M4 5h2l1.6 10.2a1.5 1.5 0 0 0 1.5 1.3h7.7a1.5 1.5 0 0 0 1.5-1.2L20 8H7" />
+            <circle cx="9.5" cy="20" r="1.2" />
+            <circle cx="18" cy="20" r="1.2" />
+          </svg>
+        </span>
+        <div>
+          <div className="font-display text-xl text-ink-950">Sign in to view your cart</div>
+          <p className="mt-1.5 text-sm text-ink-700/75">
+            Your basket stays tied to your account so pricing and stock stay accurate.
+          </p>
+        </div>
+        <Link href="/account/login" className="primary-button">
+          Sign in
+        </Link>
+      </CartShell>
     );
   }
 
   if (cart.items.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-600">
-        Your cart is empty.{' '}
-        <Link href="/" className="font-medium text-brand-700 hover:underline">
+      <CartShell>
+        <span className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-brand-100 text-brand-800">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path d="M4 5h2l1.6 10.2a1.5 1.5 0 0 0 1.5 1.3h7.7a1.5 1.5 0 0 0 1.5-1.2L20 8H7" />
+            <circle cx="9.5" cy="20" r="1.2" />
+            <circle cx="18" cy="20" r="1.2" />
+          </svg>
+        </span>
+        <div>
+          <div className="font-display text-xl text-ink-950">Your cart is empty</div>
+          <p className="mt-1.5 text-sm text-ink-700/75">
+            Browse the catalogue and add the medicines you need.
+          </p>
+        </div>
+        <Link href="/" className="primary-button">
           Browse medicines
         </Link>
-        .
-      </div>
+      </CartShell>
     );
   }
 
-  return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="mb-4 text-lg font-semibold text-gray-900">Your cart</h1>
-      <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
-        {cart.items.map((item) => (
-          <li key={item.productId} className="flex items-center justify-between gap-3 p-4">
-            <div>
-              <div className="font-medium text-gray-900">{item.name}</div>
-              <div className="text-sm text-gray-500">
-                {item.quantity} × {formatKobo(item.unitPriceKobo)}
-                {item.requiresPrescription && (
-                  <span className="ml-2 text-amber-700">℞ prescription required</span>
-                )}
-                {!item.inStock && <span className="ml-2 text-red-600">out of stock</span>}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="font-semibold text-gray-900">{formatKobo(item.lineTotalKobo)}</span>
-              <button
-                onClick={() => remove.mutate(item.productId)}
-                disabled={remove.isPending}
-                className="text-sm text-gray-400 hover:text-red-600"
-              >
-                Remove
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+  const itemCount = cart.items.reduce((n, i) => n + i.quantity, 0);
 
-      <div className="mt-4 flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4">
-        <span className="text-gray-600">Subtotal</span>
-        <span className="text-xl font-bold text-gray-900">{formatKobo(cart.subtotalKobo)}</span>
+  return (
+    <div className="mx-auto max-w-5xl">
+      <div className="mb-5">
+        <div className="page-eyebrow">Your basket</div>
+        <h1 className="page-title mt-2">Cart</h1>
       </div>
 
-      {cart.requiresRxVerification && (
-        <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-          Your cart contains prescription-only items. You’ll upload a prescription at checkout, and
-          a pharmacist must verify it before dispensing.
-        </p>
-      )}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-4">
+          <div className="surface-panel overflow-hidden">
+            <ul className="divide-y divide-paper-200/70">
+              {cart.items.map((item) => (
+                <li key={item.productId} className="line-row hover:bg-paper-50/60">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-ink-950">{item.name}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-700/70">
+                      <span className="tnum">
+                        {item.quantity} × {formatKobo(item.unitPriceKobo)}
+                      </span>
+                      {item.requiresPrescription ? (
+                        <span className="inline-flex items-center gap-1 font-medium text-seal-400">
+                          <span aria-hidden="true">℞</span> Prescription required
+                        </span>
+                      ) : null}
+                      {!item.inStock ? (
+                        <span className="font-medium text-rose-600">Out of stock</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex flex-none items-center gap-4">
+                    <span className="tnum font-semibold text-ink-950">
+                      {formatKobo(item.lineTotalKobo)}
+                    </span>
+                    <button
+                      onClick={() => remove.mutate(item.productId)}
+                      disabled={remove.isPending}
+                      className="rounded-full p-2 text-ink-700/45 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                      aria-label={`Remove ${item.name}`}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+                        <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-      <Link
-        href="/checkout"
-        className="mt-4 block w-full rounded-lg bg-brand-600 py-3 text-center font-semibold text-white hover:bg-brand-700"
-      >
-        Proceed to checkout
-      </Link>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition hover:text-brand-800"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+              <path d="M19 12H5m6-6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Continue shopping
+          </Link>
+        </div>
+
+        {/* Summary */}
+        <div className="space-y-4 summary-sticky">
+          <div className="surface-panel px-5 py-6">
+            <div className="section-kicker">Order summary</div>
+            <dl className="mt-4 space-y-2.5 text-sm">
+              <div className="flex justify-between text-ink-700/75">
+                <dt>Items</dt>
+                <dd className="tnum font-medium text-ink-900">{itemCount}</dd>
+              </div>
+              <div className="flex justify-between text-ink-700/75">
+                <dt>Subtotal</dt>
+                <dd className="tnum font-medium text-ink-900">{formatKobo(cart.subtotalKobo)}</dd>
+              </div>
+              <div className="flex justify-between text-ink-700/60">
+                <dt>Delivery</dt>
+                <dd>Calculated at checkout</dd>
+              </div>
+            </dl>
+            <div className="mt-4 flex items-baseline justify-between border-t border-paper-200 pt-4">
+              <span className="font-semibold text-ink-950">Subtotal</span>
+              <span className="tnum font-display text-2xl text-ink-950">
+                {formatKobo(cart.subtotalKobo)}
+              </span>
+            </div>
+
+            <Link href="/checkout" className="primary-button mt-5 w-full">
+              Proceed to checkout
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+                <path d="M5 12h14m-6-6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+          </div>
+
+          {cart.requiresRxVerification ? (
+            <div className="rx-note">
+              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[0.9rem] bg-seal-200/70 font-display text-sm font-bold text-ink-900">
+                Rx
+              </span>
+              <div>
+                <div className="font-semibold text-ink-950">Prescription required</div>
+                <p className="mt-1 text-ink-700/80">
+                  You&apos;ll upload a prescription at checkout. A pharmacist verifies it before
+                  dispensing.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-[1.3rem] border border-paper-200 bg-paper-50/70 p-4 text-sm text-ink-700/75">
+              <span className="font-semibold text-ink-900">Secure checkout.</span> Pay by card, bank
+              transfer, or USSD. Pickup or delivery at your branch.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

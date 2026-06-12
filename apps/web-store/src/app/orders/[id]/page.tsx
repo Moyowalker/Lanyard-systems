@@ -35,74 +35,119 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     refetchInterval: 5000,
   });
 
-  if (order.isLoading) return <p className="text-gray-500">Loading…</p>;
+  if (order.isLoading)
+    return (
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div className="h-9 w-44 animate-pulse rounded-full bg-white/70" />
+        <div className="surface-panel h-48 animate-pulse" />
+      </div>
+    );
   if (!order.data)
     return (
-      <p className="text-gray-600">
-        Order not found.{' '}
-        <Link href="/orders" className="font-medium text-brand-700 hover:underline">
-          Your orders
-        </Link>
-      </p>
+      <div className="state-card mx-auto max-w-md text-center">
+        <p className="text-ink-700/80">
+          Order not found.{' '}
+          <Link href="/orders" className="font-semibold text-brand-700 hover:underline">
+            Your orders
+          </Link>
+        </p>
+      </div>
     );
 
   const o = order.data;
+  const history = tracking.data?.history ?? [];
+
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">{o.orderNo}</h1>
-        <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusTone(o.status)}`}>
+      <Link
+        href="/orders"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-700/60 transition hover:text-brand-800"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
+          <path d="M19 12H5m6-6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Your orders
+      </Link>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="page-eyebrow">Order</div>
+          <h1 className="page-title mt-1">{o.orderNo}</h1>
+        </div>
+        <span className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${statusTone(o.status)}`}>
           {statusLabel(o.status)}
         </span>
       </div>
 
       {o.requiresRxVerification && o.status === 'AWAITING_RX_VERIFICATION' && (
-        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-          A pharmacist is reviewing your prescription. We’ll email you and update this page once
-          it’s verified.
-        </p>
+        <div className="rx-note">
+          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[0.9rem] bg-seal-200/70 font-display text-sm font-bold text-ink-900">
+            Rx
+          </span>
+          <div>
+            <div className="font-semibold text-ink-950">Pharmacist review in progress</div>
+            <p className="mt-1 text-ink-700/80">
+              A pharmacist is reviewing your prescription. We&apos;ll notify you and update this page
+              the moment it&apos;s verified.
+            </p>
+          </div>
+        </div>
       )}
 
-      <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <h2 className="mb-2 font-semibold">Items</h2>
-        <ul className="divide-y divide-gray-100 text-sm">
+      <section className="surface-panel px-5 py-6 sm:px-6">
+        <div className="section-kicker">Items</div>
+        <ul className="mt-4 divide-y divide-paper-200/70">
           {o.items.map((i) => (
-            <li key={i.productId} className="flex justify-between py-2">
-              <span>
-                {i.name} × {i.quantity}
+            <li key={i.productId} className="flex justify-between gap-3 py-2.5 text-sm">
+              <span className="text-ink-800">
+                {i.name} <span className="text-ink-700/55">× {i.quantity}</span>
               </span>
-              <span>{formatKobo(i.lineTotalKobo)}</span>
+              <span className="tnum flex-none font-medium text-ink-950">
+                {formatKobo(i.lineTotalKobo)}
+              </span>
             </li>
           ))}
         </ul>
-        <div className="mt-2 space-y-1 border-t border-gray-100 pt-2 text-sm">
-          <div className="flex justify-between text-gray-500">
-            <span>Delivery ({o.fulfillment.type})</span>
-            <span>{formatKobo(o.totals.deliveryKobo)}</span>
+        <div className="mt-3 space-y-2 border-t border-paper-200 pt-3 text-sm">
+          <div className="flex justify-between text-ink-700/70">
+            <span className="capitalize">Delivery ({o.fulfillment.type})</span>
+            <span className="tnum">{formatKobo(o.totals.deliveryKobo)}</span>
           </div>
-          <div className="flex justify-between font-semibold">
-            <span>Total</span>
-            <span>{formatKobo(o.totals.totalKobo)}</span>
+          <div className="flex items-baseline justify-between border-t border-paper-200 pt-2.5">
+            <span className="font-semibold text-ink-950">Total</span>
+            <span className="tnum font-display text-xl text-ink-950">
+              {formatKobo(o.totals.totalKobo)}
+            </span>
           </div>
         </div>
       </section>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <h2 className="mb-3 font-semibold">Tracking</h2>
-        <ol className="space-y-2">
-          {(tracking.data?.history ?? []).map((h, idx) => (
-            <li key={idx} className="flex items-start gap-3 text-sm">
-              <span className="mt-1 h-2 w-2 flex-none rounded-full bg-brand-500" />
-              <div>
-                <div className="font-medium text-gray-800">{statusLabel(h.to)}</div>
-                <div className="text-xs text-gray-400">
-                  {new Date(h.at).toLocaleString()}
-                  {h.reason ? ` · ${h.reason}` : ''}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ol>
+      <section className="surface-panel px-5 py-6 sm:px-6">
+        <div className="section-kicker">Tracking</div>
+        {history.length === 0 ? (
+          <p className="mt-4 text-sm text-ink-700/65">Tracking updates will appear here.</p>
+        ) : (
+          <ol className="mt-5 space-y-0">
+            {history.map((h, idx) => {
+              const isLatest = idx === history.length - 1;
+              return (
+                <li key={idx} className="relative flex gap-4 pb-5 last:pb-0">
+                  {idx < history.length - 1 ? (
+                    <span className="absolute left-[5px] top-3 h-full w-px bg-paper-200" aria-hidden="true" />
+                  ) : null}
+                  <span className={`timeline-dot ${isLatest ? '' : 'timeline-dot--muted'}`} />
+                  <div className="-mt-0.5">
+                    <div className="font-semibold text-ink-950">{statusLabel(h.to)}</div>
+                    <div className="mt-0.5 text-xs text-ink-700/55">
+                      {new Date(h.at).toLocaleString()}
+                      {h.reason ? ` · ${h.reason}` : ''}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </section>
     </div>
   );

@@ -18,7 +18,12 @@ export function Card({
   as?: 'div' | 'section';
 }) {
   return (
-    <As className={cn('rounded-2xl border border-slate-200/80 bg-white shadow-card', className)}>
+    <As
+      className={cn(
+        'rounded-2xl border border-slate-200/70 bg-white shadow-card-raised',
+        className,
+      )}
+    >
       {children}
     </As>
   );
@@ -42,9 +47,11 @@ export function Panel({
   return (
     <Card as="section" className={cn('overflow-hidden', className)}>
       {(title || action) && (
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div className="panel-grad-header flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
-            {title && <h2 className="text-sm font-semibold text-slate-900">{title}</h2>}
+            {title && (
+              <h2 className="text-sm font-semibold tracking-tight text-slate-900">{title}</h2>
+            )}
             {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
           </div>
           {action}
@@ -102,16 +109,23 @@ export function StatCard({
     slate: 'bg-slate-100 text-slate-700',
   };
   return (
-    <Card className="p-5 transition-shadow hover:shadow-card-hover">
+    <Card className="group p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200/70 hover:shadow-card-hover">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-slate-500">{label}</span>
         {Icon && (
-          <span className={cn('flex h-9 w-9 items-center justify-center rounded-lg', tones[tone])}>
+          <span
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-inset ring-black/[0.03] transition-transform duration-200 group-hover:scale-105',
+              tones[tone],
+            )}
+          >
             <Icon width={18} height={18} />
           </span>
         )}
       </div>
-      <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{value}</div>
+      <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900 [font-variant-numeric:tabular-nums]">
+        {value}
+      </div>
       <div className="mt-1.5 flex items-center gap-2">
         {delta && (
           <span
@@ -163,8 +177,9 @@ export function Badge({ tone = 'neutral', children }: { tone?: Tone; children: R
 type BtnVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
 const BTN: Record<BtnVariant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 shadow-sm',
-  secondary: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
+  primary:
+    'bg-brand-600 text-white shadow-sm shadow-brand-900/10 hover:bg-brand-700 hover:shadow-card-hover active:translate-y-px',
+  secondary: 'border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50',
   danger: 'border border-rose-300 bg-white text-rose-700 hover:bg-rose-50',
   ghost: 'text-slate-600 hover:bg-slate-100',
 };

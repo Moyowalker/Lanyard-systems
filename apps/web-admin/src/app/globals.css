@@ -7,8 +7,28 @@
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 antialiased;
+  @apply text-slate-800 antialiased;
+  background-color: #f6f8fa;
+  background-image:
+    radial-gradient(60% 50% at 100% 0%, rgba(20, 184, 166, 0.06), transparent 60%),
+    radial-gradient(50% 40% at 0% 100%, rgba(15, 118, 110, 0.05), transparent 60%);
+  background-attachment: fixed;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+@layer components {
+  /* Subtle gridline texture for table headers / section dividers */
+  .panel-grad-header {
+    background-image: linear-gradient(180deg, rgba(248, 250, 252, 0.9), rgba(255, 255, 255, 0));
+  }
 }
 
 /* Authoritative, quiet scrollbars */
