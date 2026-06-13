@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -179,6 +180,13 @@ export default function LoginPage() {
             {error}
           </p>
         )}
+
+        <p className="mt-6 border-t border-paper-200 pt-5 text-center text-sm text-ink-700/65">
+          New to Lanyard?{' '}
+          <Link href="/account/register" className="font-semibold text-brand-700 hover:underline">
+            Create an account
+          </Link>
+        </p>
       </div>
     </div>
   );
