@@ -14,3 +14,4 @@ process.env.S3_ACCESS_KEY ??= 'minioadmin';
 process.env.S3_SECRET_KEY ??= 'minioadmin';
 process.env.S3_BUCKET ??= 'lanyard-dev';
 process.env.PAYSTACK_SECRET_KEY = ''; // force the mock payment provider
+process.env.ENABLE_DEV_PAYMENT_CONFIRM ??= 'true';
