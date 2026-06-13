@@ -210,6 +210,7 @@ export const Icons = {
   audit: IconAudit,
   bell: IconBell,
   reports: IconReports,
+  shield: IconShield,
 } as const;
 
 export type IconKey = keyof typeof Icons;

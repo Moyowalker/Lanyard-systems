@@ -5,6 +5,7 @@ import { OtpService } from './application/otp.service';
 import { SessionService } from './application/session.service';
 import { CustomerAuthService } from './application/customer-auth.service';
 import { CustomerProfileService } from './application/customer-profile.service';
+import { StaffAdminService } from './application/staff-admin.service';
 import { StaffAuthService } from './application/staff-auth.service';
 import { AuthService } from './application/auth.service';
 import { StaffDirectoryService } from './application/staff-directory.service';
@@ -36,6 +37,7 @@ import { AdminStaffController } from './api/admin-staff.controller';
     SessionService,
     CustomerAuthService,
     CustomerProfileService,
+    StaffAdminService,
     StaffAuthService,
     AuthService,
     StaffDirectoryService,
