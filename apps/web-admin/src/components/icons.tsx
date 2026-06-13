@@ -188,6 +188,15 @@ export const IconShield = (p: IconProps) => (
 );
 
 /** Named registry so nav config can reference icons by string key. */
+export const IconReports = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 20V4" />
+    <path d="M4 20h16" />
+    <rect x="8" y="11" width="3" height="6" rx="0.5" />
+    <rect x="13.5" y="7" width="3" height="10" rx="0.5" />
+  </svg>
+);
+
 export const Icons = {
   dashboard: IconDashboard,
   rx: IconRx,
@@ -200,6 +209,7 @@ export const Icons = {
   staff: IconStaff,
   audit: IconAudit,
   bell: IconBell,
+  reports: IconReports,
 } as const;
 
 export type IconKey = keyof typeof Icons;
