@@ -154,7 +154,11 @@ export default function ReportsPage() {
             </Panel>
           </div>
 
-          <Panel title="Top products" subtitle="By revenue in the selected range" bodyClassName="p-0">
+          <Panel
+            title="Top products"
+            subtitle="By revenue in the selected range"
+            bodyClassName="p-0"
+          >
             {data.topProducts.length === 0 ? (
               <EmptyState title="No product sales yet" icon={IconReports} />
             ) : (

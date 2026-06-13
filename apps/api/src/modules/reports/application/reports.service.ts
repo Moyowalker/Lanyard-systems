@@ -103,8 +103,7 @@ export class ReportsService {
 
   async salesSummary(branchScope: string[], range: ReportRangeQuery): Promise<SalesSummaryDto> {
     const to = range.to ?? new Date();
-    const from =
-      range.from ?? new Date(to.getTime() - DEFAULT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const from = range.from ?? new Date(to.getTime() - DEFAULT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     // Clamp the window so an over-wide range can't pull an unbounded result set.
     const clampedFrom = new Date(
       Math.max(from.getTime(), to.getTime() - MAX_WINDOW_DAYS * 24 * 60 * 60 * 1000),
