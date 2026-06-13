@@ -58,6 +58,12 @@ export const NAV: NavSection[] = [
     items: [
       { label: 'Orders', href: '/orders', icon: 'orders' },
       {
+        label: 'Deliveries',
+        href: '/deliveries',
+        icon: 'orders',
+        roles: [RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
+      },
+      {
         label: 'Inventory',
         href: '/inventory',
         icon: 'inventory',
