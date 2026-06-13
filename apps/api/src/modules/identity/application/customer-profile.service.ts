@@ -51,7 +51,10 @@ export class CustomerProfileService {
       await customer.save();
     } catch (err) {
       if (this.isDuplicateKey(err)) {
-        throw new DomainError(ErrorCode.CONFLICT, 'That email is already in use by another account');
+        throw new DomainError(
+          ErrorCode.CONFLICT,
+          'That email is already in use by another account',
+        );
       }
       throw err;
     }

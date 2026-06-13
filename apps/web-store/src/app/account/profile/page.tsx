@@ -19,7 +19,11 @@ const EMPTY_ADDRESS: Address = {
 };
 
 export default function ProfilePage() {
-  const { data: profile, isLoading, refetch } = useQuery({
+  const {
+    data: profile,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
       const res = await fetch('/api/me/profile');
@@ -109,13 +113,23 @@ function ProfileSection({
           <label htmlFor="pf-first" className="field-label">
             First name
           </label>
-          <input id="pf-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="input-field" />
+          <input
+            id="pf-first"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className="input-field"
+          />
         </div>
         <div>
           <label htmlFor="pf-last" className="field-label">
             Last name
           </label>
-          <input id="pf-last" value={lastName} onChange={(e) => setLastName(e.target.value)} className="input-field" />
+          <input
+            id="pf-last"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            className="input-field"
+          />
         </div>
         <div className="sm:col-span-2">
           <label htmlFor="pf-email" className="field-label">
@@ -171,7 +185,13 @@ function EmailSection({
     return (
       <section className="surface-panel px-5 py-5 sm:px-7">
         <div className="flex items-center gap-2 text-sm font-semibold text-brand-700">
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <circle cx="12" cy="12" r="9" className="fill-brand-100" />
             <path d="m8.5 12.2 2.3 2.3 4.7-4.9" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
