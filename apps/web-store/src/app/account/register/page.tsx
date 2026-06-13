@@ -69,7 +69,9 @@ export default function RegisterPage() {
   }
 
   const canSubmit =
-    form.firstName.trim().length > 0 && form.lastName.trim().length > 0 && form.phone.trim().length > 4;
+    form.firstName.trim().length > 0 &&
+    form.lastName.trim().length > 0 &&
+    form.phone.trim().length > 4;
 
   return (
     <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-[1.05fr_0.95fr]">
@@ -97,7 +99,13 @@ export default function RegisterPage() {
           ].map((point) => (
             <li key={point} className="flex items-center gap-3 text-sm text-white/85">
               <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-white/10">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 text-brand-200" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 text-brand-200"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
@@ -211,10 +219,15 @@ export default function RegisterPage() {
             </div>
             {devCode && (
               <p className="rounded-[1rem] border border-paper-200 bg-paper-50/80 px-3 py-2 text-xs text-ink-700/70">
-                Dev code: <span className="tnum font-mono font-semibold text-ink-950">{devCode}</span>
+                Dev code:{' '}
+                <span className="tnum font-mono font-semibold text-ink-950">{devCode}</span>
               </p>
             )}
-            <button onClick={confirm} disabled={loading || code.length < 6} className="primary-button w-full">
+            <button
+              onClick={confirm}
+              disabled={loading || code.length < 6}
+              className="primary-button w-full"
+            >
               {loading ? 'Verifying…' : 'Verify & finish'}
             </button>
             <button
@@ -228,7 +241,13 @@ export default function RegisterPage() {
 
         {error && (
           <p className="mt-4 flex items-start gap-2 rounded-[1rem] border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-            <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 flex-none" fill="none" stroke="currentColor" strokeWidth="1.9">
+            <svg
+              viewBox="0 0 24 24"
+              className="mt-0.5 h-4 w-4 flex-none"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+            >
               <circle cx="12" cy="12" r="9" />
               <path d="M12 8v5m0 3h.01" strokeLinecap="round" />
             </svg>
