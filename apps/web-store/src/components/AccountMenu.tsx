@@ -54,6 +54,19 @@ export function AccountMenu() {
         </svg>
         Orders
       </Link>
+      <Link href="/account/profile" className="soft-button">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-4 w-4 text-brand-700"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+        >
+          <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0" strokeLinecap="round" />
+        </svg>
+        Account
+      </Link>
       <span className="hidden min-h-[3.15rem] items-center gap-3 rounded-[1.2rem] border border-paper-200/90 bg-white/[0.92] px-4 py-2.5 text-sm text-ink-800 shadow-card backdrop-blur-sm md:inline-flex">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-[0.78rem] font-bold uppercase text-brand-800">
           {initial}

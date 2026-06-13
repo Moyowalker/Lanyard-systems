@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
-import { ErrorCode, OtpChannel, OtpPurpose } from '@lanyard/contracts';
+import { ErrorCode, NotificationChannel, OtpChannel, OtpPurpose } from '@lanyard/contracts';
 
 import { OtpService } from './otp.service';
 import { NotificationService } from '../../notification/application/notification.service';
@@ -35,9 +35,31 @@ describe('OtpService', () => {
       OtpPurpose.LOGIN,
       expect.any(String),
       300,
+      NotificationChannel.SMS,
     );
     expect(result.challengeId).toBeDefined();
     expect(result.devCode).toMatch(/^\d{6}$/);
+  });
+
+  it('delivers email-channel OTP over the email notification channel', async () => {
+    create.mockResolvedValue({ _id: new Types.ObjectId() });
+    (notifications.notifyOtp as jest.Mock).mockResolvedValue(undefined);
+
+    const service = new OtpService(
+      otpModel as never,
+      new ConfigService({ NODE_ENV: 'development', OTP_TTL_SECONDS: 300, OTP_MAX_ATTEMPTS: 5 }),
+      notifications,
+    );
+
+    await service.issue(OtpChannel.EMAIL, 'patient@example.com', OtpPurpose.VERIFY);
+
+    expect(notifications.notifyOtp).toHaveBeenCalledWith(
+      'patient@example.com',
+      OtpPurpose.VERIFY,
+      expect.any(String),
+      300,
+      NotificationChannel.EMAIL,
+    );
   });
 
   it('removes the challenge and throws when OTP delivery cannot be enqueued', async () => {
