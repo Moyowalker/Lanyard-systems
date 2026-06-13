@@ -61,6 +61,7 @@ export class NotificationService {
     purpose: OtpPurpose,
     code: string,
     ttlSeconds: number,
+    channel: NotificationChannel = NotificationChannel.SMS,
   ): Promise<void> {
     const template = `otp.${purpose}`;
     const rendered = renderTemplate(template, {
@@ -72,7 +73,7 @@ export class NotificationService {
       'send-direct',
       {
         direct: {
-          channel: NotificationChannel.SMS,
+          channel,
           to: target,
           subject: rendered.subject,
           text: rendered.text,

@@ -6,6 +6,7 @@ export * from './enums';
 export * from './errors';
 export * from './schemas/common';
 export * from './schemas/auth';
+export * from './schemas/identity';
 export * from './schemas/catalog';
 export * from './schemas/branch';
 export * from './schemas/inventory';

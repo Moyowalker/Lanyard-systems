@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { OtpChannel, OtpPurpose } from '@lanyard/contracts';
+import { NotificationChannel, OtpChannel, OtpPurpose } from '@lanyard/contracts';
 
 import { OtpChallenge } from '../infrastructure/identity.schemas';
 import { randomOtp, sha256Hex } from '../../../core/security/crypto.util';
@@ -57,11 +57,9 @@ export class OtpService {
     });
 
     try {
-      if (channel === OtpChannel.SMS) {
-        await this.notifications.notifyOtp(target, purpose, code, ttlSeconds);
-      } else {
-        throw new DomainError(ErrorCode.INTERNAL, 'Email OTP is not configured');
-      }
+      const deliveryChannel =
+        channel === OtpChannel.EMAIL ? NotificationChannel.EMAIL : NotificationChannel.SMS;
+      await this.notifications.notifyOtp(target, purpose, code, ttlSeconds, deliveryChannel);
     } catch (err) {
       await this.otpModel.deleteOne({ _id: challenge._id });
       this.logger.error(`OTP delivery failed for ${maskTarget(target)}: ${(err as Error).message}`);
