@@ -25,6 +25,7 @@ import { PaymentModule } from './modules/payment/payment.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ContentModule } from './modules/content/content.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 /**
  * Root composition. Domain modules are added here as they are implemented; their
@@ -67,6 +68,7 @@ import { ContentModule } from './modules/content/content.module';
     PrescriptionModule,
     PaymentModule,
     AuditModule,
+    ReportsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

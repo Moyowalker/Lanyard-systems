@@ -1,0 +1,38 @@
+import { z } from 'zod';
+
+// Admin reporting / insights. Read-only aggregates over orders; branch-scoped server-side.
+
+export const ReportRangeSchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+export type ReportRangeQuery = z.infer<typeof ReportRangeSchema>;
+
+export interface SalesByDay {
+  /** ISO date (yyyy-mm-dd). */
+  date: string;
+  revenueKobo: number;
+  orders: number;
+}
+
+export interface TopProduct {
+  productId: string;
+  name: string;
+  quantity: number;
+  revenueKobo: number;
+}
+
+export interface SalesSummaryDto {
+  from: string;
+  to: string;
+  paidOrders: number;
+  revenueKobo: number;
+  /** Average order value across paid orders. */
+  aovKobo: number;
+  rxOrders: number;
+  otcOrders: number;
+  refunds: number;
+  refundedKobo: number;
+  byDay: SalesByDay[];
+  topProducts: TopProduct[];
+}

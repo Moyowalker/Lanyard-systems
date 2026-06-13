@@ -97,6 +97,12 @@ export const NAV: NavSection[] = [
         icon: 'finance',
         roles: [RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
       },
+      {
+        label: 'Reports',
+        href: '/reports',
+        icon: 'reports',
+        roles: [RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
+      },
     ],
   },
   {
