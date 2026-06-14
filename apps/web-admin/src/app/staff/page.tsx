@@ -92,7 +92,11 @@ export default function StaffPage() {
         </Card>
       ) : staff.length === 0 ? (
         <Card>
-          <EmptyState title="No staff accounts yet" description="Add your first staff member." icon={IconStaff} />
+          <EmptyState
+            title="No staff accounts yet"
+            description="Add your first staff member."
+            icon={IconStaff}
+          />
         </Card>
       ) : (
         <TableCard>
@@ -190,7 +194,8 @@ function StaffForm({
     const scope = allBranches ? ['ALL'] : branchIds;
     if (roleIds.length === 0) return setError('Assign at least one role.');
     if (scope.length === 0) return setError('Assign at least one branch (or All branches).');
-    if (!editing && password.length < 12) return setError('Password must be at least 12 characters.');
+    if (!editing && password.length < 12)
+      return setError('Password must be at least 12 characters.');
 
     setBusy(true);
     const body: Record<string, unknown> = {
@@ -241,7 +246,10 @@ function StaffForm({
     <Panel
       title={editing ? `Edit ${initial!.firstName} ${initial!.lastName}` : 'Add staff'}
       action={
-        <button onClick={onClose} className="text-sm font-medium text-slate-400 hover:text-slate-700">
+        <button
+          onClick={onClose}
+          className="text-sm font-medium text-slate-400 hover:text-slate-700"
+        >
           Cancel
         </button>
       }
@@ -249,21 +257,39 @@ function StaffForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className={labelClass}>First name</label>
-          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} />
+          <input
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className={inputClass}
+          />
         </div>
         <div>
           <label className={labelClass}>Last name</label>
-          <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
+          <input
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            className={inputClass}
+          />
         </div>
         {!editing && (
           <div>
             <label className={labelClass}>Email</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className={inputClass} />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              className={inputClass}
+            />
           </div>
         )}
         <div>
           <label className={labelClass}>Phone (optional)</label>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2348012345678" className={inputClass} />
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+2348012345678"
+            className={inputClass}
+          />
         </div>
         {!editing && (
           <div>
@@ -280,7 +306,11 @@ function StaffForm({
         {editing && (
           <div>
             <label className={labelClass}>Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputClass}>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as typeof status)}
+              className={inputClass}
+            >
               <option value="active">Active</option>
               <option value="suspended">Suspended</option>
             </select>
@@ -312,7 +342,11 @@ function StaffForm({
       <div className="mt-5">
         <div className={labelClass}>Branch scope</div>
         <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={allBranches} onChange={(e) => setAllBranches(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={allBranches}
+            onChange={(e) => setAllBranches(e.target.checked)}
+          />
           All branches (cross-branch access)
         </label>
         {!allBranches && (
@@ -332,12 +366,16 @@ function StaffForm({
                 {b.name}
               </button>
             ))}
-            {branches.length === 0 && <span className="text-sm text-slate-400">No branches found.</span>}
+            {branches.length === 0 && (
+              <span className="text-sm text-slate-400">No branches found.</span>
+            )}
           </div>
         )}
       </div>
 
-      {error && <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {error && (
+        <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+      )}
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <Button onClick={submit} disabled={busy}>

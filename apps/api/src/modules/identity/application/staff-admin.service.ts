@@ -131,9 +131,14 @@ export class StaffAdminService {
 
   /* ── helpers ── */
 
-  private async resolveRoles(roleIds: string[]): Promise<Array<{ _id: Types.ObjectId; key: string; name: string }>> {
+  private async resolveRoles(
+    roleIds: string[],
+  ): Promise<Array<{ _id: Types.ObjectId; key: string; name: string }>> {
     const ids = roleIds.map((id) => new Types.ObjectId(id));
-    const roles = await this.roleModel.find({ _id: { $in: ids } }).select('key name').lean();
+    const roles = await this.roleModel
+      .find({ _id: { $in: ids } })
+      .select('key name')
+      .lean();
     if (roles.length !== new Set(roleIds).size) {
       throw new DomainError(ErrorCode.VALIDATION_FAILED, 'One or more roles do not exist');
     }
@@ -141,10 +146,7 @@ export class StaffAdminService {
   }
 
   /** Only a super-admin may grant the SUPER_ADMIN role (prevents privilege escalation). */
-  private assertCanGrantRoles(
-    principal: AuthPrincipal,
-    roles: Array<{ key: string }>,
-  ): void {
+  private assertCanGrantRoles(principal: AuthPrincipal, roles: Array<{ key: string }>): void {
     const grantsSuperAdmin = roles.some((r) => r.key === RoleKey.SUPER_ADMIN);
     if (grantsSuperAdmin && !principal.roles.includes(RoleKey.SUPER_ADMIN)) {
       throw new DomainError(

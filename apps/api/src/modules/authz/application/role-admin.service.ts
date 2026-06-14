@@ -100,7 +100,10 @@ export class RoleAdminService {
     const known = new Set(found.map((p) => p.key));
     const unknown = keys.filter((k) => !known.has(k));
     if (unknown.length > 0) {
-      throw new DomainError(ErrorCode.VALIDATION_FAILED, `Unknown permission(s): ${unknown.join(', ')}`);
+      throw new DomainError(
+        ErrorCode.VALIDATION_FAILED,
+        `Unknown permission(s): ${unknown.join(', ')}`,
+      );
     }
   }
 

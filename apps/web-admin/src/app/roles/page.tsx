@@ -47,7 +47,9 @@ export default function RolesPage() {
               >
                 <div>
                   <div className="text-sm font-semibold text-slate-900">{role.name}</div>
-                  <div className="text-xs text-slate-400">{role.permissionKeys.length} permissions</div>
+                  <div className="text-xs text-slate-400">
+                    {role.permissionKeys.length} permissions
+                  </div>
                 </div>
                 {role.isSystem && <Badge tone="neutral">System</Badge>}
               </button>
@@ -118,7 +120,9 @@ function RoleEditor({
   return (
     <Panel
       title={`${role.name} · ${role.key}`}
-      subtitle={readOnly ? 'The Super Admin role is protected and always has full access' : role.description}
+      subtitle={
+        readOnly ? 'The Super Admin role is protected and always has full access' : role.description
+      }
       action={
         readOnly ? (
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700">
@@ -174,7 +178,9 @@ function RoleEditor({
       )}
 
       {msg && (
-        <p className={cn('mt-4 text-sm', msg.ok ? 'text-emerald-600' : 'text-rose-600')}>{msg.text}</p>
+        <p className={cn('mt-4 text-sm', msg.ok ? 'text-emerald-600' : 'text-rose-600')}>
+          {msg.text}
+        </p>
       )}
     </Panel>
   );
