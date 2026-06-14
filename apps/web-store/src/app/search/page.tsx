@@ -10,7 +10,13 @@ function EmptyShell({ title, body, cta }: { title: string; body: string; cta?: b
   return (
     <div className="state-card flex flex-col items-center gap-3 py-14 text-center">
       <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <svg
+          viewBox="0 0 24 24"
+          className="h-6 w-6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.5-3.5" strokeLinecap="round" />
         </svg>
