@@ -77,8 +77,7 @@ export default function RegisterPage() {
     <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-[1.05fr_0.95fr]">
       {/* Brand / trust panel */}
       <div className="surface-panel-dark hidden flex-col justify-between px-7 py-9 lg:flex">
-        <div className="absolute inset-x-0 -top-24 h-60 bg-[radial-gradient(60%_100%_at_72%_0%,rgba(61,161,126,0.4),transparent_70%)]" />
-        <div className="relative">
+        <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-brand-200">
             <span className="h-1.5 w-1.5 rounded-full bg-seal-300" />
             Create your account
