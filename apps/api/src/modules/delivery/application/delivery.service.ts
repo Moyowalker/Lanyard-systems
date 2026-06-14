@@ -41,7 +41,10 @@ export function mapDeliveryAction(action: DeliveryActionInput['action']): {
 } {
   switch (action) {
     case 'out_for_delivery':
-      return { deliveryStatus: DeliveryStatus.OUT_FOR_DELIVERY, orderTarget: OrderStatus.OUT_FOR_DELIVERY };
+      return {
+        deliveryStatus: DeliveryStatus.OUT_FOR_DELIVERY,
+        orderTarget: OrderStatus.OUT_FOR_DELIVERY,
+      };
     case 'delivered':
       return { deliveryStatus: DeliveryStatus.DELIVERED, orderTarget: OrderStatus.COMPLETED };
     case 'failed':
@@ -83,9 +86,7 @@ export class DeliveryService {
         totalKobo: o.totals.totalKobo,
         deliveryFeeKobo: o.totals.deliveryKobo ?? o.fulfillment?.feeKobo ?? 0,
         etaMins: o.fulfillment?.etaMins,
-        address: addr
-          ? { line1: addr.line1, city: addr.city, state: addr.state }
-          : undefined,
+        address: addr ? { line1: addr.line1, city: addr.city, state: addr.state } : undefined,
         createdAt: (o as unknown as { createdAt: Date }).createdAt.toISOString(),
         delivery: delivery ? this.toDto(delivery) : undefined,
       };
@@ -114,7 +115,12 @@ export class DeliveryService {
     const actor = this.actor(principal);
     // Ensure the order is FULFILLING so a later "out for delivery" transition is legal.
     if (order.status === OrderStatus.PAID || order.status === OrderStatus.STOCK_HOLD) {
-      await this.orders.adminTransition(orderId, OrderStatus.FULFILLING, actor, 'Dispatch preparation');
+      await this.orders.adminTransition(
+        orderId,
+        OrderStatus.FULFILLING,
+        actor,
+        'Dispatch preparation',
+      );
     }
 
     let delivery = await this.deliveryModel.findOne({ orderId: order._id });

@@ -48,11 +48,7 @@ export default function DeliveriesPage() {
       <PageHeader
         title="Deliveries"
         subtitle="Assign riders and track delivery orders to the doorstep"
-        actions={
-          <span className="text-sm text-slate-400">
-            {items.length} active
-          </span>
-        }
+        actions={<span className="text-sm text-slate-400">{items.length} active</span>}
       />
 
       {isLoading ? (
@@ -80,13 +76,7 @@ export default function DeliveriesPage() {
   );
 }
 
-function DeliveryCard({
-  item,
-  onChanged,
-}: {
-  item: DeliveryBoardItemDto;
-  onChanged: () => void;
-}) {
+function DeliveryCard({ item, onChanged }: { item: DeliveryBoardItemDto; onChanged: () => void }) {
   const [riderName, setRiderName] = useState(item.delivery?.rider?.name ?? '');
   const [riderPhone, setRiderPhone] = useState(item.delivery?.rider?.phone ?? '');
   const [busy, setBusy] = useState(false);
@@ -214,7 +204,9 @@ function DeliveryCard({
             </div>
           )}
           {status === 'failed' && (
-            <p className="mt-2 text-sm text-rose-600">Last attempt failed — assign a rider to retry.</p>
+            <p className="mt-2 text-sm text-rose-600">
+              Last attempt failed — assign a rider to retry.
+            </p>
           )}
           {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
         </div>
