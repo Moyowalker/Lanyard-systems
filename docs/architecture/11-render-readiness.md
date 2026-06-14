@@ -91,6 +91,8 @@ Blueprint defaults worth knowing:
   same provider variables from the API service.
 - The three Next.js apps now accept either `API_URL` or Render's internal
   `API_HOSTPORT` + `API_GLOBAL_PREFIX` to reach the API over the private network.
+- The store app receives `SITE_URL` and `NEXT_PUBLIC_SITE_URL`, and the marketing
+  bridge redirect uses that public origin instead of Render's internal host/port.
 - The marketing app receives both `STORE_URL` and `NEXT_PUBLIC_STORE_URL`, so its
   store handoff links resolve to `https://lanyard-web-store.onrender.com` on Render.
 - The API health check remains `/api/v1/health/ready`.

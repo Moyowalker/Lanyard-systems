@@ -14,6 +14,16 @@ function resolveApiUrl(): string {
 
 export const API_URL = resolveApiUrl();
 
+function resolveStoreUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    process.env.SITE_URL?.trim() ||
+    (process.env.RENDER ? 'https://lanyard-web-store.onrender.com' : 'http://localhost:3000')
+  ).replace(/\/+$/, '');
+}
+
+export const STORE_URL = resolveStoreUrl();
+
 /** Cookie names. Access/refresh tokens are httpOnly (XSS-safe, doc 07). */
 export const COOKIE = {
   access: 'lny_at',

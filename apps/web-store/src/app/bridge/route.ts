@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { COOKIE } from '@/lib/config';
+import { COOKIE, STORE_URL } from '@/lib/config';
 
 function normalizePath(rawPath?: string | null): string {
   if (!rawPath || !rawPath.startsWith('/') || rawPath.startsWith('//')) {
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const intent = req.nextUrl.searchParams.get('intent');
   const targetPath = normalizePath(req.nextUrl.searchParams.get('path'));
 
-  const destination = new URL(targetPath, req.nextUrl.origin);
+  const destination = new URL(targetPath, STORE_URL);
   if (source) destination.searchParams.set('source', source);
   if (intent) destination.searchParams.set('intent', intent);
 

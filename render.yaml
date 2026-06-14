@@ -265,6 +265,10 @@ services:
           name: lanyard-api
           type: web
           envVarKey: API_GLOBAL_PREFIX
+      - key: SITE_URL
+        value: https://lanyard-web-store.onrender.com
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://lanyard-web-store.onrender.com
       - key: NEXT_PUBLIC_SUPPORT_PHONE_E164
         sync: false
       - key: NEXT_PUBLIC_SUPPORT_PHONE_DISPLAY
