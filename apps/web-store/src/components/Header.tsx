@@ -25,7 +25,8 @@ export async function Header() {
               <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> NAFDAC-registered medicines
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> Branch-aware pricing & stock
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> Branch-aware pricing &
+              stock
             </span>
           </div>
           <div className="flex items-center gap-4">
@@ -44,7 +45,12 @@ export async function Header() {
           <Link href="/" className="group inline-flex flex-none items-center gap-2.5">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white transition group-hover:bg-brand-700">
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
-                <path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+                <path
+                  d="M12 4v16M4 12h16"
+                  stroke="currentColor"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                />
               </svg>
             </span>
             <span className="flex flex-col leading-none">

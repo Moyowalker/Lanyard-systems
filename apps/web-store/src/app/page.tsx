@@ -53,8 +53,8 @@ export default async function HomePage() {
               Genuine medicines, from a pharmacy you can verify.
             </h1>
             <p className="mt-3 text-sm leading-6 text-white/75">
-              Search, add to cart, and get it by delivery or branch pickup — with every
-              prescription checked by a licensed pharmacist before it leaves the counter.
+              Search, add to cart, and get it by delivery or branch pickup — with every prescription
+              checked by a licensed pharmacist before it leaves the counter.
             </p>
             <div className="mt-5 flex flex-wrap gap-2.5">
               <Link
@@ -75,7 +75,11 @@ export default async function HomePage() {
 
           <div className="grid w-full max-w-sm grid-cols-1 gap-2.5">
             {[
-              ['truck', 'Delivery or free pickup', branchLabel ? `from ${branchLabel}` : 'at your selected branch'],
+              [
+                'truck',
+                'Delivery or free pickup',
+                branchLabel ? `from ${branchLabel}` : 'at your selected branch',
+              ],
               ['shield', 'Pharmacist-verified', 'prescriptions checked before release'],
               ['tag', 'Branch-accurate pricing', 'real stock, no surprises at checkout'],
             ].map(([icon, title, sub]) => (
@@ -84,7 +88,14 @@ export default async function HomePage() {
                 className="flex items-center gap-3 rounded-xl bg-white/10 px-3.5 py-3 text-white"
               >
                 <span className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-white/15 text-brand-100">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    aria-hidden="true"
+                  >
                     {icon === 'truck' && (
                       <>
                         <path d="M3 7h11v8H3zM14 10h4l3 3v2h-7z" strokeLinejoin="round" />
@@ -93,11 +104,18 @@ export default async function HomePage() {
                       </>
                     )}
                     {icon === 'shield' && (
-                      <path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6Zm-2.5 9 1.8 1.8L15 10" strokeLinecap="round" strokeLinejoin="round" />
+                      <path
+                        d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6Zm-2.5 9 1.8 1.8L15 10"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     )}
                     {icon === 'tag' && (
                       <>
-                        <path d="M20.6 13.4 13 21l-9-9V4h8l8.6 8.6a1.4 1.4 0 0 1 0 2Z" strokeLinejoin="round" />
+                        <path
+                          d="M20.6 13.4 13 21l-9-9V4h8l8.6 8.6a1.4 1.4 0 0 1 0 2Z"
+                          strokeLinejoin="round"
+                        />
                         <circle cx="8.5" cy="8.5" r="1.4" />
                       </>
                     )}
@@ -127,7 +145,14 @@ export default async function HomePage() {
                 className="group flex flex-none flex-col items-center gap-2 rounded-xl border border-paper-200 bg-white px-4 py-3.5 text-center transition hover:border-brand-200 hover:bg-brand-50 sm:flex-1"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-700 transition group-hover:bg-white">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    aria-hidden="true"
+                  >
                     <rect x="9" y="6" width="12" height="6" rx="3" transform="rotate(-30 24 24)" />
                     <path d="M4 9h7M4 13h5" strokeLinecap="round" />
                   </svg>
@@ -148,7 +173,10 @@ export default async function HomePage() {
             {branchLabel ? `Popular at ${branchLabel}` : 'Popular medicines'}
           </h2>
           {!productsUnavailable && products.length > 0 ? (
-            <Link href="/search" className="text-sm font-semibold text-brand-700 hover:text-brand-800">
+            <Link
+              href="/search"
+              className="text-sm font-semibold text-brand-700 hover:text-brand-800"
+            >
               See all
             </Link>
           ) : null}
@@ -189,7 +217,14 @@ export default async function HomePage() {
       <section className="surface-panel flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-seal-100 text-amber-700">
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden="true"
+            >
               <path d="M12 16V4m0 0 4 4m-4-4-4 4" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" />
             </svg>

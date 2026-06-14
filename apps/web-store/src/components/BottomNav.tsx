@@ -12,7 +12,11 @@ const items: Item[] = [
     label: 'Home',
     match: (p) => p === '/',
     icon: (
-      <path d="M4 11.5 12 4l8 7.5M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4 11.5 12 4l8 7.5M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     ),
   },
   {
@@ -32,7 +36,11 @@ const items: Item[] = [
     match: (p) => p.startsWith('/cart') || p.startsWith('/checkout'),
     icon: (
       <>
-        <path d="M4 5h2l1.6 10.2a1.5 1.5 0 0 0 1.5 1.3h7.7a1.5 1.5 0 0 0 1.5-1.2L20 8H7" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M4 5h2l1.6 10.2a1.5 1.5 0 0 0 1.5 1.3h7.7a1.5 1.5 0 0 0 1.5-1.2L20 8H7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
         <circle cx="9.5" cy="20" r="1.2" />
         <circle cx="18" cy="20" r="1.2" />
       </>
@@ -44,7 +52,10 @@ const items: Item[] = [
     match: (p) => p.startsWith('/orders'),
     icon: (
       <>
-        <path d="M6 2h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" strokeLinejoin="round" />
+        <path
+          d="M6 2h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"
+          strokeLinejoin="round"
+        />
         <path d="M9 12h6M9 16h4" strokeLinecap="round" />
       </>
     ),

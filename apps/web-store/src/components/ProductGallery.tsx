@@ -69,7 +69,9 @@ export function ProductGallery({
               aria-label={`View image ${i + 1} of ${images.length}`}
               aria-pressed={i === active}
               className={`h-16 w-16 flex-none overflow-hidden rounded-xl border bg-white transition ${
-                i === active ? 'border-brand-500 ring-2 ring-brand-200' : 'border-paper-200 hover:border-brand-300'
+                i === active
+                  ? 'border-brand-500 ring-2 ring-brand-200'
+                  : 'border-paper-200 hover:border-brand-300'
               }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}

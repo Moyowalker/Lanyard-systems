@@ -129,8 +129,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <div>
                 <div className="font-semibold text-ink-900">Prescription-only medicine</div>
                 <p className="mt-1 text-ink-900/75">
-                  Upload your prescription at checkout. A licensed pharmacist verifies it before your
-                  order is dispensed.
+                  Upload your prescription at checkout. A licensed pharmacist verifies it before
+                  your order is dispensed.
                 </p>
               </div>
             </div>
@@ -148,7 +148,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <div className="section-kicker">Product information</div>
               <dl className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">
                 {facts.map((fact) => (
-                  <div key={fact.label} className="flex justify-between gap-3 border-b border-paper-100 pb-2">
+                  <div
+                    key={fact.label}
+                    className="flex justify-between gap-3 border-b border-paper-100 pb-2"
+                  >
                     <dt className="text-sm text-ink-900/55">{fact.label}</dt>
                     <dd className="text-sm font-medium text-ink-900">{fact.value}</dd>
                   </div>

@@ -38,7 +38,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     <div className="flex items-center gap-2">
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
                         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                          <path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+                          <path
+                            d="M12 4v16M4 12h16"
+                            stroke="currentColor"
+                            strokeWidth="2.6"
+                            strokeLinecap="round"
+                          />
                         </svg>
                       </span>
                       <span className="text-base font-semibold text-ink-900">Lanyard Pharmacy</span>
@@ -52,7 +57,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   <div className="flex flex-col gap-3 text-sm">
                     <div className="flex flex-wrap gap-x-6 gap-y-2 font-medium text-ink-900/70">
                       <span className="inline-flex items-center gap-1.5">
-                        <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> PCN-licensed oversight
+                        <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> PCN-licensed
+                        oversight
                       </span>
                       <span className="inline-flex items-center gap-1.5">
                         <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> NAFDAC-registered
@@ -60,12 +66,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {supportContact.whatsappUrl ? (
-                        <a href={supportContact.whatsappUrl} className="ghost-pill hover:border-brand-300">
+                        <a
+                          href={supportContact.whatsappUrl}
+                          className="ghost-pill hover:border-brand-300"
+                        >
                           WhatsApp support
                         </a>
                       ) : null}
                       {supportContact.phoneHref ? (
-                        <a href={supportContact.phoneHref} className="ghost-pill hover:border-brand-300">
+                        <a
+                          href={supportContact.phoneHref}
+                          className="ghost-pill hover:border-brand-300"
+                        >
                           {supportContact.phoneDisplay}
                         </a>
                       ) : null}
@@ -78,7 +90,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <span>© {new Date().getFullYear()} Lanyard Pharmacy. All rights reserved.</span>
                     {policyLinks.map((link) => (
-                      <a key={link.href} href={link.href} className="font-medium hover:text-brand-700">
+                      <a
+                        key={link.href}
+                        href={link.href}
+                        className="font-medium hover:text-brand-700"
+                      >
                         {link.label}
                       </a>
                     ))}
