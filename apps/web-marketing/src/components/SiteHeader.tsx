@@ -4,23 +4,25 @@ import { StoreLink } from './StoreLink';
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-30 border-b border-white/60 bg-[rgba(255,250,243,0.8)] backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-600 to-brand-400 text-sm font-bold text-white shadow-glow">
-            LP
+    <header className="sticky top-0 z-30 border-b border-paper-200 bg-white">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
+        <Link href="/" className="flex items-center gap-2.5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
+              <path
+                d="M12 4v16M4 12h16"
+                stroke="currentColor"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+              />
+            </svg>
           </span>
-          <div>
-            <div className="text-lg font-semibold tracking-tight text-ink-900">
-              Lanyard Pharmacy
-            </div>
-            <div className="text-xs uppercase tracking-[0.24em] text-ink-700/50">
-              Marketing Site
-            </div>
-          </div>
+          <span className="text-lg font-semibold tracking-[-0.01em] text-ink-900">
+            Lanyard Pharmacy
+          </span>
         </Link>
 
-        <nav className="flex flex-wrap items-center gap-3 text-sm text-ink-700/80 sm:gap-5">
+        <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-ink-900/70 sm:gap-5">
           {marketingNav.map((item) => (
             <Link
               key={item.href}

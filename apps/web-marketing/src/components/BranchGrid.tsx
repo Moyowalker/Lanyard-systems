@@ -22,7 +22,7 @@ export function BranchGrid({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3 text-sm text-ink-700/70">
         <span
-          className={isLive ? 'pill bg-brand-100 text-brand-800' : 'pill bg-sand-100 text-ink-800'}
+          className={isLive ? 'pill bg-brand-100 text-brand-800' : 'pill bg-paper-100 text-ink-900'}
         >
           {isLive ? 'Live branch feed' : 'Preview branch feed'}
         </span>

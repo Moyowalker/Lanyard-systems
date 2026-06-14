@@ -1,37 +1,46 @@
 import Link from 'next/link';
 import { marketingNav } from '@/lib/content';
-import { STORE_URL } from '@/lib/config';
+import { contactChannels } from '@/lib/content';
 import { StoreLink } from './StoreLink';
 
 export function SiteFooter() {
   return (
-    <footer className="mt-24 border-t border-white/60 bg-[rgba(16,40,31,0.96)] text-white">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_.8fr] lg:px-8">
+    <footer className="mt-20 border-t border-paper-200 bg-ink-900 text-white">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.2fr_.8fr] lg:px-8">
         <div>
-          <div className="eyebrow text-brand-200">Lanyard Pharmacy</div>
-          <h2 className="mt-3 font-display text-3xl leading-tight sm:text-4xl">
-            A warmer, sharper front door for pharmacy care.
-          </h2>
-          <p className="mt-4 max-w-xl text-sm leading-7 text-white/70">
-            The marketing surface sets the tone, the store drives conversion, and the admin app
-            handles the compliance-heavy work behind the scenes.
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-white">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                <path
+                  d="M12 4v16M4 12h16"
+                  stroke="currentColor"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <span className="text-lg font-semibold">Lanyard Pharmacy</span>
+          </div>
+          <p className="mt-4 max-w-md text-sm leading-7 text-white/70">
+            Genuine medicines from a licensed pharmacy near you — delivered fast across Lagos, or
+            ready for free pickup. Every prescription checked by a pharmacist.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <StoreLink source="footer-shop" className="cta-primary px-5 py-3 text-sm">
-              Enter the store
+              Start shopping
             </StoreLink>
             <Link
               href="/branches"
-              className="cta-secondary border-white/20 text-white hover:border-white/40 hover:bg-white/10"
+              className="cta-secondary border-white/20 bg-transparent px-5 py-3 text-sm text-white hover:bg-white/10 hover:text-white"
             >
-              See branches
+              Find a branch
             </Link>
           </div>
         </div>
 
         <div className="grid gap-8 sm:grid-cols-2">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-white/40">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
               Explore
             </div>
             <div className="mt-4 space-y-3 text-sm text-white/80">
@@ -46,15 +55,25 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-white/40">
-              Local demo
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
+              Get in touch
             </div>
-            <div className="mt-4 space-y-3 text-sm text-white/70">
-              <p>Customer store: {STORE_URL}</p>
-              <p>Marketing site: local preview on port 3002</p>
-              <p>Compliance-first commerce experience built for Nigeria.</p>
+            <div className="mt-4 space-y-3 text-sm text-white/75">
+              {contactChannels.slice(0, 2).map((c) => (
+                <div key={c.title}>
+                  <div className="font-medium text-white/90">{c.detail}</div>
+                  <div className="text-xs text-white/55">{c.title}</div>
+                </div>
+              ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="border-t border-white/10">
+        <div className="mx-auto max-w-7xl px-4 py-5 text-xs text-white/50 sm:px-6 lg:px-8">
+          © {new Date().getFullYear()} Lanyard Pharmacy. Genuine medicines, dispensed with care in
+          Nigeria.
         </div>
       </div>
     </footer>
