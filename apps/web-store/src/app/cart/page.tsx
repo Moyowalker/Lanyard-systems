@@ -3,7 +3,8 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useCart, useRemoveFromCart } from '@/lib/client';
+import { QuantityStepper } from '@/components/QuantityStepper';
+import { useCart, useRemoveFromCart, useSetCartItemQuantity } from '@/lib/client';
 import { formatKobo } from '@/lib/format';
 
 function CartShell({ children }: { children: React.ReactNode }) {
@@ -18,6 +19,7 @@ function CartContent() {
   const searchParams = useSearchParams();
   const { data: cart, isLoading } = useCart();
   const remove = useRemoveFromCart();
+  const setQuantity = useSetCartItemQuantity();
 
   if (isLoading) {
     return (
@@ -90,6 +92,12 @@ function CartContent() {
   const reordered = searchParams.get('reordered') === '1';
   const unavailable = searchParams.get('unavailable');
 
+  function updateLineQuantity(productId: string, quantity: number) {
+    const branchId = cart?.branchId;
+    if (!branchId) return;
+    setQuantity.mutate({ branchId, productId, quantity });
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-5">
@@ -122,9 +130,7 @@ function CartContent() {
                   <div className="min-w-0">
                     <div className="font-semibold text-ink-950">{item.name}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-700/70">
-                      <span className="tnum">
-                        {item.quantity} × {formatKobo(item.unitPriceKobo)}
-                      </span>
+                      <span className="tnum">{formatKobo(item.unitPriceKobo)} each</span>
                       {item.requiresPrescription ? (
                         <span className="inline-flex items-center gap-1 font-medium text-seal-400">
                           <span aria-hidden="true">℞</span> Prescription required
@@ -136,6 +142,13 @@ function CartContent() {
                     </div>
                   </div>
                   <div className="flex flex-none items-center gap-4">
+                    <QuantityStepper
+                      label={`${item.name} quantity`}
+                      quantity={item.quantity}
+                      disabled={setQuantity.isPending || !cart.branchId}
+                      onDecrease={() => updateLineQuantity(item.productId, item.quantity - 1)}
+                      onIncrease={() => updateLineQuantity(item.productId, item.quantity + 1)}
+                    />
                     <span className="tnum font-semibold text-ink-950">
                       {formatKobo(item.lineTotalKobo)}
                     </span>

@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import type { OrderDto, PaymentInitDto, PrescriptionDto, QuoteDto } from '@lanyard/contracts';
-import { useCart, useMe } from '@/lib/client';
+import { QuantityStepper } from '@/components/QuantityStepper';
+import { useCart, useMe, useSetCartItemQuantity } from '@/lib/client';
 import { formatKobo } from '@/lib/format';
 import { supportContact } from '@/lib/support';
 
@@ -16,6 +17,7 @@ type BranchDetail = { fulfillment?: { deliveryZones?: DeliveryZone[] } };
 export default function CheckoutPage() {
   const { data: cart, isLoading } = useCart();
   const { data: me, isLoading: isMeLoading } = useMe();
+  const setQuantity = useSetCartItemQuantity();
   const router = useRouter();
 
   const [fulfillment, setFulfillment] = useState<Fulfillment>('pickup');
@@ -99,6 +101,12 @@ export default function CheckoutPage() {
     );
 
   const needsRx = cart.requiresRxVerification;
+
+  function updateLineQuantity(productId: string, quantity: number) {
+    const branchId = cart?.branchId;
+    if (!branchId) return;
+    setQuantity.mutate({ branchId, productId, quantity });
+  }
 
   async function placeOrder() {
     setError(undefined);
@@ -376,14 +384,26 @@ export default function CheckoutPage() {
             <div className="section-kicker">Order summary</div>
             <ul className="mt-4 divide-y divide-paper-200/70">
               {cart.items.map((i) => (
-                <li key={i.productId} className="flex justify-between gap-3 py-2.5 text-sm">
-                  <span className="text-ink-800">
-                    {i.name} <span className="text-ink-700/55">× {i.quantity}</span>
-                    {i.requiresPrescription && <span className="ml-1 text-seal-400">℞</span>}
-                  </span>
-                  <span className="tnum flex-none font-medium text-ink-950">
-                    {formatKobo(i.lineTotalKobo)}
-                  </span>
+                <li key={i.productId} className="py-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 font-medium text-ink-900">
+                      {i.name}
+                      {i.requiresPrescription && <span className="ml-1 text-seal-400">℞</span>}
+                    </span>
+                    <span className="tnum flex-none font-semibold text-ink-950">
+                      {formatKobo(i.lineTotalKobo)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-ink-700/60">
+                    <span className="tnum">{formatKobo(i.unitPriceKobo)} each</span>
+                    <QuantityStepper
+                      label={`${i.name} quantity`}
+                      quantity={i.quantity}
+                      disabled={setQuantity.isPending || !cart.branchId}
+                      onDecrease={() => updateLineQuantity(i.productId, i.quantity - 1)}
+                      onIncrease={() => updateLineQuantity(i.productId, i.quantity + 1)}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>

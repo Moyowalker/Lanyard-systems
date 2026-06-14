@@ -52,6 +52,25 @@ export function useAddToCart() {
   });
 }
 
+export function useSetCartItemQuantity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { branchId: string; productId: string; quantity: number }) => {
+      const res = await fetch('/api/cart', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (res.status === 401 || res.status === 403) throw new AuthRequiredError();
+      return asJson<CartDto>(res);
+    },
+    onSuccess: (cart) => {
+      qc.setQueryData(['cart'], cart);
+      void qc.invalidateQueries({ queryKey: ['checkout-quote'] });
+    },
+  });
+}
+
 export function useRemoveFromCart() {
   const qc = useQueryClient();
   return useMutation({
