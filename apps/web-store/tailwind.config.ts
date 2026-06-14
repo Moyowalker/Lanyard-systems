@@ -5,68 +5,64 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Clinical evergreen — the brand spine. Deep and trustworthy, not neon.
+        // Confident healthcare teal — the brand spine. Clean, trustworthy, modern.
         brand: {
-          50: '#f0f7f4',
-          100: '#dbece4',
-          200: '#b9dacd',
-          300: '#8cc0ae',
-          400: '#5aa088',
-          500: '#38826b',
-          600: '#276a56',
-          700: '#1f5547',
-          800: '#1b4439',
-          900: '#173830',
-          950: '#0b211c',
+          50: '#f0fdfa',
+          100: '#ccfbf1',
+          200: '#99f6e4',
+          300: '#5eead4',
+          400: '#2dd4bf',
+          500: '#14b8a6',
+          600: '#0d9488',
+          700: '#0f766e',
+          800: '#115e59',
+          900: '#134e4a',
+          950: '#042f2e',
         },
-        // Teal-tinted near-black for dark chrome and high-contrast text.
+        // Deep teal-charcoal for dark chrome and high-contrast headings/text.
         ink: {
-          700: '#1d3b34',
-          800: '#152c27',
-          900: '#0e201c',
-          950: '#081512',
+          700: '#134e4a',
+          800: '#0f3b39',
+          900: '#0b2b2a',
+          950: '#07201f',
         },
-        // Warm paper neutrals — the calm canvas premium healthcare sits on.
+        // Cool neutral surfaces — the crisp canvas a fast pharmacy sits on.
         paper: {
-          DEFAULT: '#f6f4ee',
-          50: '#fbfaf6',
-          100: '#f3f1ea',
-          200: '#e8e4d9',
+          DEFAULT: '#f6f8f8',
+          50: '#fbfdfc',
+          100: '#eef2f2',
+          200: '#dde5e4',
         },
-        // A single restrained accent: a verification seal, used sparingly.
+        // Amber accent — reserved for the prescription (℞) lane.
         seal: {
-          100: '#f3ead2',
-          200: '#e7d4a6',
-          300: '#d8b86c',
-          400: '#c79a3e',
+          100: '#fef3c7',
+          200: '#fde68a',
+          300: '#fcd34d',
+          400: '#f59e0b',
         },
       },
       fontFamily: {
+        // One clean sans across the board — no serif drama.
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'sans-serif'],
-        display: ['var(--font-display)', 'Georgia', 'Cambria', 'serif'],
+        display: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'sans-serif'],
       },
       boxShadow: {
-        // Soft, layered, low-spread — a printed-card feel rather than glassy float.
-        card: '0 1px 2px rgba(11, 33, 28, 0.04), 0 12px 28px -18px rgba(11, 33, 28, 0.28)',
-        lift: '0 2px 6px rgba(11, 33, 28, 0.05), 0 28px 56px -30px rgba(11, 33, 28, 0.4)',
-        seal: '0 14px 30px -16px rgba(31, 85, 71, 0.7)',
-        focus: '0 0 0 3px rgba(39, 106, 86, 0.25)',
+        // Flat, low-spread — crisp cards, not glassy float.
+        card: '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06)',
+        lift: '0 4px 14px -4px rgba(15, 23, 42, 0.12), 0 2px 6px -3px rgba(15, 23, 42, 0.08)',
+        focus: '0 0 0 3px rgba(13, 148, 136, 0.22)',
       },
       borderRadius: {
-        card: '1.25rem',
+        card: '1rem',
       },
       keyframes: {
         rise: {
-          from: { opacity: '0', transform: 'translateY(16px)' },
+          from: { opacity: '0', transform: 'translateY(12px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
-        },
-        sheen: {
-          '0%': { transform: 'translateX(-120%)' },
-          '100%': { transform: 'translateX(220%)' },
         },
       },
       animation: {
-        rise: 'rise 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both',
+        rise: 'rise 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both',
       },
     },
   },
