@@ -8,146 +8,171 @@ import { branchListJsonLd, marketingOrganizationJsonLd } from '@/lib/seo';
 
 export const revalidate = 300;
 
+const benefits = [
+  { icon: 'truck', title: 'Fast delivery', sub: '~60 min across Lagos' },
+  { icon: 'shield', title: 'Pharmacist-checked', sub: 'every prescription' },
+  { icon: 'seal', title: 'Genuine medicines', sub: 'NAFDAC-registered' },
+  { icon: 'store', title: 'Pickup or delivery', sub: 'your choice' },
+] as const;
+
+const steps = [
+  { n: '1', title: 'Search or upload', body: 'Find your medicine, or upload a prescription.' },
+  { n: '2', title: 'Pharmacist verifies', body: 'A licensed pharmacist checks every prescription.' },
+  { n: '3', title: 'Delivery or pickup', body: 'Get it brought to you, or collect at your branch.' },
+] as const;
+
+function Icon({ name, className }: { name: string; className?: string }) {
+  const common = { className, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 } as const;
+  if (name === 'truck')
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M3 7h11v8H3zM14 10h4l3 3v2h-7z" strokeLinejoin="round" />
+        <circle cx="7" cy="18" r="1.6" />
+        <circle cx="17.5" cy="18" r="1.6" />
+      </svg>
+    );
+  if (name === 'shield')
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6Zm-2.5 9 1.8 1.8L15 10" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  if (name === 'seal')
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="m12 3 2.2 1.6 2.7-.2 1 2.5 2.3 1.4-.7 2.6.7 2.6-2.3 1.4-1 2.5-2.7-.2L12 21l-2.2-1.6-2.7.2-1-2.5-2.3-1.4.7-2.6-.7-2.6 2.3-1.4 1-2.5 2.7.2Z" strokeLinejoin="round" />
+        <path d="m9.5 12 1.8 1.8L15 10" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  return (
+    <svg {...common} aria-hidden="true">
+      <path d="M4 9h16l-1-5H5L4 9Zm0 0v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" strokeLinejoin="round" />
+      <path d="M9 20v-6h6v6" />
+    </svg>
+  );
+}
+
 export default async function HomePage() {
   const { items: branches, isLive } = await getMarketingBranches();
-  const branchLead = branches[0];
+  const branchCount = branches.length;
 
   return (
-    <div className="space-y-20 pb-16">
+    <div className="space-y-16 pb-12">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(marketingOrganizationJsonLd(branches)),
-        }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(marketingOrganizationJsonLd(branches)) }}
       />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(branchListJsonLd(branches)) }}
       />
 
-      <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:gap-8">
-        <div className="hero-shell p-8 sm:p-10 lg:p-12">
-          <div className="eyebrow">Pharmacy brand and digital storefront</div>
-          <h1 className="mt-5 max-w-3xl font-display text-5xl leading-none text-ink-900 sm:text-6xl lg:text-7xl">
-            Care that feels human before it feels transactional.
+      {/* Hero */}
+      <section className="grid items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        <div>
+          <div className="eyebrow">Lagos&apos; trusted online pharmacy</div>
+          <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-[-0.01em] text-ink-900 sm:text-5xl">
+            Genuine medicines, delivered to your door.
           </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-700/80 sm:text-xl">
-            Lanyard pairs a warm public-facing brand with a real branch-aware pharmacy store,
-            pharmacist verification, and a sharper handoff into fulfillment.
+          <p className="mt-5 max-w-xl text-lg leading-8 text-ink-900/70">
+            Order from a real licensed pharmacy near you — delivered in about an hour, or ready for
+            pickup. Every prescription is checked by a pharmacist before it reaches you.
           </p>
-
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-7 flex flex-wrap gap-3">
             <StoreLink source="home-hero-shop" className="cta-primary">
               Start shopping
             </StoreLink>
             <StoreLink source="home-hero-rx" intent="prescription" className="cta-secondary">
-              Start with a prescription
+              Upload a prescription
             </StoreLink>
-            <Link href="/branches" className="cta-secondary">
-              Explore branches
-            </Link>
           </div>
-
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-700/75">
-            Prescription uploads happen inside the storefront checkout flow after medicine
-            selection, with pharmacist verification controlling the next step before fulfilment.
-          </p>
-
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {heroStats.map((stat) => (
-              <div key={stat.value} className="metric-card">
-                <div className="font-display text-3xl text-ink-900">{stat.value}</div>
-                <p className="mt-2 text-sm leading-6 text-ink-700/75">{stat.label}</p>
-              </div>
-            ))}
+          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink-900/65">
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="seal" className="h-4 w-4 text-brand-600" /> NAFDAC-registered
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="shield" className="h-4 w-4 text-brand-600" /> Licensed pharmacists
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="store" className="h-4 w-4 text-brand-600" /> {branchCount}{' '}
+              {branchCount === 1 ? 'branch' : 'branches'} in Lagos
+            </span>
           </div>
         </div>
 
-        <div className="mesh-panel relative overflow-hidden rounded-[38px] p-6 text-white shadow-glow sm:p-8">
-          <div className="pill bg-white/15 text-white">Designed for trust</div>
-          <div className="mt-6 space-y-4">
-            <article className="rounded-[28px] border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
-              <div className="text-xs uppercase tracking-[0.24em] text-white/60">
-                Prescription lane
-              </div>
-              <h2 className="mt-3 font-display text-3xl">
-                Verification is built into the experience.
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-white/80">
-                Prescription uploads route into the staff console, where pharmacist review and
-                auditability sit behind a cleaner customer-facing flow.
-              </p>
-            </article>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <article className="rounded-[24px] bg-white/12 p-5 backdrop-blur-sm">
-                <div className="text-xs uppercase tracking-[0.24em] text-white/55">
-                  Branch-aware
-                </div>
-                <div className="mt-3 font-display text-2xl">
-                  {branches.length} locations surfaced
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/80">
-                  {branchLead
-                    ? `Lead branch right now: ${branchLead.name}, ${branchLead.address.city}.`
-                    : 'Branch discovery ready for launch.'}
-                </p>
-              </article>
-              <article className="rounded-[24px] bg-white/12 p-5 backdrop-blur-sm">
-                <div className="text-xs uppercase tracking-[0.24em] text-white/55">
-                  Store handoff
-                </div>
-                <div className="mt-3 font-display text-2xl">From marketing to conversion</div>
-                <p className="mt-2 text-sm leading-6 text-white/80">
-                  The site sets tone, answers objections, and then hands customers into a live
-                  commerce flow without feeling like a template.
-                </p>
-              </article>
-            </div>
+        {/* Hero image slot (drop a real photo here) */}
+        <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-paper-200 bg-brand-50">
+          <div className="flex h-full w-full items-center justify-center">
+            <Icon name="seal" className="h-16 w-16 text-brand-300" />
+          </div>
+          <div className="absolute bottom-4 left-4 flex items-center gap-2.5 rounded-xl border border-paper-200 bg-white px-3.5 py-2.5 shadow-card">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <Icon name="truck" className="h-5 w-5" />
+            </span>
+            <span className="text-sm leading-tight">
+              <span className="block font-semibold text-ink-900">Delivered in ~60 min</span>
+              <span className="block text-xs text-ink-900/55">to your door across Lagos</span>
+            </span>
           </div>
         </div>
       </section>
 
-      <section className="surface-card p-6 sm:p-8">
-        <div className="grid gap-4 lg:grid-cols-4">
-          {[
-            'Pickup-ready workflows',
-            'Prescription-first checkout',
-            'Branch-level availability',
-            'Compliance-conscious design',
-          ].map((item) => (
-            <div
-              key={item}
-              className="rounded-[22px] border border-slate-200/70 bg-white/70 px-4 py-4 text-sm font-medium text-ink-800 shadow-card"
-            >
-              {item}
+      {/* Benefit strip */}
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {benefits.map((b) => (
+          <div key={b.title} className="surface-card flex items-start gap-3 p-4">
+            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <Icon name={b.icon} className="h-5 w-5" />
+            </span>
+            <span className="leading-tight">
+              <span className="block text-sm font-semibold text-ink-900">{b.title}</span>
+              <span className="block text-xs text-ink-900/55">{b.sub}</span>
+            </span>
+          </div>
+        ))}
+      </section>
+
+      {/* How it works */}
+      <section>
+        <SectionTitle
+          eyebrow="How it works"
+          title="From your phone to your hands in three simple steps."
+          copy="No queues, no guesswork — just genuine medicine, handled with care."
+        />
+        <div className="grid gap-5 md:grid-cols-3">
+          {steps.map((s) => (
+            <div key={s.n} className="surface-card p-6">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">
+                {s.n}
+              </span>
+              <h3 className="mt-4 text-lg font-semibold text-ink-900">{s.title}</h3>
+              <p className="mt-2 text-sm leading-7 text-ink-900/70">{s.body}</p>
             </div>
           ))}
         </div>
       </section>
 
+      {/* Services */}
       <section>
         <SectionTitle
-          eyebrow="Core services"
-          title="Built to sell medicine without looking like generic healthcare software."
-          copy="The marketing layer should feel premium and composed, while still explaining the real operational strengths underneath the product."
+          eyebrow="What you get"
+          title="Delivery, pickup, and prescriptions — handled properly."
+          copy="Everything is grounded in a real branch near you, with a licensed pharmacist on every prescription."
           action={
             <Link href="/services" className="cta-secondary">
-              View all services
+              See how it works
             </Link>
           }
         />
-
         <div className="grid gap-5 lg:grid-cols-3">
-          {serviceTracks.map((service, index) => (
-            <article key={service.title} className="surface-card p-7">
-              <div className="pill bg-brand-50 text-brand-800">0{index + 1}</div>
-              <h3 className="mt-5 font-display text-2xl text-ink-900">{service.title}</h3>
-              <p className="mt-3 text-sm leading-7 text-ink-700/75">{service.body}</p>
-              <ul className="mt-6 space-y-3 text-sm text-ink-800/80">
+          {serviceTracks.map((service) => (
+            <article key={service.title} className="surface-card p-6">
+              <h3 className="text-lg font-semibold text-ink-900">{service.title}</h3>
+              <p className="mt-2 text-sm leading-7 text-ink-900/70">{service.body}</p>
+              <ul className="mt-5 space-y-2.5 text-sm text-ink-900/80">
                 {service.bullets.map((bullet) => (
-                  <li key={bullet} className="flex gap-3">
-                    <span className="mt-2 h-2 w-2 rounded-full bg-brand-500" />
+                  <li key={bullet} className="flex gap-2.5">
+                    <Icon name="shield" className="mt-0.5 h-4 w-4 flex-none text-brand-600" />
                     <span>{bullet}</span>
                   </li>
                 ))}
@@ -157,87 +182,83 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Why Lanyard */}
       <section>
         <SectionTitle
-          eyebrow="Why it lands"
-          title="The design direction is deliberate: warmer, calmer, and more premium than the current storefront."
-          copy="A marketing site should reduce friction before checkout even starts. That means better hierarchy, stronger storytelling, and a visual system that customers remember."
+          eyebrow="Why Lanyard"
+          title="A pharmacy you can actually trust online."
+          copy="Genuine medicine, real pharmacists, fair prices, and fast delivery — the things that matter when it is your health."
         />
-
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {principles.map((principle) => (
             <article key={principle.title} className="surface-card p-6">
-              <h3 className="font-display text-2xl text-ink-900">{principle.title}</h3>
-              <p className="mt-4 text-sm leading-7 text-ink-700/80">{principle.body}</p>
+              <h3 className="text-base font-semibold text-ink-900">{principle.title}</h3>
+              <p className="mt-3 text-sm leading-7 text-ink-900/70">{principle.body}</p>
             </article>
           ))}
         </div>
       </section>
 
+      {/* Branches */}
       <section>
         <SectionTitle
-          eyebrow="Branch discovery"
-          title="Branch locations should feel useful, not buried."
-          copy="The public site can make branch selection intuitive before customers ever reach the store. This keeps the conversion path cleaner once they are ready to buy."
+          eyebrow="Find a branch"
+          title="A trusted pharmacy near you in Lagos."
+          copy="Choose your branch to see real pricing and stock — then shop for delivery or pickup."
           action={
             <Link href="/branches" className="cta-secondary">
-              Open branch guide
+              View all branches
             </Link>
           }
         />
         <BranchGrid branches={branches} isLive={isLive} />
       </section>
 
+      {/* FAQ */}
       <section>
         <SectionTitle
-          eyebrow="FAQ preview"
-          title="Answer the questions that usually block conversion."
-          copy="A better public-facing site should handle confidence-building upfront: prescriptions, branch pricing, delivery, and what makes the platform safe to use."
+          eyebrow="Questions, answered"
+          title="Everything you need to know before you order."
+          copy="Prescriptions, delivery, pricing, and payment — the common questions, answered simply."
           action={
             <Link href="/faq" className="cta-secondary">
               Read all FAQs
             </Link>
           }
         />
-
         <div className="grid gap-5 lg:grid-cols-3">
           {faqs.slice(0, 3).map((faq) => (
             <article key={faq.question} className="surface-card p-6">
-              <h3 className="font-display text-2xl text-ink-900">{faq.question}</h3>
-              <p className="mt-4 text-sm leading-7 text-ink-700/80">{faq.answer}</p>
+              <h3 className="text-base font-semibold text-ink-900">{faq.question}</h3>
+              <p className="mt-3 text-sm leading-7 text-ink-900/70">{faq.answer}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="mesh-panel overflow-hidden rounded-[38px] p-8 text-white shadow-glow sm:p-10">
-        <div className="max-w-3xl">
-          <div className="eyebrow text-brand-100">Ready to ship publicly</div>
-          <h2 className="mt-4 font-display text-4xl leading-tight sm:text-5xl">
-            Give Lanyard a proper front door, then let the store do the conversion work.
+      {/* Closing CTA */}
+      <section className="mesh-panel overflow-hidden rounded-2xl p-8 text-white sm:p-10">
+        <div className="max-w-2xl">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-100">
+            Ready when you are
+          </div>
+          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+            Your medicines, the easy way.
           </h2>
-          <p className="mt-4 text-base leading-8 text-white/80 sm:text-lg">
-            This site exists to attract, reassure, and direct. The store exists to convert. The
-            admin console exists to fulfill safely. That split is what makes the overall product
-            feel intentional.
+          <p className="mt-4 text-base leading-8 text-white/80">
+            Browse, order, and get genuine medicine delivered — or pick it up at your branch. Every
+            prescription is checked by a licensed pharmacist.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-7 flex flex-wrap gap-3">
             <StoreLink
               source="home-final-shop"
-              className="cta-primary bg-white text-ink-900 hover:bg-sand-100"
+              className="cta-primary bg-white text-ink-900 hover:bg-brand-50"
             >
-              Enter the store
-            </StoreLink>
-            <StoreLink
-              source="home-final-rx"
-              intent="prescription"
-              className="cta-secondary border-white/20 text-white hover:bg-white/10"
-            >
-              Start a prescription order
+              Start shopping
             </StoreLink>
             <Link
               href="/contact"
-              className="cta-secondary border-white/20 text-white hover:bg-white/10"
+              className="cta-secondary border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"
             >
               Talk to us
             </Link>

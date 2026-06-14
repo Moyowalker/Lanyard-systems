@@ -1,116 +1,115 @@
 import type { BranchSummaryDto } from '@lanyard/contracts';
 
 export const marketingNav = [
-  { label: 'About', href: '/about' },
-  { label: 'Services', href: '/services' },
+  { label: 'How it works', href: '/services' },
   { label: 'Branches', href: '/branches' },
+  { label: 'About', href: '/about' },
   { label: 'FAQ', href: '/faq' },
   { label: 'Contact', href: '/contact' },
 ] as const;
 
 export const heroStats = [
-  { value: '15 min', label: 'average same-branch pickup prep when stock is ready' },
-  { value: '1 flow', label: 'for browsing, prescription upload, payment, and tracking' },
-  { value: 'PCN aware', label: 'built around pharmacist verification and auditability' },
+  { value: '~60 min', label: 'typical delivery time across Lagos when in stock' },
+  { value: '100%', label: 'NAFDAC-registered, genuine medicines' },
+  { value: 'Free', label: 'pickup at your nearest branch' },
 ] as const;
 
 export const serviceTracks = [
   {
-    title: 'Pickup that feels immediate',
-    body: 'Reserve medicines online, switch branches in seconds, and head to the counter with less friction.',
+    title: 'Delivery to your door',
+    body: 'Order what you need and have it brought to you — often within the hour across Lagos.',
     bullets: [
-      'Live branch-aware pricing',
-      'Fast reorder-friendly experience',
-      'Clear pickup status updates',
+      'About 60 minutes when your branch has it in stock',
+      'Live tracking from order to your door',
+      'Pay by card, bank transfer, or USSD',
     ],
   },
   {
-    title: 'Prescription-first digital care',
-    body: 'Upload a prescription online, route it into verification, and keep customers informed without compromising compliance.',
+    title: 'Free branch pickup',
+    body: 'Reserve online and collect at the counter, with no queue and no surprises on price.',
     bullets: [
-      'Pharmacist review workflow',
-      'Secure prescription handling',
-      'Order progression after verification',
+      'Ready shortly after you order',
+      'Switch to a branch near you anytime',
+      'See real stock before you leave home',
     ],
   },
   {
-    title: 'Delivery when you need reach',
-    body: 'Support patients who cannot walk in, while keeping fulfillment grounded in real branch inventory and dispatch status.',
+    title: 'Prescriptions made easy',
+    body: 'Upload your prescription and a licensed pharmacist verifies it before anything is dispensed.',
     bullets: [
-      'Delivery-ready checkout',
-      'Branch-scoped availability',
-      'Order tracking after payment',
+      'Secure upload at checkout',
+      'Reviewed by a licensed pharmacist',
+      'Dispensed only once approved',
     ],
   },
 ] as const;
 
 export const principles = [
   {
-    title: 'Human warmth, not hospital coldness',
-    body: 'The brand leans reassuring and polished instead of generic clinical UI. Clear enough to trust, warm enough to return to.',
+    title: 'Genuine medicines, always',
+    body: 'Every product is NAFDAC-registered and dispensed by a licensed pharmacy. No fakes, no guesswork.',
   },
   {
-    title: 'Commerce with a safety spine',
-    body: 'Prescription checks, branch controls, and auditable workflows sit under every polished surface. The visual language should reflect that seriousness.',
+    title: 'A real pharmacist on every order',
+    body: 'Prescription medicines are reviewed by a licensed pharmacist before they are ever dispensed.',
   },
   {
-    title: 'Built for Lagos pace',
-    body: 'The experience is tuned for busy customers who want speed, branch flexibility, and strong confidence in the product they are buying.',
+    title: 'Fair, branch-accurate prices',
+    body: 'You see the real price and stock for your branch before you pay — no surprises at checkout.',
   },
   {
-    title: 'Ready for multi-surface growth',
-    body: 'Marketing, store, and staff operations can evolve independently while still feeling like one disciplined brand system.',
+    title: 'Fast, wherever you are in Lagos',
+    body: 'Delivery to your door or free pickup, with live tracking from order to handoff.',
   },
 ] as const;
 
 export const faqs = [
   {
-    question: 'Can I order prescription-only medicines online?',
+    question: 'Can I order prescription medicines online?',
     answer:
-      'Yes. Customers can upload a prescription, then a pharmacist verifies it before fulfillment progresses.',
+      'Yes. Add them to your cart and upload your prescription at checkout — a licensed pharmacist verifies it before your order is dispensed.',
+  },
+  {
+    question: 'How fast is delivery?',
+    answer:
+      'Most deliveries in Lagos arrive in about an hour when your branch has the item in stock. You can also choose free pickup.',
+  },
+  {
+    question: 'Are the medicines genuine?',
+    answer:
+      'Yes. Every medicine is NAFDAC-registered and dispensed by a licensed pharmacy you can trust.',
+  },
+  {
+    question: 'Can I pick up instead of having it delivered?',
+    answer:
+      'Yes. Choose pickup at checkout and collect from your branch — usually ready shortly after you order.',
   },
   {
     question: 'Do prices change by branch?',
     answer:
-      'Yes. The store is branch-aware, so pricing and availability reflect the branch you choose before checkout.',
+      'Yes. You always see the price and availability for the branch you choose before you pay.',
   },
   {
-    question: 'Can I switch between pickup and delivery?',
-    answer:
-      'The customer flow supports both, with branch availability and operational fit shaping what is offered at checkout.',
-  },
-  {
-    question: 'Is the same site used by staff?',
-    answer:
-      'No. Staff operations live in a separate admin console with different auth, branch controls, and compliance screens.',
-  },
-  {
-    question: 'What if the nearest branch is out of stock?',
-    answer:
-      'Customers can switch branches in the store to view pricing and product availability before placing the order.',
-  },
-  {
-    question: 'Why does the site emphasize verification so much?',
-    answer:
-      'For this business, prescription verification is not optional. It is the regulatory and safety core of the platform.',
+    question: 'How do I pay?',
+    answer: 'Pay securely at checkout by card, bank transfer, or USSD.',
   },
 ] as const;
 
 export const contactChannels = [
   {
-    title: 'General enquiries',
-    detail: 'hello@lanyard.test',
-    note: 'Use this for brand, branch, and service questions in the local demo environment.',
+    title: 'Order & care support',
+    detail: '+234 800 000 0001',
+    note: 'Order help, branch guidance, and prescription questions.',
   },
   {
-    title: 'Care desk',
-    detail: '+234 800 000 0001',
-    note: 'Best for order support, branch guidance, and prescription-related questions.',
+    title: 'General enquiries',
+    detail: 'hello@lanyard.test',
+    note: 'Brand, branch, and service questions.',
   },
   {
     title: 'Partnerships',
     detail: 'partners@lanyard.test',
-    note: 'For employer health plans, branch expansion, and healthcare commerce partnerships.',
+    note: 'Employer health plans, branch expansion, and healthcare partnerships.',
   },
 ] as const;
 
