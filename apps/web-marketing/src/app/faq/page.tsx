@@ -17,12 +17,12 @@ export default function FaqPage() {
 
       <section className="hero-shell p-8 sm:p-10 lg:p-12">
         <div className="eyebrow">Frequently asked questions</div>
-        <h1 className="mt-4 max-w-3xl font-display text-5xl leading-none text-ink-900 sm:text-6xl">
-          The questions that usually stand between curiosity and checkout.
+        <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-ink-900 sm:text-5xl">
+          Questions? We&apos;ve got answers.
         </h1>
-        <p className="mt-6 max-w-3xl text-lg leading-8 text-ink-700/80">
-          Great marketing sites remove friction with clarity. The FAQ should make that feel easy,
-          fast, and visibly trustworthy.
+        <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-900/70">
+          Prescriptions, delivery, pricing, and payment — the essentials, answered simply, before
+          you order.
         </p>
       </section>
 
@@ -30,8 +30,8 @@ export default function FaqPage() {
         {faqs.map((faq, index) => (
           <article key={faq.question} className="surface-card p-7">
             <div className="pill bg-brand-50 text-brand-800">Q0{index + 1}</div>
-            <h2 className="mt-5 font-display text-3xl text-ink-900">{faq.question}</h2>
-            <p className="mt-4 text-sm leading-7 text-ink-700/80">{faq.answer}</p>
+            <h2 className="mt-5 text-xl font-semibold text-ink-900">{faq.question}</h2>
+            <p className="mt-4 text-sm leading-7 text-ink-900/70">{faq.answer}</p>
           </article>
         ))}
       </section>
