@@ -9,7 +9,12 @@ export function SiteHeader() {
         <Link href="/" className="flex items-center gap-2.5">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white">
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
-              <path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+              <path
+                d="M12 4v16M4 12h16"
+                stroke="currentColor"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+              />
             </svg>
           </span>
           <span className="text-lg font-semibold tracking-[-0.01em] text-ink-900">
@@ -19,7 +24,11 @@ export function SiteHeader() {
 
         <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-ink-900/70 sm:gap-5">
           {marketingNav.map((item) => (
-            <Link key={item.href} href={item.href} className="transition-colors hover:text-brand-700">
+            <Link
+              key={item.href}
+              href={item.href}
+              className="transition-colors hover:text-brand-700"
+            >
               {item.label}
             </Link>
           ))}

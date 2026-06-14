@@ -17,12 +17,26 @@ const benefits = [
 
 const steps = [
   { n: '1', title: 'Search or upload', body: 'Find your medicine, or upload a prescription.' },
-  { n: '2', title: 'Pharmacist verifies', body: 'A licensed pharmacist checks every prescription.' },
-  { n: '3', title: 'Delivery or pickup', body: 'Get it brought to you, or collect at your branch.' },
+  {
+    n: '2',
+    title: 'Pharmacist verifies',
+    body: 'A licensed pharmacist checks every prescription.',
+  },
+  {
+    n: '3',
+    title: 'Delivery or pickup',
+    body: 'Get it brought to you, or collect at your branch.',
+  },
 ] as const;
 
 function Icon({ name, className }: { name: string; className?: string }) {
-  const common = { className, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 } as const;
+  const common = {
+    className,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+  } as const;
   if (name === 'truck')
     return (
       <svg {...common} aria-hidden="true">
@@ -34,19 +48,29 @@ function Icon({ name, className }: { name: string; className?: string }) {
   if (name === 'shield')
     return (
       <svg {...common} aria-hidden="true">
-        <path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6Zm-2.5 9 1.8 1.8L15 10" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6Zm-2.5 9 1.8 1.8L15 10"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   if (name === 'seal')
     return (
       <svg {...common} aria-hidden="true">
-        <path d="m12 3 2.2 1.6 2.7-.2 1 2.5 2.3 1.4-.7 2.6.7 2.6-2.3 1.4-1 2.5-2.7-.2L12 21l-2.2-1.6-2.7.2-1-2.5-2.3-1.4.7-2.6-.7-2.6 2.3-1.4 1-2.5 2.7.2Z" strokeLinejoin="round" />
+        <path
+          d="m12 3 2.2 1.6 2.7-.2 1 2.5 2.3 1.4-.7 2.6.7 2.6-2.3 1.4-1 2.5-2.7-.2L12 21l-2.2-1.6-2.7.2-1-2.5-2.3-1.4.7-2.6-.7-2.6 2.3-1.4 1-2.5 2.7.2Z"
+          strokeLinejoin="round"
+        />
         <path d="m9.5 12 1.8 1.8L15 10" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   return (
     <svg {...common} aria-hidden="true">
-      <path d="M4 9h16l-1-5H5L4 9Zm0 0v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" strokeLinejoin="round" />
+      <path
+        d="M4 9h16l-1-5H5L4 9Zm0 0v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"
+        strokeLinejoin="round"
+      />
       <path d="M9 20v-6h6v6" />
     </svg>
   );
