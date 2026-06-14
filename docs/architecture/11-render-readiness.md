@@ -84,6 +84,8 @@ Blueprint defaults worth knowing:
 
 - API and worker start in `NODE_ENV=development` on purpose so the first staging deploy
   does not block on Termii, SMTP, and Paystack production secrets.
+- The API start command runs the idempotent seed script before listening, which ensures
+  the staging staff accounts exist and resets their development passwords.
 - When you switch the API and worker to `NODE_ENV=production`, set the required
   Termii, SMTP, and Paystack variables on `lanyard-api`; the worker inherits the
   same provider variables from the API service.

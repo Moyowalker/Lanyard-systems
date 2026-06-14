@@ -16,7 +16,7 @@ services:
     region: frankfurt
     autoDeployTrigger: commit
     buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter @lanyard/contracts build && corepack pnpm --filter @lanyard/api build
-    startCommand: corepack pnpm --filter @lanyard/api start
+    startCommand: corepack pnpm --filter @lanyard/api seed && corepack pnpm --filter @lanyard/api start
     healthCheckPath: /api/v1/health/ready
     buildFilter:
       paths:
