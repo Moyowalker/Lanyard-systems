@@ -108,10 +108,7 @@ services:
         - 'render.yaml'
     envVars:
       - key: NODE_ENV
-        fromService:
-          name: lanyard-api
-          type: web
-          envVarKey: NODE_ENV
+        value: development
       - key: API_GLOBAL_PREFIX
         fromService:
           name: lanyard-api

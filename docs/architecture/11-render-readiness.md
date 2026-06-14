@@ -84,9 +84,9 @@ Blueprint defaults worth knowing:
 
 - API and worker start in `NODE_ENV=development` on purpose so the first staging deploy
   does not block on Termii, SMTP, and Paystack production secrets.
-- When you switch the API to `NODE_ENV=production`, set the required Termii, SMTP,
-  and Paystack variables on `lanyard-api`; the worker inherits the same provider
-  variables from the API service.
+- When you switch the API and worker to `NODE_ENV=production`, set the required
+  Termii, SMTP, and Paystack variables on `lanyard-api`; the worker inherits the
+  same provider variables from the API service.
 - The three Next.js apps now accept either `API_URL` or Render's internal
   `API_HOSTPORT` + `API_GLOBAL_PREFIX` to reach the API over the private network.
 - The marketing app receives both `STORE_URL` and `NEXT_PUBLIC_STORE_URL`, so its
