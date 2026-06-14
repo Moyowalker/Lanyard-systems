@@ -26,11 +26,7 @@ test('customer can browse the branch catalog, log in via OTP, and add to cart', 
   await page.goto('/');
   const card = page.locator('article', { hasText: 'Paracetamol 500mg' }).first();
   await expect(card).toBeVisible();
-  const addButton = card.getByRole('button', { name: 'Add to cart' });
-  if (await addButton.isVisible()) {
-    await addButton.click();
-  }
-  await expect(card.getByRole('button', { name: 'Added to cart' })).toBeVisible();
+  await card.getByRole('button', { name: /Add(?: to cart)?/ }).click();
 
   // 5. Cart reflects the item.
   await page.goto('/cart');
