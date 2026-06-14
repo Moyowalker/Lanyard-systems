@@ -33,6 +33,7 @@ export interface CartLineDto {
   lineTotalKobo?: number;
   requiresPrescription: boolean;
   inStock: boolean;
+  available?: number;
 }
 
 export interface CartDto {

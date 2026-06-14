@@ -4,7 +4,15 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import type { OrderDto, PaymentInitDto, PrescriptionDto, QuoteDto } from '@lanyard/contracts';
+import type {
+  CartLineDto,
+  CustomerAddressDto,
+  CustomerProfileDto,
+  OrderDto,
+  PaymentInitDto,
+  PrescriptionDto,
+  QuoteDto,
+} from '@lanyard/contracts';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { useCart, useMe, useSetCartItemQuantity } from '@/lib/client';
 import { formatKobo } from '@/lib/format';
@@ -13,6 +21,14 @@ import { supportContact } from '@/lib/support';
 type Fulfillment = 'pickup' | 'delivery';
 type DeliveryZone = { name: string; feeKobo: number; etaMins?: number };
 type BranchDetail = { fulfillment?: { deliveryZones?: DeliveryZone[] } };
+type CheckoutAddress = {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  country?: string;
+  contactPhone?: string;
+};
 
 export default function CheckoutPage() {
   const { data: cart, isLoading } = useCart();
@@ -22,7 +38,8 @@ export default function CheckoutPage() {
 
   const [fulfillment, setFulfillment] = useState<Fulfillment>('pickup');
   const [deliveryZoneName, setDeliveryZoneName] = useState('');
-  const [address, setAddress] = useState({ line1: '', city: '', state: '' });
+  const [selectedAddress, setSelectedAddress] = useState('manual');
+  const [address, setAddress] = useState<CheckoutAddress>({ line1: '', city: '', state: '' });
   const [files, setFiles] = useState<FileList | null>(null);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState('');
@@ -39,10 +56,28 @@ export default function CheckoutPage() {
   });
   const deliveryZones = branch?.fulfillment?.deliveryZones ?? [];
 
+  const { data: profile } = useQuery({
+    queryKey: ['profile'],
+    enabled: Boolean(me),
+    queryFn: async () => {
+      const res = await fetch('/api/me/profile');
+      if (res.status === 401 || res.status === 403) return null;
+      if (!res.ok) throw new Error('Could not load your profile');
+      return res.json() as Promise<CustomerProfileDto>;
+    },
+  });
+  const savedAddresses = profile?.addresses;
+
   useEffect(() => {
     if (fulfillment !== 'delivery') return;
     if (!deliveryZoneName && deliveryZones[0]) setDeliveryZoneName(deliveryZones[0].name);
   }, [deliveryZoneName, deliveryZones, fulfillment]);
+
+  useEffect(() => {
+    if (fulfillment !== 'delivery' || address.line1 || !savedAddresses?.[0]) return;
+    applySavedAddress(savedAddresses[0]);
+    setSelectedAddress('0');
+  }, [address.line1, fulfillment, savedAddresses]);
 
   const quoteInput = {
     fulfillment: {
@@ -106,6 +141,25 @@ export default function CheckoutPage() {
     const branchId = cart?.branchId;
     if (!branchId) return;
     setQuantity.mutate({ branchId, productId, quantity });
+  }
+
+  function applySavedAddress(savedAddress: CustomerAddressDto) {
+    setAddress({
+      line1: savedAddress.line1,
+      line2: savedAddress.line2,
+      city: savedAddress.city,
+      state: savedAddress.state,
+      country: savedAddress.country,
+      contactPhone: savedAddress.contactPhone,
+    });
+  }
+
+  function availabilityHint(item: CartLineDto) {
+    if (item.available === undefined || item.available > 5 || item.quantity < item.available) {
+      return null;
+    }
+    if (item.available === 0) return 'Out of stock';
+    return `Only ${item.available} available`;
   }
 
   async function placeOrder() {
@@ -242,6 +296,32 @@ export default function CheckoutPage() {
 
             {fulfillment === 'delivery' && (
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {savedAddresses && savedAddresses.length > 0 ? (
+                  <div className="sm:col-span-2">
+                    <label htmlFor="saved-address" className="field-label">
+                      Saved address
+                    </label>
+                    <select
+                      id="saved-address"
+                      value={selectedAddress}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSelectedAddress(value);
+                        const savedAddress = savedAddresses[Number(value)];
+                        if (savedAddress) applySavedAddress(savedAddress);
+                      }}
+                      className="input-field"
+                    >
+                      {savedAddresses.map((savedAddress, index) => (
+                        <option key={`${savedAddress.line1}-${index}`} value={index.toString()}>
+                          {savedAddress.label || `Address ${index + 1}`} · {savedAddress.line1},{' '}
+                          {savedAddress.city}
+                        </option>
+                      ))}
+                      <option value="manual">Enter a different address</option>
+                    </select>
+                  </div>
+                ) : null}
                 {deliveryZones.length > 0 ? (
                   <div className="sm:col-span-2">
                     <label htmlFor="delivery-zone" className="field-label">
@@ -270,7 +350,10 @@ export default function CheckoutPage() {
                     id="addr-line1"
                     autoComplete="address-line1"
                     value={address.line1}
-                    onChange={(e) => setAddress({ ...address, line1: e.target.value })}
+                    onChange={(e) => {
+                      setSelectedAddress('manual');
+                      setAddress({ ...address, line1: e.target.value });
+                    }}
                     placeholder="e.g. 12 Allen Avenue"
                     className="input-field"
                   />
@@ -283,7 +366,10 @@ export default function CheckoutPage() {
                     id="addr-city"
                     autoComplete="address-level2"
                     value={address.city}
-                    onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                    onChange={(e) => {
+                      setSelectedAddress('manual');
+                      setAddress({ ...address, city: e.target.value });
+                    }}
                     placeholder="e.g. Ikeja"
                     className="input-field"
                   />
@@ -296,7 +382,10 @@ export default function CheckoutPage() {
                     id="addr-state"
                     autoComplete="address-level1"
                     value={address.state}
-                    onChange={(e) => setAddress({ ...address, state: e.target.value })}
+                    onChange={(e) => {
+                      setSelectedAddress('manual');
+                      setAddress({ ...address, state: e.target.value });
+                    }}
                     placeholder="e.g. Lagos"
                     className="input-field"
                   />
@@ -399,11 +488,17 @@ export default function CheckoutPage() {
                     <QuantityStepper
                       label={`${i.name} quantity`}
                       quantity={i.quantity}
+                      max={Math.min(i.available ?? 99, 99)}
                       disabled={setQuantity.isPending || !cart.branchId}
                       onDecrease={() => updateLineQuantity(i.productId, i.quantity - 1)}
                       onIncrease={() => updateLineQuantity(i.productId, i.quantity + 1)}
                     />
                   </div>
+                  {availabilityHint(i) ? (
+                    <div className="mt-1 text-xs font-medium text-amber-700">
+                      {availabilityHint(i)}
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>

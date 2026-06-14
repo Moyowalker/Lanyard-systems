@@ -24,6 +24,7 @@ export interface ResolvedLine {
   lineTotalKobo?: number;
   requiresPrescription: boolean;
   inStock: boolean;
+  available: number;
 }
 export interface ResolvedCart {
   cartId: string;
@@ -115,6 +116,7 @@ export class CartService {
       lineTotalKobo: l.lineTotalKobo,
       requiresPrescription: l.requiresPrescription,
       inStock: l.inStock,
+      available: l.available,
     }));
     return {
       id: r.cartId,
@@ -172,6 +174,7 @@ export class CartService {
         lineTotalKobo: lineTotal,
         requiresPrescription: reqRx,
         inStock: available >= item.quantity,
+        available,
       };
     });
 

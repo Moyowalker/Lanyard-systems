@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import type { OrderDto, PaymentInitDto, PrescriptionDto } from '@lanyard/contracts';
+import { OrderNextStep } from '@/components/OrderNextStep';
 import { formatKobo } from '@/lib/format';
 import { statusLabel, statusTone } from '@/lib/orders';
 import { useReorder } from '@/lib/client';
@@ -109,7 +110,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const history = tracking.data?.history ?? [];
   const needsInfo = prescription.data?.status === 'needs_info';
   const verifiedRx = prescription.data?.verification;
-  const awaitingPayment = o.status === 'AWAITING_PAYMENT';
 
   async function submitClarification(event: ChangeEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -180,6 +180,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
+      <OrderNextStep
+        order={o}
+        needsInfo={needsInfo}
+        paying={paying}
+        payStep={payStep}
+        payError={payError}
+        onPayNow={payNow}
+      />
+
       {o.requiresRxVerification && o.status === 'AWAITING_RX_VERIFICATION' && (
         <div className="rx-note">
           <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[0.9rem] bg-seal-200/70 font-display text-sm font-bold text-ink-900">
@@ -242,67 +251,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
       ) : null}
-
-      {/* Payment due — e.g. an Rx order a pharmacist just verified. */}
-      {awaitingPayment && (
-        <div className="surface-panel border-2 border-brand-200 px-5 py-6 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="section-kicker before:hidden">Payment due</div>
-              <p className="mt-2 text-sm leading-6 text-ink-700/80">
-                {o.requiresRxVerification
-                  ? 'Your prescription is verified. Complete payment to start fulfilment.'
-                  : 'Complete payment to start fulfilment of your order.'}
-              </p>
-              <div className="tnum mt-3 font-display text-2xl text-ink-950">
-                {formatKobo(o.totals.totalKobo)}
-              </div>
-            </div>
-            <button onClick={payNow} disabled={paying} className="primary-button">
-              {paying ? payStep || 'Working…' : 'Pay now'}
-              {!paying && (
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                >
-                  <path d="M5 12h14m-6-6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </button>
-          </div>
-          {payError && (
-            <p className="mt-4 flex items-start gap-2 rounded-[1rem] border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-              <svg
-                viewBox="0 0 24 24"
-                className="mt-0.5 h-4 w-4 flex-none"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.9"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 8v5m0 3h.01" strokeLinecap="round" />
-              </svg>
-              {payError}
-            </p>
-          )}
-          <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-700/55">
-            <svg
-              viewBox="0 0 24 24"
-              className="h-3.5 w-3.5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            >
-              <rect x="5" y="11" width="14" height="9" rx="2" />
-              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-            </svg>
-            Encrypted payment via Paystack
-          </p>
-        </div>
-      )}
 
       <section className="surface-panel px-5 py-6 sm:px-6">
         <div className="section-kicker">Items</div>

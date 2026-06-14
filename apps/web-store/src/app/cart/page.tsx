@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import type { CartLineDto } from '@lanyard/contracts';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { useCart, useRemoveFromCart, useSetCartItemQuantity } from '@/lib/client';
 import { formatKobo } from '@/lib/format';
@@ -98,6 +99,14 @@ function CartContent() {
     setQuantity.mutate({ branchId, productId, quantity });
   }
 
+  function availabilityHint(item: CartLineDto) {
+    if (item.available === undefined || item.available > 5 || item.quantity < item.available) {
+      return null;
+    }
+    if (item.available === 0) return 'Out of stock';
+    return `Only ${item.available} available`;
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-5">
@@ -145,10 +154,16 @@ function CartContent() {
                     <QuantityStepper
                       label={`${item.name} quantity`}
                       quantity={item.quantity}
+                      max={Math.min(item.available ?? 99, 99)}
                       disabled={setQuantity.isPending || !cart.branchId}
                       onDecrease={() => updateLineQuantity(item.productId, item.quantity - 1)}
                       onIncrease={() => updateLineQuantity(item.productId, item.quantity + 1)}
                     />
+                    {availabilityHint(item) ? (
+                      <span className="max-w-20 text-xs font-medium leading-4 text-amber-700">
+                        {availabilityHint(item)}
+                      </span>
+                    ) : null}
                     <span className="tnum font-semibold text-ink-950">
                       {formatKobo(item.lineTotalKobo)}
                     </span>
