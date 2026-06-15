@@ -69,6 +69,74 @@ export const UpsertPriceSchema = z.object({
 });
 export type UpsertPriceInput = z.infer<typeof UpsertPriceSchema>;
 
+/* ── Bulk medicine import (global product + per-branch price/opening stock) ── */
+
+export const BulkMedicineImportRowSchema = CreateProductSchema.omit({
+  categoryIds: true,
+  searchTokens: true,
+}).extend({
+  rowNumber: z.coerce.number().int().min(1),
+  categoryIds: z.array(objectId).default([]),
+  priceKobo: z.coerce.number().int().min(0),
+  compareAtKobo: z.coerce.number().int().min(0).optional(),
+  isAvailable: z.coerce.boolean().default(true),
+  openingQuantity: z.coerce.number().int().min(0).default(0),
+  reorderLevel: z.coerce.number().int().min(0).optional(),
+  batchNo: z.string().trim().min(1).max(120).optional(),
+  expiry: z.coerce.date().optional(),
+  reason: z.string().trim().min(3).max(240).optional(),
+}).superRefine((value, ctx) => {
+  const hasBatchNo = Boolean(value.batchNo);
+  const hasExpiry = Boolean(value.expiry);
+  if (hasBatchNo === hasExpiry) return;
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['batchNo'],
+    message: 'batchNo and expiry must be provided together',
+  });
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['expiry'],
+    message: 'batchNo and expiry must be provided together',
+  });
+});
+export type BulkMedicineImportRowInput = z.infer<typeof BulkMedicineImportRowSchema>;
+
+export const BulkMedicineImportSchema = z.object({
+  rows: z.array(BulkMedicineImportRowSchema).min(1).max(500),
+});
+export type BulkMedicineImportInput = z.infer<typeof BulkMedicineImportSchema>;
+
+export interface BulkMedicineImportRowResult {
+  rowNumber: number;
+  name: string;
+  productId?: string;
+  slug?: string;
+  productCreated: boolean;
+  priceUpdated: boolean;
+  inventoryReceived: boolean;
+}
+
+export interface BulkMedicineImportRowError {
+  rowNumber: number;
+  name?: string;
+  code: string;
+  message: string;
+  field?: string;
+}
+
+export interface BulkMedicineImportResultDto {
+  ok: boolean;
+  branchId: string;
+  totalRows: number;
+  createdProducts: number;
+  updatedPrices: number;
+  receivedInventory: number;
+  succeeded: BulkMedicineImportRowResult[];
+  failed: BulkMedicineImportRowError[];
+}
+
 /* ── Response shapes ── */
 
 export interface CategoryDto {

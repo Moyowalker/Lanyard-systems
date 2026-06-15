@@ -1,8 +1,13 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CategoryDto, Paginated } from '@lanyard/contracts';
+import type {
+  BranchSummaryDto,
+  BulkMedicineImportResultDto,
+  CategoryDto,
+  Paginated,
+} from '@lanyard/contracts';
 import {
   CreateCategorySchema,
   CreateProductSchema,
@@ -160,6 +165,10 @@ export default function ProductsPage() {
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(EMPTY_CATEGORY_FORM);
   const [productMessage, setProductMessage] = useState<FormMessage>();
   const [categoryMessage, setCategoryMessage] = useState<FormMessage>();
+  const [bulkBranchId, setBulkBranchId] = useState('');
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkMessage, setBulkMessage] = useState<FormMessage>();
+  const [bulkResult, setBulkResult] = useState<BulkMedicineImportResultDto | null>(null);
 
   const productsQ = useQuery({
     queryKey: ['admin-products'],
@@ -179,8 +188,18 @@ export default function ProductsPage() {
     },
   });
 
+  const branchesQ = useQuery({
+    queryKey: ['admin-branches', 'products-import'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/branches?limit=100');
+      if (!res.ok) throw new Error('Failed to load branches');
+      return (await res.json()) as Paginated<BranchSummaryDto>;
+    },
+  });
+
   const rows = productsQ.data?.data ?? [];
   const categories = categoriesQ.data?.data ?? [];
+  const branches = branchesQ.data?.data ?? [];
   const selectedProduct = useMemo(
     () => rows.find((row) => row.id === productForm.id),
     [productForm.id, rows],
@@ -188,6 +207,12 @@ export default function ProductsPage() {
   const publishedCount = rows.filter((row) => row.status === ProductStatus.PUBLISHED).length;
   const draftCount = rows.filter((row) => row.status === ProductStatus.DRAFT).length;
   const prescriptionCount = rows.filter((row) => row.requiresPrescription).length;
+
+  useEffect(() => {
+    if (!bulkBranchId && branches[0]?.id) {
+      setBulkBranchId(branches[0].id);
+    }
+  }, [bulkBranchId, branches]);
 
   const productMutation = useMutation({
     mutationFn: async (payload: { mode: 'create' | 'update'; body: unknown; id?: string }) => {
@@ -317,6 +342,42 @@ export default function ProductsPage() {
     },
   });
 
+  const bulkImportMutation = useMutation({
+    mutationFn: async (payload: { branchId: string; file: File }) => {
+      const form = new FormData();
+      form.append('file', payload.file);
+      const res = await fetch(`/api/admin/catalog/branches/${payload.branchId}/products/import`, {
+        method: 'POST',
+        body: form,
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error?.message ?? 'Bulk import failed');
+      return body as BulkMedicineImportResultDto;
+    },
+    onSuccess: async (result) => {
+      setBulkResult(result);
+      setBulkMessage({
+        tone: result.failed.length === 0 ? 'success' : 'danger',
+        text:
+          result.failed.length === 0
+            ? `Imported ${result.succeeded.length} medicine rows.`
+            : `Imported ${result.succeeded.length} row(s); ${result.failed.length} row(s) need correction.`,
+      });
+      setBulkFile(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-inventory'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-low-stock'] }),
+      ]);
+    },
+    onError: (error) => {
+      setBulkMessage({
+        tone: 'danger',
+        text: error instanceof Error ? error.message : 'Bulk import failed',
+      });
+    },
+  });
+
   async function submitProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setProductMessage(undefined);
@@ -390,6 +451,21 @@ export default function ProductsPage() {
     await categoryMutation.mutateAsync(parsed.data);
   }
 
+  async function submitBulkImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBulkMessage(undefined);
+    setBulkResult(null);
+    if (!bulkBranchId) {
+      setBulkMessage({ tone: 'danger', text: 'Choose a branch for pricing and opening stock.' });
+      return;
+    }
+    if (!bulkFile) {
+      setBulkMessage({ tone: 'danger', text: 'Choose a CSV or Excel file to import.' });
+      return;
+    }
+    await bulkImportMutation.mutateAsync({ branchId: bulkBranchId, file: bulkFile });
+  }
+
   return (
     <div>
       <PageHeader
@@ -431,6 +507,109 @@ export default function ProductsPage() {
               tone="rose"
             />
           </div>
+
+          <Panel
+            title="Bulk medicine import"
+            subtitle="Upload CSV or Excel to create medicines, branch prices, and opening stock in one pass"
+            className="mb-6"
+          >
+            <form className="space-y-4" onSubmit={submitBulkImport}>
+              <div className="grid gap-3 lg:grid-cols-[minmax(12rem,0.8fr)_minmax(16rem,1.2fr)]">
+                <div>
+                  <label className={labelClass} htmlFor="bulk-branch">
+                    Branch
+                  </label>
+                  <select
+                    id="bulk-branch"
+                    value={bulkBranchId}
+                    onChange={(event) => setBulkBranchId(event.target.value)}
+                    className={inputClass}
+                    disabled={branchesQ.isLoading}
+                  >
+                    <option value="">Choose branch</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="bulk-file">
+                    CSV or Excel file
+                  </label>
+                  <input
+                    id="bulk-file"
+                    type="file"
+                    accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    onChange={(event) => setBulkFile(event.target.files?.[0] ?? null)}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Required columns: <strong>name</strong>, <strong>form</strong>,{' '}
+                <strong>price</strong> or <strong>priceKobo</strong>. Useful optional columns:{' '}
+                genericName, brand, strength, packSize, regulatoryClass, nafdacRegNo,
+                manufacturer, openingQuantity, reorderLevel, batchNo, expiry.
+              </div>
+
+              <InlineNotice message={bulkMessage} />
+
+              {bulkResult ? (
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700 md:grid-cols-4">
+                  <div>
+                    <div className={labelClass}>Rows</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {bulkResult.totalRows}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={labelClass}>Products</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {bulkResult.createdProducts}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={labelClass}>Prices</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {bulkResult.updatedPrices}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={labelClass}>Stock received</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {bulkResult.receivedInventory}
+                    </div>
+                  </div>
+                  {bulkResult.failed.length > 0 ? (
+                    <div className="md:col-span-4">
+                      <div className={labelClass}>Rows to fix</div>
+                      <ul className="mt-2 max-h-40 space-y-1 overflow-auto rounded-lg bg-rose-50 px-3 py-2 text-rose-700">
+                        {bulkResult.failed.slice(0, 12).map((error, index) => (
+                          <li key={`${error.rowNumber}-${index}`}>
+                            Row {error.rowNumber}: {error.field ? `${error.field} - ` : ''}
+                            {error.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <Button type="submit" disabled={bulkImportMutation.isPending || branches.length === 0}>
+                {bulkImportMutation.isPending ? (
+                  <>
+                    <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Importing...
+                  </>
+                ) : (
+                  'Import medicines'
+                )}
+              </Button>
+            </form>
+          </Panel>
 
           <div className="mb-6 grid gap-4 xl:grid-cols-[1.8fr_1fr]">
             <Panel

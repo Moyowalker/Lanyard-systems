@@ -7,13 +7,14 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
   Query,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import {
   CreateCategoryInput,
   CreateCategorySchema,
@@ -26,10 +27,17 @@ import {
   UpdateProductSchema,
 } from '@lanyard/contracts';
 
-import { RequirePermissions, RequireRealm } from '../../../core/auth/auth.decorators';
-import { PermissionsGuard, RealmGuard } from '../../../core/auth/authz.guards';
+import {
+  BranchScoped,
+  CurrentUser,
+  RequirePermissions,
+  RequireRealm,
+} from '../../../core/auth/auth.decorators';
+import { AuthPrincipal } from '../../../core/auth/principal';
+import { BranchScopeGuard, PermissionsGuard, RealmGuard } from '../../../core/auth/authz.guards';
 import { ZodValidationPipe } from '../../../core/validation/zod-validation.pipe';
 import { CatalogService, UploadedProductImage } from '../application/catalog.service';
+import { BulkMedicineImportService } from '../application/bulk-medicine-import.service';
 
 const IMAGE_MIME_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -37,15 +45,19 @@ const IMAGE_MIME_EXT: Record<string, string> = {
   'image/webp': 'webp',
 };
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 
 /** Catalog administration. Products/categories are GLOBAL → not branch-scoped. */
 @ApiTags('admin')
 @ApiBearerAuth()
 @Controller('admin/catalog')
-@UseGuards(RealmGuard, PermissionsGuard)
+@UseGuards(RealmGuard, PermissionsGuard, BranchScopeGuard)
 @RequireRealm('staff')
 export class AdminCatalogController {
-  constructor(private readonly catalog: CatalogService) {}
+  constructor(
+    private readonly catalog: CatalogService,
+    private readonly bulkImport: BulkMedicineImportService,
+  ) {}
 
   @Get('products')
   @RequirePermissions('catalog:read')
@@ -57,6 +69,29 @@ export class AdminCatalogController {
   @RequirePermissions('catalog:write')
   createProduct(@Body(new ZodValidationPipe(CreateProductSchema)) dto: CreateProductInput) {
     return this.catalog.createProduct(dto);
+  }
+
+  @Post('branches/:branchId/products/import')
+  @ApiConsumes('multipart/form-data')
+  @RequirePermissions('catalog:write', 'pricing:write', 'inventory:receive')
+  @BranchScoped({ from: 'param', key: 'branchId' })
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMPORT_BYTES } }))
+  importMedicines(
+    @Param('branchId') branchId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'CSV or Excel import file is required',
+      });
+    }
+    return this.bulkImport.importFile(branchId, user.sub, {
+      buffer: file.buffer,
+      originalName: file.originalname,
+      mime: file.mimetype,
+    });
   }
 
   @Patch('products/:id')
