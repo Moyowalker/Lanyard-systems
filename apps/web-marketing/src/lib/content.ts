@@ -115,19 +115,11 @@ export const contactChannels = [
 
 export const fallbackBranches: BranchSummaryDto[] = [
   {
-    id: 'preview-ikeja',
-    code: 'LAG-IKEJA-01',
-    name: 'Lanyard Pharmacy — Ikeja',
+    id: 'preview-ago',
+    code: 'LAG-AGO-01',
+    name: 'Lanyard Pharmacy',
     status: 'ACTIVE',
-    address: { line1: '12 Allen Avenue', city: 'Ikeja', state: 'Lagos', lat: 6.6018, lng: 3.3515 },
-    fulfillment: { pickup: true, delivery: true },
-  },
-  {
-    id: 'preview-lekki',
-    code: 'LAG-LEKKI-01',
-    name: 'Lanyard Pharmacy — Lekki',
-    status: 'COMING_SOON',
-    address: { line1: '15 Admiralty Way', city: 'Lekki', state: 'Lagos', lat: 6.4433, lng: 3.4553 },
+    address: { line1: '86 Ago Palace way', city: 'Lagos', state: 'Lagos State', lat: 6.5136, lng: 3.3347 },
     fulfillment: { pickup: true, delivery: true },
   },
 ];

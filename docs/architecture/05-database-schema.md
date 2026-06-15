@@ -117,7 +117,7 @@ Index: `{target:1, purpose:1}`, `{expiresAt:1}` (TTL).
 
 ```ts
 {
-  _id, code: string /*unique, e.g. "LAG-IKEJA-01"*/, name,
+  _id, code: string /*unique, e.g. "LAG-AGO-01"*/, name,
   status: "active"|"inactive",
   address: { line1, line2?, city, state, country:"NG", geo:{ lat, lng } },
   contact: { phone, email },

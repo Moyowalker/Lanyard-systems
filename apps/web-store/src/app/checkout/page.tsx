@@ -354,7 +354,7 @@ export default function CheckoutPage() {
                       setSelectedAddress('manual');
                       setAddress({ ...address, line1: e.target.value });
                     }}
-                    placeholder="e.g. 12 Allen Avenue"
+                    placeholder="e.g. 86 Ago Palace way"
                     className="input-field"
                   />
                 </div>
@@ -370,7 +370,7 @@ export default function CheckoutPage() {
                       setSelectedAddress('manual');
                       setAddress({ ...address, city: e.target.value });
                     }}
-                    placeholder="e.g. Ikeja"
+                    placeholder="e.g. Lagos"
                     className="input-field"
                   />
                 </div>

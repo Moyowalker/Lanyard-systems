@@ -165,8 +165,8 @@ Request → AuthGuard (verify JWT, realm, session active)
 | Actor                     | Action                    | Allowed?                       |
 | ------------------------- | ------------------------- | ------------------------------ |
 | Customer A                | `GET /orders/{B's order}` | ❌ 404 (ownership)             |
-| Branch manager (Ikeja)    | refund Ikeja order        | ✅ if `refund:create`          |
-| Branch manager (Ikeja)    | refund Lekki order        | ❌ 403 (branch scope)          |
+| Branch manager (Ago)      | refund own-branch order   | ✅ if `refund:create`          |
+| Branch manager (Ago)      | refund other-branch order | ❌ 403 (branch scope)          |
 | Pharmacist w/ expired PCN | `rx:verify`               | ❌ 403 (license invalid)       |
 | Support agent             | `phi:view` Rx image       | ❌ 403 unless granted          |
 | Admin (scope ALL)         | view cross-branch report  | ✅                             |

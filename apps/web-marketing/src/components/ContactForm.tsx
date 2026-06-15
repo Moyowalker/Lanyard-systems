@@ -131,7 +131,7 @@ export function ContactForm() {
             name="branch"
             type="text"
             className="w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-brand-500"
-            placeholder="Ikeja, Lekki, or leave blank"
+            placeholder="Ago Palace, or leave blank"
           />
         </label>
       </div>

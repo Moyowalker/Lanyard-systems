@@ -179,19 +179,20 @@ async function run(): Promise<void> {
 
   // 4. Branch (active — backed by the superintendent above)
   const branch = await branchModel.findOneAndUpdate(
-    { code: 'LAG-IKEJA-01' },
+    { 'license.pcnPremisesNo': 'PCN-PREM-0001' },
     {
       $set: {
-        name: 'Lanyard Pharmacy — Ikeja',
+        code: 'LAG-AGO-01',
+        name: 'Lanyard Pharmacy',
         status: BranchStatus.ACTIVE,
         address: {
-          line1: '12 Allen Avenue',
-          city: 'Ikeja',
-          state: 'Lagos',
-          country: 'NG',
-          geo: { type: 'Point', coordinates: [3.3515, 6.6018] }, // [lng, lat]
+          line1: '86 Ago Palace way',
+          city: 'Lagos',
+          state: 'Lagos State',
+          country: 'Nigeria',
+          geo: { type: 'Point', coordinates: [3.3347, 6.5136] }, // [lng, lat]
         },
-        contact: { phone: '+2348000000001', email: 'ikeja@lanyard.test' },
+        contact: { phone: '+2348000000001', email: 'hello@lanyardpharmacy.com' },
         license: { pcnPremisesNo: 'PCN-PREM-0001', superintendentStaffId: superintendent!._id },
         hours: [
           { day: 1, open: '08:00', close: '21:00' },
@@ -200,7 +201,7 @@ async function run(): Promise<void> {
         fulfillment: {
           pickup: true,
           delivery: true,
-          deliveryZones: [{ name: 'Ikeja GRA', radiusKm: 5, feeKobo: 150000, etaMins: 60 }],
+          deliveryZones: [{ name: 'Ago Palace', radiusKm: 5, feeKobo: 150000, etaMins: 60 }],
         },
       },
     },
@@ -208,24 +209,44 @@ async function run(): Promise<void> {
   );
   console.log(`✔ branch: ${branch?.code}`);
 
-  // 4b. Branch manager scoped to Ikeja ONLY (proves branch-scope denial) — pwd "Passw0rd!"
+  // 4b. Branch manager scoped to the seeded branch ONLY (proves branch-scope denial) — pwd "Passw0rd!"
   const managerRole = await roleModel.findOne({ key: RoleKey.BRANCH_MANAGER }).lean();
   await staffModel.findOneAndUpdate(
-    { email: 'manager.ikeja@lanyard.test' },
+    { email: 'manager.ago@lanyard.test' },
     {
       $set: {
+        email: 'manager.ago@lanyard.test',
         firstName: 'Tunde',
         lastName: 'Bello',
         passwordHash,
         mfaEnabled: false,
         roleIds: [managerRole?._id].filter(Boolean) as Types.ObjectId[],
-        branchScope: [branch!._id.toString()], // scoped to Ikeja, NOT 'ALL'
+        branchScope: [branch!._id.toString()], // scoped to one branch, NOT 'ALL'
         status: AccountStatus.ACTIVE,
       },
     },
     { upsert: true, new: true },
   );
-  console.log('✔ branch manager (Ikeja-scoped): manager.ikeja@lanyard.test');
+  console.log('✔ branch manager (branch-scoped): manager.ago@lanyard.test');
+
+  // 4c. Personal staff admin account (requested)
+  const emekaPasswordHash = await hash('Emeka2026');
+  await staffModel.findOneAndUpdate(
+    { email: 'emeka@lanyardpharmacy.com' },
+    {
+      $set: {
+        firstName: 'Emeka',
+        lastName: 'Nwosu',
+        passwordHash: emekaPasswordHash,
+        mfaEnabled: false,
+        roleIds: [adminRole?._id].filter(Boolean) as Types.ObjectId[],
+        branchScope: ['ALL'],
+        status: AccountStatus.ACTIVE,
+      },
+    },
+    { upsert: true, new: true },
+  );
+  console.log('✔ personal staff admin: emeka@lanyardpharmacy.com');
 
   // 5. Categories
   const otcCat = await categoryModel.findOneAndUpdate(

@@ -74,7 +74,7 @@ export const BranchFulfillmentSchema = SchemaFactory.createForClass(BranchFulfil
 @Schema({ ...baseSchemaOptions, collection: 'branches' })
 export class Branch {
   @Prop({ required: true, unique: true, uppercase: true, trim: true })
-  code: string; // e.g. "LAG-IKEJA-01"
+  code: string; // e.g. "LAG-AGO-01"
 
   @Prop({ required: true, trim: true })
   name: string;
