@@ -98,17 +98,17 @@ export const faqs = [
 export const contactChannels = [
   {
     title: 'Order & care support',
-    detail: '+234 800 000 0001',
+    detail: '+234 708 816 7402',
     note: 'Order help, branch guidance, and prescription questions.',
   },
   {
     title: 'General enquiries',
-    detail: 'hello@lanyard.test',
+    detail: 'hello@lanyardpharmacy.com',
     note: 'Brand, branch, and service questions.',
   },
   {
     title: 'Partnerships',
-    detail: 'partners@lanyard.test',
+    detail: 'partnerships@lanyardpharmacy.com',
     note: 'Employer health plans, branch expansion, and healthcare partnerships.',
   },
 ] as const;

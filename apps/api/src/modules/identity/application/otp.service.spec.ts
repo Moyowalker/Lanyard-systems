@@ -28,10 +28,10 @@ describe('OtpService', () => {
       notifications,
     );
 
-    const result = await service.issue(OtpChannel.SMS, '+2348000000001', OtpPurpose.LOGIN);
+    const result = await service.issue(OtpChannel.SMS, '+2347088167402', OtpPurpose.LOGIN);
 
     expect(notifications.notifyOtp).toHaveBeenCalledWith(
-      '+2348000000001',
+      '+2347088167402',
       OtpPurpose.LOGIN,
       expect.any(String),
       300,
@@ -74,7 +74,7 @@ describe('OtpService', () => {
     );
 
     await expect(
-      service.issue(OtpChannel.SMS, '+2348000000001', OtpPurpose.LOGIN),
+      service.issue(OtpChannel.SMS, '+2347088167402', OtpPurpose.LOGIN),
     ).rejects.toMatchObject<Partial<DomainError>>({ code: ErrorCode.INTERNAL });
 
     expect(deleteOne).toHaveBeenCalledWith({ _id: id });

@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const recipient = process.env.CONTACT_TO ?? 'hello@lanyard.test';
+  const recipient = process.env.CONTACT_TO ?? 'hello@lanyardpharmacy.com';
   const subject = `[Lanyard marketing] ${topic || 'General enquiry'} from ${name}`;
   const text = [
     `Name: ${name}`,

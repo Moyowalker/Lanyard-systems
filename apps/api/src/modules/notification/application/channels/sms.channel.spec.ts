@@ -17,7 +17,7 @@ describe('SmsChannel', () => {
       }),
     );
 
-    const result = await channel.send({ to: '+2348000000001', subject: 'OTP', text: '123456' });
+    const result = await channel.send({ to: '+2347088167402', subject: 'OTP', text: '123456' });
 
     expect(result.providerRef).toMatch(/^sms_/);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -40,7 +40,7 @@ describe('SmsChannel', () => {
     );
 
     const result = await channel.send({
-      to: '+2348000000001',
+      to: '+2347088167402',
       subject: 'OTP',
       text: 'Use 123456 to sign in',
     });
@@ -67,7 +67,7 @@ describe('SmsChannel', () => {
     );
 
     await expect(
-      channel.send({ to: '+2348000000001', subject: 'OTP', text: 'Use 123456 to sign in' }),
+      channel.send({ to: '+2347088167402', subject: 'OTP', text: 'Use 123456 to sign in' }),
     ).rejects.toMatchObject({ retryable: false });
   });
 
@@ -87,7 +87,7 @@ describe('SmsChannel', () => {
     );
 
     await expect(
-      channel.send({ to: '+2348000000001', subject: 'OTP', text: 'Use 123456 to sign in' }),
+      channel.send({ to: '+2347088167402', subject: 'OTP', text: 'Use 123456 to sign in' }),
     ).rejects.toMatchObject({ retryable: true });
   });
 });

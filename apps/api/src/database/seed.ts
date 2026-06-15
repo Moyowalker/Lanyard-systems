@@ -192,7 +192,7 @@ async function run(): Promise<void> {
           country: 'Nigeria',
           geo: { type: 'Point', coordinates: [3.3347, 6.5136] }, // [lng, lat]
         },
-        contact: { phone: '+2348000000001', email: 'hello@lanyardpharmacy.com' },
+        contact: { phone: '+2347088167402', email: 'hello@lanyardpharmacy.com' },
         license: { pcnPremisesNo: 'PCN-PREM-0001', superintendentStaffId: superintendent!._id },
         hours: [
           { day: 1, open: '08:00', close: '21:00' },

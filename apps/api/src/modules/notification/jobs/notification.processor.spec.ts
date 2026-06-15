@@ -34,7 +34,7 @@ describe('NotificationProcessor', () => {
       data: {
         direct: {
           channel: NotificationChannel.SMS,
-          to: '+2348000000001',
+          to: '+2347088167402',
           subject: 'OTP',
           text: '123456',
         },
@@ -42,7 +42,7 @@ describe('NotificationProcessor', () => {
     } as Job);
 
     expect(sms.send).toHaveBeenCalledWith({
-      to: '+2348000000001',
+      to: '+2347088167402',
       subject: 'OTP',
       text: '123456',
     });
@@ -56,7 +56,7 @@ describe('NotificationProcessor', () => {
         data: {
           direct: {
             channel: NotificationChannel.SMS,
-            to: '+2348000000001',
+            to: '+2347088167402',
             subject: 'OTP',
             text: '123456',
           },
@@ -73,7 +73,7 @@ describe('NotificationProcessor', () => {
         data: {
           direct: {
             channel: NotificationChannel.SMS,
-            to: '+2348000000001',
+            to: '+2347088167402',
             subject: 'OTP',
             text: '123456',
           },
