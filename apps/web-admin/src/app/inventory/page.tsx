@@ -69,6 +69,20 @@ function stockTone(row: BranchInventoryItemDto): 'success' | 'warn' | 'danger' {
   return 'success';
 }
 
+const EXPIRING_SOON_DAYS = 90;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Colour + a short hint for a batch expiry date relative to today. */
+function expiryInfo(nextExpiry?: string): { className: string; label: string; hint?: string } {
+  if (!nextExpiry) return { className: 'text-slate-400', label: '—' };
+  const days = Math.ceil((new Date(nextExpiry).getTime() - Date.now()) / DAY_MS);
+  const label = formatDateTime(nextExpiry);
+  if (days <= 0) return { className: 'font-semibold text-rose-600', label, hint: 'Expired' };
+  if (days <= EXPIRING_SOON_DAYS)
+    return { className: 'font-semibold text-amber-700', label, hint: `${days}d left` };
+  return { className: 'text-slate-500', label };
+}
+
 function InlineNotice({ message }: { message?: FormMessage }) {
   if (!message) return null;
   return (
@@ -153,10 +167,28 @@ export default function InventoryPage() {
     },
   });
 
+  const expiringQ = useQuery({
+    queryKey: ['admin-expiring', branchId],
+    enabled: Boolean(branchId),
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/admin/branches/${branchId}/inventory/expiring?days=${EXPIRING_SOON_DAYS}`,
+      );
+      if (!res.ok) throw new Error('Failed to load expiring inventory');
+      return (await res.json()) as { data: BranchInventoryItemDto[] };
+    },
+  });
+
+  function downloadExport(format: 'xlsx' | 'csv') {
+    if (!branchId) return;
+    window.open(`/api/admin/branches/${branchId}/inventory/export?format=${format}`, '_blank');
+  }
+
   const rows = inventoryQ.data?.data ?? [];
   const productById = new Map(products.map((product) => [product.id, product]));
   const inventoryByProductId = new Map(rows.map((row) => [row.productId, row]));
   const lowStockRows = lowStockQ.data?.data ?? rows.filter((row) => row.isLowStock);
+  const expiringCount = expiringQ.data?.data.length ?? 0;
   const totalAvailable = rows.reduce((sum, row) => sum + row.available, 0);
   const totalReserved = rows.reduce((sum, row) => sum + row.reserved, 0);
   const lowStockCount = lowStockRows.length;
@@ -297,17 +329,33 @@ export default function InventoryPage() {
         title="Inventory"
         subtitle="Branch stock levels, manual receiving, adjustments, and low-stock pressure"
         actions={
-          <select
-            value={branchId}
-            onChange={(event) => setBranchId(event.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-500"
-          >
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              disabled={!branchId || rows.length === 0}
+              onClick={() => downloadExport('xlsx')}
+            >
+              Export Excel
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={!branchId || rows.length === 0}
+              onClick={() => downloadExport('csv')}
+            >
+              Export CSV
+            </Button>
+            <select
+              value={branchId}
+              onChange={(event) => setBranchId(event.target.value)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-500"
+            >
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </div>
         }
       />
 
@@ -345,11 +393,17 @@ export default function InventoryPage() {
         </Card>
       ) : (
         <>
-          <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <StatCard label="Tracked SKUs" value={rows.length} icon={IconInventory} tone="brand" />
             <StatCard label="Available units" value={totalAvailable} icon={IconCheck} tone="sky" />
             <StatCard label="Reserved units" value={totalReserved} icon={IconClock} tone="amber" />
             <StatCard label="Low stock items" value={lowStockCount} icon={IconAlert} tone="rose" />
+            <StatCard
+              label={`Expiring ≤${EXPIRING_SOON_DAYS}d`}
+              value={expiringCount}
+              icon={IconClock}
+              tone="amber"
+            />
           </div>
 
           <div className="mb-6 grid gap-4 xl:grid-cols-3">
@@ -776,7 +830,21 @@ export default function InventoryPage() {
                     <Td right>{row.reserved}</Td>
                     <Td right>{row.reorderLevel}</Td>
                     <Td right>{row.batchCount}</Td>
-                    <Td className="text-slate-500">{formatDateTime(row.nextExpiry)}</Td>
+                    <Td>
+                      {(() => {
+                        const exp = expiryInfo(row.nextExpiry);
+                        return (
+                          <span className={exp.className}>
+                            {exp.label}
+                            {exp.hint ? (
+                              <span className="ml-1.5 text-xs font-normal opacity-80">
+                                ({exp.hint})
+                              </span>
+                            ) : null}
+                          </span>
+                        );
+                      })()}
+                    </Td>
                   </tr>
                 ))}
               </tbody>

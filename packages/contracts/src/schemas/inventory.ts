@@ -66,3 +66,15 @@ export interface BranchInventoryItemDto {
   nextExpiry?: string;
   isLowStock: boolean;
 }
+
+/** Items whose soonest batch expires within `days` (default 90). */
+export const InventoryExpiringQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(365).default(90),
+});
+export type InventoryExpiringQuery = z.infer<typeof InventoryExpiringQuerySchema>;
+
+/** Stock export — one row per batch, as a spreadsheet or CSV. */
+export const InventoryExportQuerySchema = z.object({
+  format: z.enum(['xlsx', 'csv']).default('xlsx'),
+});
+export type InventoryExportQuery = z.infer<typeof InventoryExportQuerySchema>;

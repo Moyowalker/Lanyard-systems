@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
+import * as XLSX from 'xlsx';
 import {
   AdjustInventoryInput,
   BranchInventoryItemDto,
   ErrorCode,
+  InventoryExportQuery,
   ReceiveInventoryInput,
   StockMovementType,
 } from '@lanyard/contracts';
@@ -76,6 +78,80 @@ export class InventoryService {
         (left, right) =>
           left.available - right.available || left.productName.localeCompare(right.productName),
       );
+  }
+
+  /** Items whose soonest batch expires within `withinDays`, soonest first. */
+  async listExpiring(branchId: string, withinDays: number): Promise<BranchInventoryItemDto[]> {
+    const cutoff = Date.now() + withinDays * 24 * 60 * 60 * 1000;
+    const rows = await this.listBranchInventory(branchId);
+    return rows
+      .filter((row) => row.nextExpiry && new Date(row.nextExpiry).getTime() <= cutoff)
+      .sort((left, right) => new Date(left.nextExpiry!).getTime() - new Date(right.nextExpiry!).getTime());
+  }
+
+  /** Build a spreadsheet/CSV of branch stock, one row per batch (and per batchless item). */
+  async exportBranchInventory(
+    branchId: string,
+    format: InventoryExportQuery['format'],
+  ): Promise<{ buffer: Buffer; filename: string; contentType: string }> {
+    const rows = await this.inventoryModel
+      .find({ branchId: new Types.ObjectId(branchId) })
+      .sort({ onHand: 1 })
+      .lean<InventorySnapshot[]>();
+    const productById = new Map(
+      (
+        await this.productModel
+          .find({ _id: { $in: rows.map((r) => r.productId) } })
+          .lean<ProductSnapshot[]>()
+      ).map((p) => [p._id.toString(), p]),
+    );
+
+    const records: Record<string, string | number>[] = [];
+    for (const row of rows) {
+      const product = productById.get(row.productId.toString());
+      const available = Math.max(0, (row.onHand ?? 0) - (row.reserved ?? 0));
+      const base = {
+        Product: product?.name ?? 'Unknown product',
+        Generic: product?.genericName ?? '',
+        Brand: product?.brand ?? '',
+        Form: product?.form ?? '',
+        Strength: product?.strength ?? '',
+        'On hand': row.onHand ?? 0,
+        Reserved: row.reserved ?? 0,
+        Available: available,
+        'Reorder level': row.reorderLevel ?? 0,
+      };
+      const batches = row.batches ?? [];
+      if (batches.length === 0) {
+        records.push({ ...base, 'Batch no': '', Expiry: '', 'Batch qty': '' });
+        continue;
+      }
+      for (const batch of batches) {
+        records.push({
+          ...base,
+          'Batch no': batch.batchNo,
+          Expiry: new Date(batch.expiry).toISOString().slice(0, 10),
+          'Batch qty': batch.quantity,
+        });
+      }
+    }
+
+    const sheet = XLSX.utils.json_to_sheet(records);
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (format === 'csv') {
+      return {
+        buffer: Buffer.from(XLSX.utils.sheet_to_csv(sheet), 'utf8'),
+        filename: `inventory-${stamp}.csv`,
+        contentType: 'text/csv',
+      };
+    }
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, 'Inventory');
+    return {
+      buffer: XLSX.write(book, { bookType: 'xlsx', type: 'buffer' }) as Buffer,
+      filename: `inventory-${stamp}.xlsx`,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    };
   }
 
   async receive(
