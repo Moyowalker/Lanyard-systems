@@ -40,6 +40,15 @@ export const StaffLoginSchema = z.object({
 });
 export type StaffLoginInput = z.infer<typeof StaffLoginSchema>;
 
+/** Guest checkout: minimal contact details to create/reuse a lightweight customer. */
+export const GuestCheckoutSchema = z.object({
+  phone,
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  email: z.string().email().optional(),
+});
+export type GuestCheckoutInput = z.infer<typeof GuestCheckoutSchema>;
+
 export const StaffMfaVerifySchema = z.object({
   mfaToken: z.string().min(10),
   code: z.string().regex(/^\d{6,8}$/, 'MFA code must be 6-8 digits'),

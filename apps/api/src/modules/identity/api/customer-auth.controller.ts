@@ -4,6 +4,8 @@ import { Throttle } from '@nestjs/throttler';
 import {
   CustomerRegisterInput,
   CustomerRegisterSchema,
+  GuestCheckoutInput,
+  GuestCheckoutSchema,
   OtpRequestInput,
   OtpRequestSchema,
   OtpVerifyInput,
@@ -24,6 +26,18 @@ export class CustomerAuthController {
   @Throttle({ default: { limit: 5, ttl: 10 * 60_000 } })
   register(@Body(new ZodValidationPipe(CustomerRegisterSchema)) dto: CustomerRegisterInput) {
     return this.customerAuth.register(dto);
+  }
+
+  /** Guest checkout — issues a session for a lightweight customer (created/reused by phone). */
+  @Public()
+  @Post('guest')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 10 * 60_000 } })
+  guest(
+    @Body(new ZodValidationPipe(GuestCheckoutSchema)) dto: GuestCheckoutInput,
+    @Ip() ip: string,
+  ) {
+    return this.customerAuth.guestSession(dto, { ip });
   }
 
   @Public()

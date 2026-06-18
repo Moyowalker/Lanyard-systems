@@ -6,6 +6,7 @@ import {
   AuthTokens,
   CustomerRegisterInput,
   ErrorCode,
+  GuestCheckoutInput,
   OtpChannel,
   OtpPurpose,
   PrincipalType,
@@ -42,6 +43,54 @@ export class CustomerAuthService {
     });
     const otp = await this.otp.issue(OtpChannel.SMS, input.phone, OtpPurpose.VERIFY);
     return { customerId: customer._id.toString(), ...otp };
+  }
+
+  /**
+   * Guest checkout: create or reuse a lightweight (unverified, password-less) customer
+   * by phone and issue a normal session, so the rest of checkout works unchanged. To
+   * prevent account takeover, a *claimed* account (phone-verified or password-set) is
+   * never silently signed in — the guest is told to sign in instead.
+   */
+  async guestSession(input: GuestCheckoutInput, context?: { ip?: string }): Promise<AuthTokens> {
+    const existing = await this.customerModel
+      .findOne({ phone: input.phone })
+      .select('+passwordHash');
+    let customer: CustomerDocument;
+    if (existing) {
+      if (existing.phoneVerified || existing.passwordHash) {
+        throw new DomainError(
+          ErrorCode.CUSTOMER_EXISTS,
+          'An account with this phone already exists. Please sign in to continue.',
+        );
+      }
+      existing.firstName = input.firstName;
+      existing.lastName = input.lastName;
+      if (input.email) existing.email = input.email;
+      if (existing.status !== AccountStatus.ACTIVE) existing.status = AccountStatus.ACTIVE;
+      customer = existing;
+    } else {
+      customer = new this.customerModel({
+        phone: input.phone,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        status: AccountStatus.ACTIVE,
+        consent: { marketing: false, version: 'v1', at: new Date() },
+      });
+    }
+    customer.lastLoginAt = new Date();
+    try {
+      await customer.save();
+    } catch (err) {
+      if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
+        throw new DomainError(
+          ErrorCode.CUSTOMER_EXISTS,
+          'Those contact details are already in use. Please sign in to continue.',
+        );
+      }
+      throw err;
+    }
+    return this.issueTokens(customer, context);
   }
 
   async requestOtp(phone: string, purpose: OtpPurpose): Promise<OtpIssueResult> {
