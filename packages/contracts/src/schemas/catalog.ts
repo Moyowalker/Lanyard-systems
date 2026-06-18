@@ -158,6 +158,8 @@ export interface ProductListItemDto {
   brand?: string;
   form: string;
   strength?: string;
+  packSize?: string;
+  description?: string;
   requiresPrescription: boolean;
   regulatoryClass: string;
   images: string[];

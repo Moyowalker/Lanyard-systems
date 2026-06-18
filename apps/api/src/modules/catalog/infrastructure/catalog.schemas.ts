@@ -119,9 +119,23 @@ export const ProductSchema = SchemaFactory.createForClass(Product);
 ProductSchema.index({ status: 1, categoryIds: 1 });
 ProductSchema.index({ requiresPrescription: 1, status: 1 });
 // Weighted text index for MVP search (graduate to Atlas Search later).
+// NOTE: changing the fields of an existing text index requires dropping the old
+// `product_text` index first (Mongo allows only one text index per collection) —
+// see the migration note in the PR. Lower weights for description/packSize so they
+// broaden matches (e.g. "sachet", pack details) without outranking name/brand.
 ProductSchema.index(
-  { name: 'text', genericName: 'text', brand: 'text', searchTokens: 'text' },
-  { weights: { name: 10, genericName: 6, brand: 4, searchTokens: 2 }, name: 'product_text' },
+  {
+    name: 'text',
+    genericName: 'text',
+    brand: 'text',
+    searchTokens: 'text',
+    packSize: 'text',
+    description: 'text',
+  },
+  {
+    weights: { name: 10, genericName: 6, brand: 4, searchTokens: 2, packSize: 2, description: 1 },
+    name: 'product_text',
+  },
 );
 
 // Keep requiresPrescription consistent with regulatoryClass on save.

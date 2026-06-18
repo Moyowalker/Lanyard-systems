@@ -61,7 +61,7 @@ export function ProductCard({
   const priceKobo = product.price?.priceKobo;
   const compareAtKobo = product.price?.compareAtKobo;
   const hasDiscount = compareAtKobo != null && priceKobo != null && compareAtKobo > priceKobo;
-  const meta = [product.form, product.strength].filter(Boolean).join(' · ');
+  const meta = [product.form, product.strength, product.packSize].filter(Boolean).join(' · ');
 
   const stockLabel = outOfStock
     ? 'Out of stock'
@@ -89,6 +89,11 @@ export function ProductCard({
           </h3>
         </Link>
         {meta ? <p className="mt-0.5 text-xs text-ink-900/55">{meta}</p> : null}
+        {product.description ? (
+          <p className="mt-1 line-clamp-2 text-xs leading-snug text-ink-900/65">
+            {product.description}
+          </p>
+        ) : null}
 
         <div className="mt-2 flex items-baseline gap-2">
           <span className="tnum text-base font-semibold text-ink-900">
