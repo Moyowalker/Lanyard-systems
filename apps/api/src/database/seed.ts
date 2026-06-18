@@ -92,6 +92,21 @@ const ROLES: Array<{ key: RoleKey; name: string; permissionKeys: string[] }> = [
     ],
   },
   {
+    key: RoleKey.INVENTORY_OFFICER,
+    name: 'Inventory Officer',
+    // Stock, pricing, and product catalog only — no orders, prescriptions, PHI,
+    // customers, finance, reports, or staff administration.
+    permissionKeys: [
+      'catalog:read',
+      'catalog:write',
+      'pricing:read',
+      'pricing:write',
+      'inventory:read',
+      'inventory:adjust',
+      'inventory:receive',
+    ],
+  },
+  {
     key: RoleKey.BRANCH_MANAGER,
     name: 'Branch Manager',
     permissionKeys: [

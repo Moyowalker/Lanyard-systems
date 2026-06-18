@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { SalesSummaryDto } from '@lanyard/contracts';
+import type { BranchSummaryDto, Paginated, SalesSummaryDto } from '@lanyard/contracts';
 import { formatKobo } from '@/lib/format';
 import {
   Card,
@@ -25,17 +25,41 @@ const RANGES = [
   { key: '90', label: 'Last 90 days', days: 90 },
 ];
 
+const selectClass =
+  'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 outline-none focus:border-brand-500';
+
 export default function ReportsPage() {
   const [rangeKey, setRangeKey] = useState('30');
+  // Custom range overrides the preset when both ends are set.
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
+  const [fulfillmentFilter, setFulfillmentFilter] = useState('');
+
+  const branchesQ = useQuery({
+    queryKey: ['admin-branches', 'reports'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/branches?limit=100');
+      if (!res.ok) return null;
+      return (await res.json()) as Paginated<BranchSummaryDto>;
+    },
+  });
+  const branches = branchesQ.data?.data ?? [];
+
+  const usingCustom = Boolean(customFrom && customTo);
   const days = RANGES.find((r) => r.key === rangeKey)?.days ?? 30;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['reports', 'sales', rangeKey],
+    queryKey: ['reports', 'sales', rangeKey, customFrom, customTo, branchFilter, fulfillmentFilter],
     queryFn: async () => {
-      const to = new Date();
-      const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
-      const qs = `from=${from.toISOString()}&to=${to.toISOString()}`;
-      const r = await fetch(`/api/admin/reports/sales-summary?${qs}`);
+      const to = usingCustom ? new Date(`${customTo}T23:59:59`) : new Date();
+      const from = usingCustom
+        ? new Date(`${customFrom}T00:00:00`)
+        : new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+      const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+      if (branchFilter) params.set('branchId', branchFilter);
+      if (fulfillmentFilter) params.set('fulfillmentType', fulfillmentFilter);
+      const r = await fetch(`/api/admin/reports/sales-summary?${params.toString()}`);
       return r.ok ? ((await r.json()) as SalesSummaryDto) : null;
     },
   });
@@ -46,14 +70,18 @@ export default function ReportsPage() {
         title="Reports"
         subtitle="Sales performance across your branch scope"
         actions={
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {RANGES.map((r) => (
               <button
                 key={r.key}
-                onClick={() => setRangeKey(r.key)}
+                onClick={() => {
+                  setRangeKey(r.key);
+                  setCustomFrom('');
+                  setCustomTo('');
+                }}
                 className={cn(
                   'rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-150',
-                  rangeKey === r.key
+                  !usingCustom && rangeKey === r.key
                     ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/15'
                     : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
                 )}
@@ -64,6 +92,83 @@ export default function ReportsPage() {
           </div>
         }
       />
+
+      <div className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200/70 bg-white px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500" htmlFor="report-from">
+            From
+          </label>
+          <input
+            id="report-from"
+            type="date"
+            value={customFrom}
+            max={customTo || undefined}
+            onChange={(e) => setCustomFrom(e.target.value)}
+            className={selectClass}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500" htmlFor="report-to">
+            To
+          </label>
+          <input
+            id="report-to"
+            type="date"
+            value={customTo}
+            min={customFrom || undefined}
+            onChange={(e) => setCustomTo(e.target.value)}
+            className={selectClass}
+          />
+        </div>
+        {branches.length > 1 ? (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500" htmlFor="report-branch">
+              Branch
+            </label>
+            <select
+              id="report-branch"
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className={selectClass}
+            >
+              <option value="">All branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500" htmlFor="report-fulfillment">
+            Fulfilment
+          </label>
+          <select
+            id="report-fulfillment"
+            value={fulfillmentFilter}
+            onChange={(e) => setFulfillmentFilter(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">All types</option>
+            <option value="pickup">Pickup</option>
+            <option value="delivery">Delivery</option>
+          </select>
+        </div>
+        {(usingCustom || branchFilter || fulfillmentFilter) && (
+          <button
+            onClick={() => {
+              setCustomFrom('');
+              setCustomTo('');
+              setBranchFilter('');
+              setFulfillmentFilter('');
+            }}
+            className="ml-auto rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-800"
+          >
+            Reset filters
+          </button>
+        )}
+      </div>
 
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
