@@ -1,14 +1,18 @@
-import { Body, Controller, HttpCode, Ip, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, HttpCode, Ip, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  ChangePasswordInput,
+  ChangePasswordSchema,
   StaffLoginInput,
   StaffLoginSchema,
   StaffMfaVerifyInput,
   StaffMfaVerifySchema,
 } from '@lanyard/contracts';
 
-import { Public } from '../../../core/auth/auth.decorators';
+import { CurrentUser, Public, RequireRealm } from '../../../core/auth/auth.decorators';
+import { RealmGuard } from '../../../core/auth/authz.guards';
+import { AuthPrincipal } from '../../../core/auth/principal';
 import { ZodValidationPipe } from '../../../core/validation/zod-validation.pipe';
 import { StaffAuthService } from '../application/staff-auth.service';
 
@@ -34,5 +38,18 @@ export class StaffAuthController {
     @Ip() ip: string,
   ) {
     return this.staffAuth.verifyMfa(dto.mfaToken, dto.code, { ip });
+  }
+
+  /** Authenticated self-service password change (also satisfies the rotation policy). */
+  @Post('change-password')
+  @ApiBearerAuth()
+  @HttpCode(204)
+  @UseGuards(RealmGuard)
+  @RequireRealm('staff')
+  async changePassword(
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(ChangePasswordSchema)) dto: ChangePasswordInput,
+  ): Promise<void> {
+    await this.staffAuth.changePassword(user, dto.currentPassword, dto.newPassword);
   }
 }

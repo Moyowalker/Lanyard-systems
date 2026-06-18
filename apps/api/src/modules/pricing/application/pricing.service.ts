@@ -7,6 +7,7 @@ import { PriceList } from '../infrastructure/price-list.schema';
 
 export interface PriceEntry {
   priceKobo: number;
+  costKobo?: number;
   compareAtKobo?: number;
   currency: string;
   isAvailable: boolean;
@@ -30,6 +31,7 @@ export class PricingService {
     for (const r of rows) {
       map.set(r.productId.toString(), {
         priceKobo: r.priceKobo,
+        costKobo: r.costKobo,
         compareAtKobo: r.compareAtKobo,
         currency: r.currency,
         isAvailable: r.isAvailable,
@@ -48,6 +50,7 @@ export class PricingService {
       {
         $set: {
           priceKobo: input.priceKobo,
+          costKobo: input.costKobo,
           compareAtKobo: input.compareAtKobo,
           isAvailable: input.isAvailable,
           currency: Currency.NGN,

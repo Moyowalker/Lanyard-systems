@@ -57,6 +57,7 @@ export class StaffAdminService {
         lastName: input.lastName,
         phone: input.phone,
         passwordHash,
+        passwordChangedAt: new Date(),
         mfaEnabled: false,
         roleIds: roles.map((r) => r._id),
         branchScope: input.branchScope,
@@ -119,6 +120,7 @@ export class StaffAdminService {
     const staff = await this.staffModel.findById(id);
     if (!staff || staff.deletedAt) throw new DomainError(ErrorCode.NOT_FOUND, 'Staff not found');
     staff.passwordHash = await this.passwords.hash(password);
+    staff.passwordChangedAt = new Date();
     await staff.save();
     await this.audit.record({
       actorId: principal.sub,

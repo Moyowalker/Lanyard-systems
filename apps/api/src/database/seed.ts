@@ -177,6 +177,7 @@ async function run(): Promise<void> {
         firstName: 'Ada',
         lastName: 'Okeke',
         passwordHash,
+        passwordChangedAt: new Date(),
         mfaEnabled: false,
         roleIds: [pharmacistRole?._id, adminRole?._id].filter(Boolean) as Types.ObjectId[],
         branchScope: ['ALL'],

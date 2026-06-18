@@ -38,6 +38,7 @@ type AdminProductRow = {
   id: string;
   name: string;
   slug: string;
+  sku?: string;
   genericName?: string;
   brand?: string;
   description?: string;
@@ -58,6 +59,7 @@ type ProductFormState = {
   id?: string;
   name: string;
   slug: string;
+  sku: string;
   genericName: string;
   brand: string;
   description: string;
@@ -84,6 +86,7 @@ type FormMessage = { tone: 'success' | 'danger'; text: string };
 const EMPTY_PRODUCT_FORM: ProductFormState = {
   name: '',
   slug: '',
+  sku: '',
   genericName: '',
   brand: '',
   description: '',
@@ -144,6 +147,7 @@ function toProductForm(product: AdminProductRow): ProductFormState {
     id: product.id,
     name: product.name,
     slug: product.slug,
+    sku: product.sku ?? '',
     genericName: product.genericName ?? '',
     brand: product.brand ?? '',
     description: product.description ?? '',
@@ -384,6 +388,7 @@ export default function ProductsPage() {
     const payload = {
       name: productForm.name,
       slug: productForm.slug || undefined,
+      sku: productForm.sku || undefined,
       genericName: productForm.genericName || undefined,
       brand: productForm.brand || undefined,
       description: productForm.description || undefined,
@@ -646,6 +651,20 @@ export default function ProductsPage() {
                       }
                       className={inputClass}
                       placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass} htmlFor="product-sku">
+                      SKU
+                    </label>
+                    <input
+                      id="product-sku"
+                      value={productForm.sku}
+                      onChange={(event) =>
+                        setProductForm((current) => ({ ...current, sku: event.target.value }))
+                      }
+                      className={inputClass}
+                      placeholder="Optional · e.g. PARA-500-10"
                     />
                   </div>
                 </div>
@@ -1082,6 +1101,7 @@ export default function ProductsPage() {
               <thead className="border-b border-slate-100 bg-slate-50/60">
                 <tr>
                   <Th>Product</Th>
+                  <Th>SKU</Th>
                   <Th>Categories</Th>
                   <Th>Class</Th>
                   <Th>Prescription</Th>
@@ -1116,6 +1136,7 @@ export default function ProductsPage() {
                             'No secondary descriptors'}
                         </div>
                       </Td>
+                      <Td className="font-mono text-xs text-slate-500">{row.sku || '—'}</Td>
                       <Td className="text-slate-500">{rowCategories || 'Unassigned'}</Td>
                       <Td>{humanizeToken(row.regulatoryClass)}</Td>
                       <Td>
