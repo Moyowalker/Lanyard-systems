@@ -70,7 +70,8 @@ export class AdminReportsController {
   @RequirePermissions('report:read')
   async inventoryValuationExport(
     @CurrentUser() user: AuthPrincipal,
-    @Query(new ZodValidationPipe(InventoryValuationExportSchema)) query: InventoryValuationExportQuery,
+    @Query(new ZodValidationPipe(InventoryValuationExportSchema))
+    query: InventoryValuationExportQuery,
   ): Promise<StreamableFile> {
     const { format, ...rest } = query;
     return this.toFile(await this.reports.exportInventoryValuation(user.branchScope, rest, format));

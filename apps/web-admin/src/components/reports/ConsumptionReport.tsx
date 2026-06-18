@@ -104,7 +104,11 @@ export function ConsumptionReport({ branches }: { branches: BranchSummaryDto[] }
           </div>
         ) : null}
         <div className="ml-auto flex gap-2">
-          <Button variant="secondary" disabled={!data?.rows.length} onClick={() => download('xlsx')}>
+          <Button
+            variant="secondary"
+            disabled={!data?.rows.length}
+            onClick={() => download('xlsx')}
+          >
             Export Excel
           </Button>
           <Button variant="secondary" disabled={!data?.rows.length} onClick={() => download('csv')}>
@@ -133,7 +137,12 @@ export function ConsumptionReport({ branches }: { branches: BranchSummaryDto[] }
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
-            <StatCard label="Units dispensed" value={data.totalUnits} icon={IconOrders} tone="brand" />
+            <StatCard
+              label="Units dispensed"
+              value={data.totalUnits}
+              icon={IconOrders}
+              tone="brand"
+            />
             <StatCard
               label="Consumption value"
               value={formatKobo(data.totalValueKobo)}
@@ -142,7 +151,11 @@ export function ConsumptionReport({ branches }: { branches: BranchSummaryDto[] }
             />
           </div>
 
-          <Panel title="Consumption by drug" subtitle="Units dispensed in the selected range" bodyClassName="p-0">
+          <Panel
+            title="Consumption by drug"
+            subtitle="Units dispensed in the selected range"
+            bodyClassName="p-0"
+          >
             {data.rows.length === 0 ? (
               <EmptyState title="Nothing dispensed in this range" icon={IconReports} />
             ) : (

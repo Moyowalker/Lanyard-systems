@@ -141,213 +141,212 @@ export default function ReportsPage() {
         <ConsumptionReport branches={branches} />
       ) : (
         <>
-
-      <div className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200/70 bg-white px-4 py-3">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500" htmlFor="report-from">
-            From
-          </label>
-          <input
-            id="report-from"
-            type="date"
-            value={customFrom}
-            max={customTo || undefined}
-            onChange={(e) => setCustomFrom(e.target.value)}
-            className={selectClass}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500" htmlFor="report-to">
-            To
-          </label>
-          <input
-            id="report-to"
-            type="date"
-            value={customTo}
-            min={customFrom || undefined}
-            onChange={(e) => setCustomTo(e.target.value)}
-            className={selectClass}
-          />
-        </div>
-        {branches.length > 1 ? (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500" htmlFor="report-branch">
-              Branch
-            </label>
-            <select
-              id="report-branch"
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-              className={selectClass}
-            >
-              <option value="">All branches</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500" htmlFor="report-fulfillment">
-            Fulfilment
-          </label>
-          <select
-            id="report-fulfillment"
-            value={fulfillmentFilter}
-            onChange={(e) => setFulfillmentFilter(e.target.value)}
-            className={selectClass}
-          >
-            <option value="">All types</option>
-            <option value="pickup">Pickup</option>
-            <option value="delivery">Delivery</option>
-          </select>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          {(usingCustom || branchFilter || fulfillmentFilter) && (
-            <button
-              onClick={() => {
-                setCustomFrom('');
-                setCustomTo('');
-                setBranchFilter('');
-                setFulfillmentFilter('');
-              }}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-800"
-            >
-              Reset filters
-            </button>
-          )}
-          <Button variant="secondary" disabled={!data} onClick={() => downloadSales('xlsx')}>
-            Export Excel
-          </Button>
-          <Button variant="secondary" disabled={!data} onClick={() => downloadSales('csv')}>
-            Export CSV
-          </Button>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="p-5">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="mt-4 h-8 w-28" />
-            </Card>
-          ))}
-        </div>
-      ) : !data ? (
-        <Card>
-          <EmptyState
-            title="Reports unavailable"
-            description="We couldn't load sales data for this range. Try again shortly."
-            icon={IconReports}
-          />
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              label="Revenue (paid)"
-              value={formatKobo(data.revenueKobo)}
-              icon={IconCash}
-              tone="brand"
-              hint={`${data.paidOrders} paid orders`}
-            />
-            <StatCard
-              label="Avg. order value"
-              value={formatKobo(data.aovKobo)}
-              icon={IconCheck}
-              tone="sky"
-            />
-            <StatCard
-              label="Prescription orders"
-              value={data.rxOrders}
-              icon={IconOrders}
-              tone="amber"
-              hint={`${data.otcOrders} OTC`}
-            />
-            <StatCard
-              label="Refunds"
-              value={data.refunds}
-              icon={IconCash}
-              tone="rose"
-              hint={formatKobo(data.refundedKobo)}
-            />
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-3">
-            <Panel
-              title="Revenue by day"
-              subtitle={`${new Date(data.from).toLocaleDateString()} – ${new Date(
-                data.to,
-              ).toLocaleDateString()}`}
-              className="lg:col-span-2"
-            >
-              {data.byDay.every((d) => d.revenueKobo === 0) ? (
-                <p className="py-10 text-center text-sm text-slate-400">
-                  No paid orders in this range yet.
-                </p>
-              ) : (
-                <Bars
-                  items={data.byDay
-                    .filter((d) => d.revenueKobo > 0)
-                    .map((d) => ({
-                      label: new Date(d.date).toLocaleDateString('en-NG', {
-                        day: 'numeric',
-                        month: 'short',
-                      }),
-                      value: Math.round(d.revenueKobo / 100),
-                    }))}
-                  unit="₦"
-                />
-              )}
-            </Panel>
-
-            <Panel title="Order mix" subtitle="Prescription vs OTC">
-              <Donut
-                centerLabel={`${data.paidOrders}`}
-                centerSub="paid orders"
-                segments={[
-                  { label: 'Prescription (℞)', value: data.rxOrders, color: '#0d9488' },
-                  { label: 'Over-the-counter', value: data.otcOrders, color: '#5eead4' },
-                ]}
+          <div className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200/70 bg-white px-4 py-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500" htmlFor="report-from">
+                From
+              </label>
+              <input
+                id="report-from"
+                type="date"
+                value={customFrom}
+                max={customTo || undefined}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className={selectClass}
               />
-            </Panel>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500" htmlFor="report-to">
+                To
+              </label>
+              <input
+                id="report-to"
+                type="date"
+                value={customTo}
+                min={customFrom || undefined}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className={selectClass}
+              />
+            </div>
+            {branches.length > 1 ? (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-500" htmlFor="report-branch">
+                  Branch
+                </label>
+                <select
+                  id="report-branch"
+                  value={branchFilter}
+                  onChange={(e) => setBranchFilter(e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="">All branches</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500" htmlFor="report-fulfillment">
+                Fulfilment
+              </label>
+              <select
+                id="report-fulfillment"
+                value={fulfillmentFilter}
+                onChange={(e) => setFulfillmentFilter(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">All types</option>
+                <option value="pickup">Pickup</option>
+                <option value="delivery">Delivery</option>
+              </select>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              {(usingCustom || branchFilter || fulfillmentFilter) && (
+                <button
+                  onClick={() => {
+                    setCustomFrom('');
+                    setCustomTo('');
+                    setBranchFilter('');
+                    setFulfillmentFilter('');
+                  }}
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-800"
+                >
+                  Reset filters
+                </button>
+              )}
+              <Button variant="secondary" disabled={!data} onClick={() => downloadSales('xlsx')}>
+                Export Excel
+              </Button>
+              <Button variant="secondary" disabled={!data} onClick={() => downloadSales('csv')}>
+                Export CSV
+              </Button>
+            </div>
           </div>
 
-          <Panel
-            title="Top products"
-            subtitle="By revenue in the selected range"
-            bodyClassName="p-0"
-          >
-            {data.topProducts.length === 0 ? (
-              <EmptyState title="No product sales yet" icon={IconReports} />
-            ) : (
-              <TableCard className="border-0 shadow-none">
-                <thead className="border-b border-slate-100 bg-slate-50/60">
-                  <tr>
-                    <Th>Product</Th>
-                    <Th right>Units sold</Th>
-                    <Th right>Revenue</Th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {data.topProducts.map((p) => (
-                    <tr key={p.productId} className="transition-colors hover:bg-slate-50/60">
-                      <Td className="font-medium text-slate-800">{p.name}</Td>
-                      <Td right>{p.quantity}</Td>
-                      <Td right className="font-semibold text-slate-900">
-                        {formatKobo(p.revenueKobo)}
-                      </Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </TableCard>
-            )}
-          </Panel>
-        </div>
-      )}
+          {isLoading ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Card key={i} className="p-5">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="mt-4 h-8 w-28" />
+                </Card>
+              ))}
+            </div>
+          ) : !data ? (
+            <Card>
+              <EmptyState
+                title="Reports unavailable"
+                description="We couldn't load sales data for this range. Try again shortly."
+                icon={IconReports}
+              />
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                  label="Revenue (paid)"
+                  value={formatKobo(data.revenueKobo)}
+                  icon={IconCash}
+                  tone="brand"
+                  hint={`${data.paidOrders} paid orders`}
+                />
+                <StatCard
+                  label="Avg. order value"
+                  value={formatKobo(data.aovKobo)}
+                  icon={IconCheck}
+                  tone="sky"
+                />
+                <StatCard
+                  label="Prescription orders"
+                  value={data.rxOrders}
+                  icon={IconOrders}
+                  tone="amber"
+                  hint={`${data.otcOrders} OTC`}
+                />
+                <StatCard
+                  label="Refunds"
+                  value={data.refunds}
+                  icon={IconCash}
+                  tone="rose"
+                  hint={formatKobo(data.refundedKobo)}
+                />
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-3">
+                <Panel
+                  title="Revenue by day"
+                  subtitle={`${new Date(data.from).toLocaleDateString()} – ${new Date(
+                    data.to,
+                  ).toLocaleDateString()}`}
+                  className="lg:col-span-2"
+                >
+                  {data.byDay.every((d) => d.revenueKobo === 0) ? (
+                    <p className="py-10 text-center text-sm text-slate-400">
+                      No paid orders in this range yet.
+                    </p>
+                  ) : (
+                    <Bars
+                      items={data.byDay
+                        .filter((d) => d.revenueKobo > 0)
+                        .map((d) => ({
+                          label: new Date(d.date).toLocaleDateString('en-NG', {
+                            day: 'numeric',
+                            month: 'short',
+                          }),
+                          value: Math.round(d.revenueKobo / 100),
+                        }))}
+                      unit="₦"
+                    />
+                  )}
+                </Panel>
+
+                <Panel title="Order mix" subtitle="Prescription vs OTC">
+                  <Donut
+                    centerLabel={`${data.paidOrders}`}
+                    centerSub="paid orders"
+                    segments={[
+                      { label: 'Prescription (℞)', value: data.rxOrders, color: '#0d9488' },
+                      { label: 'Over-the-counter', value: data.otcOrders, color: '#5eead4' },
+                    ]}
+                  />
+                </Panel>
+              </div>
+
+              <Panel
+                title="Top products"
+                subtitle="By revenue in the selected range"
+                bodyClassName="p-0"
+              >
+                {data.topProducts.length === 0 ? (
+                  <EmptyState title="No product sales yet" icon={IconReports} />
+                ) : (
+                  <TableCard className="border-0 shadow-none">
+                    <thead className="border-b border-slate-100 bg-slate-50/60">
+                      <tr>
+                        <Th>Product</Th>
+                        <Th right>Units sold</Th>
+                        <Th right>Revenue</Th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {data.topProducts.map((p) => (
+                        <tr key={p.productId} className="transition-colors hover:bg-slate-50/60">
+                          <Td className="font-medium text-slate-800">{p.name}</Td>
+                          <Td right>{p.quantity}</Td>
+                          <Td right className="font-semibold text-slate-900">
+                            {formatKobo(p.revenueKobo)}
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </TableCard>
+                )}
+              </Panel>
+            </div>
+          )}
         </>
       )}
     </div>

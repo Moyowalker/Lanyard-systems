@@ -18,11 +18,15 @@ import { Order } from '../../order/infrastructure/order.schema';
 import { InventoryItem, StockMovement } from '../../inventory/infrastructure/inventory.schemas';
 import { Product } from '../../catalog/infrastructure/catalog.schemas';
 import { PriceList } from '../../pricing/infrastructure/price-list.schema';
-import { SpreadsheetFile, SpreadsheetFormat, toSpreadsheet } from '../../../core/export/spreadsheet';
+import {
+  SpreadsheetFile,
+  SpreadsheetFormat,
+  toSpreadsheet,
+} from '../../../core/export/spreadsheet';
 
 /** Kobo → naira, rounded to 2dp, for human-readable spreadsheet money columns. */
 function naira(kobo?: number): number {
-  return Math.round((kobo ?? 0)) / 100;
+  return Math.round(kobo ?? 0) / 100;
 }
 
 /** Minimal order shape the pure aggregator needs (plain data — no Mongoose). */
@@ -251,7 +255,12 @@ export class ReportsService {
       .find(match)
       .select('productId branchId onHand reserved')
       .lean<
-        Array<{ productId: Types.ObjectId; branchId: Types.ObjectId; onHand?: number; reserved?: number }>
+        Array<{
+          productId: Types.ObjectId;
+          branchId: Types.ObjectId;
+          onHand?: number;
+          reserved?: number;
+        }>
       >();
 
     const valuationItems: ValuationItem[] = items.map((i) => ({
@@ -367,7 +376,12 @@ export class ReportsService {
       })
       .select('branchId productId priceKobo costKobo')
       .lean<
-        Array<{ branchId: Types.ObjectId; productId: Types.ObjectId; priceKobo?: number; costKobo?: number }>
+        Array<{
+          branchId: Types.ObjectId;
+          productId: Types.ObjectId;
+          priceKobo?: number;
+          costKobo?: number;
+        }>
       >();
     return new Map(
       prices.map((p) => [

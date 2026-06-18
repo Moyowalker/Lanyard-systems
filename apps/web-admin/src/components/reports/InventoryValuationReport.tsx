@@ -62,7 +62,11 @@ export function InventoryValuationReport({ branches }: { branches: BranchSummary
           </div>
         ) : null}
         <div className="ml-auto flex gap-2">
-          <Button variant="secondary" disabled={!data?.rows.length} onClick={() => download('xlsx')}>
+          <Button
+            variant="secondary"
+            disabled={!data?.rows.length}
+            onClick={() => download('xlsx')}
+          >
             Export Excel
           </Button>
           <Button variant="secondary" disabled={!data?.rows.length} onClick={() => download('csv')}>
@@ -91,7 +95,12 @@ export function InventoryValuationReport({ branches }: { branches: BranchSummary
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Distinct drugs" value={data.totalDrugs} icon={IconInventory} tone="brand" />
+            <StatCard
+              label="Distinct drugs"
+              value={data.totalDrugs}
+              icon={IconInventory}
+              tone="brand"
+            />
             <StatCard label="Total units" value={data.totalQuantity} icon={IconCheck} tone="sky" />
             <StatCard
               label="Stock value (cost)"
@@ -107,7 +116,11 @@ export function InventoryValuationReport({ branches }: { branches: BranchSummary
             />
           </div>
 
-          <Panel title="Stock valuation" subtitle="On-hand stock at cost and selling price" bodyClassName="p-0">
+          <Panel
+            title="Stock valuation"
+            subtitle="On-hand stock at cost and selling price"
+            bodyClassName="p-0"
+          >
             {data.rows.length === 0 ? (
               <EmptyState title="No stock to value" icon={IconInventory} />
             ) : (

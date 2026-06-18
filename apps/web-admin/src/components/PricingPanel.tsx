@@ -143,9 +143,12 @@ export function PricingPanel({
         .map((product) => ({
           product,
           current: priceMap.get(product.id),
-          draft:
-            drafts[product.id] ??
-            { priceKobo: '', costKobo: '', compareAtKobo: '', isAvailable: true },
+          draft: drafts[product.id] ?? {
+            priceKobo: '',
+            costKobo: '',
+            compareAtKobo: '',
+            isAvailable: true,
+          },
         })),
     [drafts, priceMap, products],
   );
@@ -209,10 +212,20 @@ export function PricingPanel({
   return (
     <>
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Configured prices" value={configuredCount} icon={IconPricing} tone="brand" />
+        <StatCard
+          label="Configured prices"
+          value={configuredCount}
+          icon={IconPricing}
+          tone="brand"
+        />
         <StatCard label="Available to sell" value={availableCount} icon={IconCheck} tone="sky" />
         <StatCard label="Missing price rows" value={missingCount} icon={IconAlert} tone="rose" />
-        <StatCard label="Catalog products" value={products.length} icon={IconPricing} tone="amber" />
+        <StatCard
+          label="Catalog products"
+          value={products.length}
+          icon={IconPricing}
+          tone="amber"
+        />
       </div>
 
       <div className="mb-4">
@@ -278,7 +291,9 @@ export function PricingPanel({
                   min="0"
                   step="1"
                   value={draft.costKobo}
-                  onChange={(event) => patchDraft(product.id, { costKobo: event.target.value }, draft)}
+                  onChange={(event) =>
+                    patchDraft(product.id, { costKobo: event.target.value }, draft)
+                  }
                   className={inputClass}
                   placeholder="Optional"
                 />
