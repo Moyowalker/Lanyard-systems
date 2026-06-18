@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { authenticator } from 'otplib';
 import {
   AccountStatus,
+  ActorType,
   AuthTokens,
   ErrorCode,
   MfaChallenge,
@@ -15,6 +16,8 @@ import { PasswordService } from '../../../core/security/password.service';
 import { TokenService } from '../../../core/security/token.service';
 import { SessionService } from './session.service';
 import { AuthzService } from '../../authz/application/authz.service';
+import { AuditService } from '../../../core/platform/audit.service';
+import { AuthPrincipal } from '../../../core/auth/principal';
 import { DomainError } from '../../../core/errors/domain-error';
 
 /** Staff authentication: email + password, with TOTP MFA step-up (doc 07). */
@@ -26,7 +29,31 @@ export class StaffAuthService {
     private readonly tokens: TokenService,
     private readonly sessions: SessionService,
     private readonly authz: AuthzService,
+    private readonly audit: AuditService,
   ) {}
+
+  /** Self-service password change — verifies the current password, then rotates. */
+  async changePassword(
+    principal: AuthPrincipal,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const staff = await this.staffModel.findById(principal.sub).select('+passwordHash');
+    if (!staff) throw new DomainError(ErrorCode.NOT_FOUND, 'Staff not found');
+    if (!(await this.passwords.verify(staff.passwordHash, currentPassword))) {
+      throw new DomainError(ErrorCode.INVALID_CREDENTIALS, 'Current password is incorrect');
+    }
+    staff.passwordHash = await this.passwords.hash(newPassword);
+    staff.passwordChangedAt = new Date();
+    await staff.save();
+    await this.audit.record({
+      actorId: principal.sub,
+      actorType: ActorType.STAFF,
+      action: 'staff.change_password',
+      targetType: 'staff',
+      targetId: principal.sub,
+    });
+  }
 
   async login(
     email: string,

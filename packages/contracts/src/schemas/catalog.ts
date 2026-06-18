@@ -32,6 +32,7 @@ export type ProductDetailQuery = z.infer<typeof ProductDetailQuerySchema>;
 export const CreateProductSchema = z.object({
   name: z.string().trim().min(1).max(200),
   slug: z.string().trim().min(1).optional(), // derived from name when omitted
+  sku: z.string().trim().min(1).max(64).optional(), // stock-keeping unit (distinct from slug)
   genericName: z.string().trim().optional(),
   brand: z.string().trim().optional(),
   description: z.string().trim().optional(),
@@ -64,6 +65,7 @@ export type CreateCategoryInput = z.infer<typeof CreateCategorySchema>;
 export const UpsertPriceSchema = z.object({
   productId: objectId,
   priceKobo: z.number().int().min(0),
+  costKobo: z.number().int().min(0).optional(),
   compareAtKobo: z.number().int().min(0).optional(),
   isAvailable: z.boolean().default(true),
 });
@@ -79,6 +81,7 @@ export const BulkMedicineImportRowSchema = CreateProductSchema.omit({
     rowNumber: z.coerce.number().int().min(1),
     categoryIds: z.array(objectId).default([]),
     priceKobo: z.coerce.number().int().min(0),
+    costKobo: z.coerce.number().int().min(0).optional(),
     compareAtKobo: z.coerce.number().int().min(0).optional(),
     isAvailable: z.coerce.boolean().default(true),
     openingQuantity: z.coerce.number().int().min(0).default(0),
@@ -153,6 +156,7 @@ export interface CategoryDto {
 export interface ProductListItemDto {
   id: string;
   slug: string;
+  sku?: string;
   name: string;
   genericName?: string;
   brand?: string;

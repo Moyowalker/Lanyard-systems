@@ -74,6 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isLoginRoute = pathname === '/login';
+  const isChangePasswordRoute = pathname === '/account/change-password';
   const { data: me } = useMe(!isLoginRoute);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -81,8 +82,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     setMobileNavOpen(false);
   }, [pathname]);
 
-  // Login is full-bleed — no shell chrome.
-  if (isLoginRoute) return <>{children}</>;
+  // Rotation policy: force the change-password screen until the password is renewed.
+  const mustChangePassword = Boolean(me?.mustChangePassword);
+  useEffect(() => {
+    if (mustChangePassword && !isChangePasswordRoute && !isLoginRoute) {
+      router.replace('/account/change-password');
+    }
+  }, [mustChangePassword, isChangePasswordRoute, isLoginRoute, router]);
+
+  // Login and the forced change-password screen are full-bleed — no shell chrome.
+  if (isLoginRoute || isChangePasswordRoute) return <>{children}</>;
 
   const roles = me?.roles ?? [];
   const persona = personaFor(roles);

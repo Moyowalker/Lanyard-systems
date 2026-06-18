@@ -53,6 +53,25 @@ export const RefreshSchema = z.object({
 });
 export type RefreshInput = z.infer<typeof RefreshSchema>;
 
+/** Staff must rotate their password at least this often (policy). */
+export const STAFF_PASSWORD_MAX_AGE_DAYS = 90;
+
+export const ChangePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1),
+    newPassword: z
+      .string()
+      .min(8, 'must be at least 8 characters')
+      .max(128)
+      .regex(/[A-Za-z]/, 'must include a letter')
+      .regex(/\d/, 'must include a number'),
+  })
+  .refine((v) => v.currentPassword !== v.newPassword, {
+    path: ['newPassword'],
+    message: 'must differ from your current password',
+  });
+export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
+
 /* ── Response shapes ── */
 
 export interface AuthTokens {
@@ -74,4 +93,6 @@ export interface MeResponse {
   permissions: string[];
   branchScope: string[];
   profile: { firstName?: string; lastName?: string; email?: string; phone?: string };
+  /** Staff only: their password is past the rotation policy and must be changed. */
+  mustChangePassword?: boolean;
 }

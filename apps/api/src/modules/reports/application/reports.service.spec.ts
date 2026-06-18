@@ -1,5 +1,10 @@
 import { OrderPaymentStatus } from '@lanyard/contracts';
-import { summarizeSales, OrderForReport } from './reports.service';
+import {
+  summarizeSales,
+  buildInventoryValuation,
+  buildConsumption,
+  OrderForReport,
+} from './reports.service';
 
 describe('summarizeSales', () => {
   const from = new Date('2026-06-01T00:00:00.000Z');
@@ -91,5 +96,71 @@ describe('summarizeSales', () => {
       quantity: 4,
       revenueKobo: 400000,
     });
+  });
+});
+
+describe('buildInventoryValuation', () => {
+  it('values stock at cost and selling price with totals', () => {
+    const items = [
+      { productId: 'a', branchId: 'b1', onHand: 10, reserved: 2 },
+      { productId: 'c', branchId: 'b1', onHand: 5, reserved: 0 },
+    ];
+    const products = new Map([
+      ['a', { name: 'Paracetamol', sku: 'PARA-1' }],
+      ['c', { name: 'Ibuprofen' }],
+    ]);
+    const prices = new Map([
+      ['b1:a', { costKobo: 1000, priceKobo: 1500 }],
+      ['b1:c', { costKobo: 2000, priceKobo: 3000 }],
+    ]);
+
+    const report = buildInventoryValuation(items, products, prices);
+
+    expect(report.totalDrugs).toBe(2);
+    expect(report.totalQuantity).toBe(15);
+    expect(report.totalCostKobo).toBe(10 * 1000 + 5 * 2000); // 20000
+    expect(report.totalSellingKobo).toBe(10 * 1500 + 5 * 3000); // 30000
+    // Sorted by stock-selling value desc: A (15000) before C (15000 too) — stable on equal.
+    const rowA = report.rows.find((r) => r.productId === 'a');
+    expect(rowA?.available).toBe(8);
+    expect(rowA?.sku).toBe('PARA-1');
+    expect(rowA?.stockCostKobo).toBe(10000);
+  });
+
+  it('treats a missing price as zero value', () => {
+    const report = buildInventoryValuation(
+      [{ productId: 'x', branchId: 'b1', onHand: 4, reserved: 0 }],
+      new Map([['x', { name: 'Unpriced' }]]),
+      new Map(),
+    );
+    expect(report.rows[0].stockCostKobo).toBe(0);
+    expect(report.rows[0].stockSellingKobo).toBe(0);
+    expect(report.totalSellingKobo).toBe(0);
+  });
+});
+
+describe('buildConsumption', () => {
+  const from = new Date('2026-06-01T00:00:00.000Z');
+  const to = new Date('2026-06-30T00:00:00.000Z');
+
+  it('builds rows sorted by units dispensed with value at selling price', () => {
+    const agg = [
+      { productId: 'a', unitsDispensed: 5, movements: 2 },
+      { productId: 'b', unitsDispensed: 12, movements: 4 },
+    ];
+    const products = new Map([
+      ['a', { name: 'A' }],
+      ['b', { name: 'B' }],
+    ]);
+    const prices = new Map<string, number | undefined>([
+      ['a', 1000],
+      ['b', 500],
+    ]);
+
+    const report = buildConsumption(agg, products, prices, from, to);
+
+    expect(report.rows[0].productId).toBe('b'); // 12 units outranks 5
+    expect(report.totalUnits).toBe(17);
+    expect(report.totalValueKobo).toBe(5 * 1000 + 12 * 500); // 11000
   });
 });

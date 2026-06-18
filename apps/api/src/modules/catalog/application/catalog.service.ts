@@ -268,6 +268,7 @@ export class CatalogService {
         const base: ProductListItemDto = {
           id,
           slug: r.slug as string,
+          sku: r.sku as string | undefined,
           name: r.name as string,
           genericName: r.genericName as string | undefined,
           brand: r.brand as string | undefined,

@@ -49,6 +49,10 @@ export class Product {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   slug: string;
 
+  /** Stock-keeping unit — human/operational identifier, distinct from the URL slug. */
+  @Prop({ type: String, trim: true, uppercase: true })
+  sku?: string;
+
   // NB: text search is provided by the single compound text index declared below.
   // MongoDB allows only ONE text index per collection, so these fields are not
   // individually marked `index: 'text'`.
@@ -116,6 +120,8 @@ export class Product {
 
 export const ProductSchema = SchemaFactory.createForClass(Product);
 // `slug` uniqueness is declared inline on the @Prop above.
+// SKU is optional but unique when present (sparse) — existing rows without one are fine.
+ProductSchema.index({ sku: 1 }, { unique: true, sparse: true });
 ProductSchema.index({ status: 1, categoryIds: 1 });
 ProductSchema.index({ requiresPrescription: 1, status: 1 });
 // Weighted text index for MVP search (graduate to Atlas Search later).

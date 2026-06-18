@@ -94,6 +94,7 @@ export class BulkMedicineImportService {
     const price: UpsertPriceInput = {
       productId,
       priceKobo: row.priceKobo,
+      costKobo: row.costKobo,
       compareAtKobo: row.compareAtKobo,
       isAvailable: row.isAvailable,
     };
@@ -127,6 +128,7 @@ export class BulkMedicineImportService {
     return {
       name: row.name,
       slug: row.slug,
+      sku: row.sku,
       genericName: row.genericName,
       brand: row.brand,
       description: row.description,
@@ -173,11 +175,17 @@ export class BulkMedicineImportService {
       this.pick(row, ['compareAt', 'compare_at', 'compareAtNaira', 'compare_at_naira']),
       true,
     );
+    const costKobo = this.moneyToKobo(this.pick(row, ['costKobo', 'cost_kobo', 'costPriceKobo']));
+    const costNaira = this.moneyToKobo(
+      this.pick(row, ['cost', 'costPrice', 'cost_price', 'costNaira', 'cost_naira']),
+      true,
+    );
 
     return {
       rowNumber,
       name: this.pick(row, ['name', 'medicine', 'product', 'productName', 'product_name']),
       slug: this.optionalText(this.pick(row, ['slug'])),
+      sku: this.optionalText(this.pick(row, ['sku', 'skuCode', 'sku_code'])),
       genericName: this.optionalText(this.pick(row, ['genericName', 'generic_name', 'generic'])),
       brand: this.optionalText(this.pick(row, ['brand'])),
       description: this.optionalText(this.pick(row, ['description'])),
@@ -194,6 +202,7 @@ export class BulkMedicineImportService {
       manufacturer: this.optionalText(this.pick(row, ['manufacturer'])),
       status: this.normalizeStatus(this.pick(row, ['status'])),
       priceKobo: priceKobo ?? priceNaira,
+      costKobo: costKobo ?? costNaira,
       compareAtKobo: compareAtKobo ?? compareAtNaira,
       isAvailable: this.booleanValue(this.pick(row, ['isAvailable', 'is_available', 'available'])),
       openingQuantity: this.pick(row, [

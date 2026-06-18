@@ -88,17 +88,7 @@ export const NAV: NavSection[] = [
         icon: 'catalog',
         roles: [RoleKey.INVENTORY_OFFICER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
       },
-      {
-        label: 'Pricing',
-        href: '/pricing',
-        icon: 'pricing',
-        roles: [
-          RoleKey.INVENTORY_OFFICER,
-          RoleKey.BRANCH_MANAGER,
-          RoleKey.ADMIN,
-          RoleKey.SUPER_ADMIN,
-        ],
-      },
+      // Pricing now lives as a tab inside Inventory (Operations → Inventory).
       {
         label: 'Branches',
         href: '/branches',

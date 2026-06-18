@@ -26,6 +26,10 @@ export class PriceList {
   @Prop(KOBO)
   priceKobo: number;
 
+  /** What the branch paid for the drug — used for margin & valuation reporting. */
+  @Prop(OPTIONAL_KOBO)
+  costKobo?: number;
+
   /** Optional "was" price for showing discounts. */
   @Prop(OPTIONAL_KOBO)
   compareAtKobo?: number;

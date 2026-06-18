@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { MeResponse } from '@lanyard/contracts';
+import { MeResponse, STAFF_PASSWORD_MAX_AGE_DAYS } from '@lanyard/contracts';
 
 import { CurrentUser } from '../../../core/auth/auth.decorators';
 import { AuthPrincipal } from '../../../core/auth/principal';
@@ -21,6 +21,7 @@ export class MeController {
   @Get('me')
   async me(@CurrentUser() principal: AuthPrincipal): Promise<MeResponse> {
     const profile: MeResponse['profile'] = {};
+    let mustChangePassword: boolean | undefined;
     if (principal.realm === 'customer') {
       const c = await this.customerModel.findById(principal.sub).lean();
       if (c)
@@ -32,13 +33,18 @@ export class MeController {
         });
     } else {
       const s = await this.staffModel.findById(principal.sub).lean();
-      if (s)
+      if (s) {
         Object.assign(profile, {
           firstName: s.firstName,
           lastName: s.lastName,
           email: s.email,
           phone: s.phone,
         });
+        // Rotation policy: missing timestamp (legacy account) ⇒ must change.
+        const maxAgeMs = STAFF_PASSWORD_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+        mustChangePassword =
+          !s.passwordChangedAt || Date.now() - new Date(s.passwordChangedAt).getTime() > maxAgeMs;
+      }
     }
 
     return {
@@ -48,6 +54,7 @@ export class MeController {
       permissions: principal.permissions,
       branchScope: principal.branchScope,
       profile,
+      mustChangePassword,
     };
   }
 }

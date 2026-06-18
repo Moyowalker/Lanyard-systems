@@ -26,6 +26,7 @@ import {
   Th,
 } from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
+import { PricingPanel } from '@/components/PricingPanel';
 
 type AdminProductLookup = {
   id: string;
@@ -98,9 +99,12 @@ function InlineNotice({ message }: { message?: FormMessage }) {
   );
 }
 
+type InventoryTab = 'stock' | 'pricing';
+
 export default function InventoryPage() {
   const queryClient = useQueryClient();
   const [branchId, setBranchId] = useState('');
+  const [tab, setTab] = useState<InventoryTab>('stock');
   const [receiveForm, setReceiveForm] = useState<ReceiveFormState>({
     productId: '',
     quantity: '',
@@ -330,20 +334,24 @@ export default function InventoryPage() {
         subtitle="Branch stock levels, manual receiving, adjustments, and low-stock pressure"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="secondary"
-              disabled={!branchId || rows.length === 0}
-              onClick={() => downloadExport('xlsx')}
-            >
-              Export Excel
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={!branchId || rows.length === 0}
-              onClick={() => downloadExport('csv')}
-            >
-              Export CSV
-            </Button>
+            {tab === 'stock' ? (
+              <>
+                <Button
+                  variant="secondary"
+                  disabled={!branchId || rows.length === 0}
+                  onClick={() => downloadExport('xlsx')}
+                >
+                  Export Excel
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={!branchId || rows.length === 0}
+                  onClick={() => downloadExport('csv')}
+                >
+                  Export CSV
+                </Button>
+              </>
+            ) : null}
             <select
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
@@ -358,6 +366,22 @@ export default function InventoryPage() {
           </div>
         }
       />
+
+      <div className="mb-5 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+        {(['stock', 'pricing'] as const).map((key) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={
+              tab === key
+                ? 'rounded-md bg-white px-4 py-1.5 text-sm font-semibold text-slate-900 shadow-sm'
+                : 'rounded-md px-4 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-700'
+            }
+          >
+            {key === 'stock' ? 'Stock' : 'Pricing'}
+          </button>
+        ))}
+      </div>
 
       {initialLoading ? (
         <Card className="p-5">
@@ -383,6 +407,8 @@ export default function InventoryPage() {
             icon={IconBranch}
           />
         </Card>
+      ) : tab === 'pricing' ? (
+        <PricingPanel branchId={branchId} products={products} />
       ) : inventoryQ.isError ? (
         <Card>
           <EmptyState

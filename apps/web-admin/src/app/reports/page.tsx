@@ -18,6 +18,17 @@ import {
 } from '@/components/ui';
 import { Bars, Donut } from '@/components/charts';
 import { IconCash, IconOrders, IconCheck, IconReports } from '@/components/icons';
+import { Button } from '@/components/ui';
+import { InventoryValuationReport } from '@/components/reports/InventoryValuationReport';
+import { ConsumptionReport } from '@/components/reports/ConsumptionReport';
+
+type ReportTab = 'sales' | 'inventory' | 'consumption';
+
+const TABS: { key: ReportTab; label: string }[] = [
+  { key: 'sales', label: 'Sales' },
+  { key: 'inventory', label: 'Inventory' },
+  { key: 'consumption', label: 'Consumption' },
+];
 
 const RANGES = [
   { key: '7', label: 'Last 7 days', days: 7 },
@@ -29,12 +40,25 @@ const selectClass =
   'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 outline-none focus:border-brand-500';
 
 export default function ReportsPage() {
+  const [tab, setTab] = useState<ReportTab>('sales');
   const [rangeKey, setRangeKey] = useState('30');
   // Custom range overrides the preset when both ends are set.
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [fulfillmentFilter, setFulfillmentFilter] = useState('');
+
+  function downloadSales(format: 'xlsx' | 'csv') {
+    const to = customFrom && customTo ? new Date(`${customTo}T23:59:59`) : new Date();
+    const from =
+      customFrom && customTo
+        ? new Date(`${customFrom}T00:00:00`)
+        : new Date(to.getTime() - (RANGES.find((r) => r.key === rangeKey)?.days ?? 30) * 86400000);
+    const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString(), format });
+    if (branchFilter) params.set('branchId', branchFilter);
+    if (fulfillmentFilter) params.set('fulfillmentType', fulfillmentFilter);
+    window.open(`/api/admin/reports/sales-summary/export?${params.toString()}`, '_blank');
+  }
 
   const branchesQ = useQuery({
     queryKey: ['admin-branches', 'reports'],
@@ -68,30 +92,55 @@ export default function ReportsPage() {
     <div>
       <PageHeader
         title="Reports"
-        subtitle="Sales performance across your branch scope"
+        subtitle="Sales, inventory valuation, and consumption across your branch scope"
         actions={
-          <div className="flex flex-wrap items-center gap-1.5">
-            {RANGES.map((r) => (
-              <button
-                key={r.key}
-                onClick={() => {
-                  setRangeKey(r.key);
-                  setCustomFrom('');
-                  setCustomTo('');
-                }}
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-150',
-                  !usingCustom && rangeKey === r.key
-                    ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/15'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
-                )}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+          tab === 'sales' ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {RANGES.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => {
+                    setRangeKey(r.key);
+                    setCustomFrom('');
+                    setCustomTo('');
+                  }}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-150',
+                    !usingCustom && rangeKey === r.key
+                      ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/15'
+                      : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
+                  )}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          ) : null
         }
       />
+
+      <div className="mb-5 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={
+              tab === t.key
+                ? 'rounded-md bg-white px-4 py-1.5 text-sm font-semibold text-slate-900 shadow-sm'
+                : 'rounded-md px-4 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-700'
+            }
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'inventory' ? (
+        <InventoryValuationReport branches={branches} />
+      ) : tab === 'consumption' ? (
+        <ConsumptionReport branches={branches} />
+      ) : (
+        <>
 
       <div className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200/70 bg-white px-4 py-3">
         <div className="flex flex-col gap-1">
@@ -155,19 +204,27 @@ export default function ReportsPage() {
             <option value="delivery">Delivery</option>
           </select>
         </div>
-        {(usingCustom || branchFilter || fulfillmentFilter) && (
-          <button
-            onClick={() => {
-              setCustomFrom('');
-              setCustomTo('');
-              setBranchFilter('');
-              setFulfillmentFilter('');
-            }}
-            className="ml-auto rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-800"
-          >
-            Reset filters
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {(usingCustom || branchFilter || fulfillmentFilter) && (
+            <button
+              onClick={() => {
+                setCustomFrom('');
+                setCustomTo('');
+                setBranchFilter('');
+                setFulfillmentFilter('');
+              }}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-800"
+            >
+              Reset filters
+            </button>
+          )}
+          <Button variant="secondary" disabled={!data} onClick={() => downloadSales('xlsx')}>
+            Export Excel
+          </Button>
+          <Button variant="secondary" disabled={!data} onClick={() => downloadSales('csv')}>
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -290,6 +347,8 @@ export default function ReportsPage() {
             )}
           </Panel>
         </div>
+      )}
+        </>
       )}
     </div>
   );

@@ -120,6 +120,10 @@ export class StaffUser {
   @Prop({ required: true, select: false })
   passwordHash: string;
 
+  /** When the password was last set — drives the 90-day rotation policy. */
+  @Prop({ type: Date })
+  passwordChangedAt?: Date;
+
   @Prop({ type: Boolean, default: false })
   mfaEnabled: boolean;
 
