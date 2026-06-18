@@ -94,11 +94,29 @@ export class CatalogService {
   }
 
   async search(query: ProductSearchQuery): Promise<{ data: ProductListItemDto[] }> {
-    const rows = await this.productModel
+    // Primary: weighted full-text match. Fallback: case-insensitive substring match
+    // so partial terms and minor misspellings still return something useful.
+    let rows = await this.productModel
       .find({ status: ProductStatus.PUBLISHED, $text: { $search: query.q } })
       .limit(query.limit)
       .lean();
-    return { data: await this.decorate(rows, query.branchId) };
+    if (rows.length === 0) {
+      rows = await this.productModel
+        .find({ status: ProductStatus.PUBLISHED, ...this.substringFilter(query.q) })
+        .limit(query.limit)
+        .lean();
+    }
+    return { data: await this.decorateForStorefront(rows, query.branchId) };
+  }
+
+  /** Lightweight typeahead suggestions — prefix/substring on the most relevant fields. */
+  async suggest(query: ProductSearchQuery): Promise<{ data: ProductListItemDto[] }> {
+    const limit = Math.min(query.limit, 8);
+    const rows = await this.productModel
+      .find({ status: ProductStatus.PUBLISHED, ...this.substringFilter(query.q) })
+      .limit(limit)
+      .lean();
+    return { data: await this.decorateForStorefront(rows, query.branchId) };
   }
 
   /* ── admin writes ── */
@@ -255,6 +273,8 @@ export class CatalogService {
           brand: r.brand as string | undefined,
           form: r.form as string,
           strength: r.strength as string | undefined,
+          packSize: r.packSize as string | undefined,
+          description: r.description as string | undefined,
           requiresPrescription: Boolean(r.requiresPrescription),
           regulatoryClass: r.regulatoryClass as string,
           images: await this.signedImages((r.images as string[]) ?? []),
@@ -273,6 +293,21 @@ export class CatalogService {
         return base;
       }),
     );
+  }
+
+  /** Decorate rows and, when a branch is selected, hide items without a price/stock there. */
+  private async decorateForStorefront(
+    rows: Array<Record<string, unknown> & { _id: Types.ObjectId }>,
+    branchId?: string,
+  ): Promise<ProductListItemDto[]> {
+    const items = await this.decorate(rows, branchId);
+    return branchId ? items.filter((i) => i.price && i.inStock) : items;
+  }
+
+  /** Case-insensitive substring match across the customer-facing fields. */
+  private substringFilter(q: string): FilterQuery<Product> {
+    const rx = new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    return { $or: [{ name: rx }, { genericName: rx }, { brand: rx }, { packSize: rx }] };
   }
 
   private async signedImages(keys: string[]): Promise<string[]> {

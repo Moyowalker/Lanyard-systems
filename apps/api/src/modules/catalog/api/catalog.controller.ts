@@ -37,6 +37,13 @@ export class CatalogController {
     return this.catalog.search(query);
   }
 
+  /** Lightweight typeahead suggestions for the storefront search box. */
+  @Public()
+  @Get('search/suggest')
+  suggest(@Query(new ZodValidationPipe(ProductSearchQuerySchema)) query: ProductSearchQuery) {
+    return this.catalog.suggest(query);
+  }
+
   @Public()
   @Get('products/:slug')
   getProduct(
