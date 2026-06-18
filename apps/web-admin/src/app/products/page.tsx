@@ -551,8 +551,8 @@ export default function ProductsPage() {
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 Required columns: <strong>name</strong>, <strong>form</strong>,{' '}
                 <strong>price</strong> or <strong>priceKobo</strong>. Useful optional columns:{' '}
-                genericName, brand, strength, packSize, regulatoryClass, nafdacRegNo,
-                manufacturer, openingQuantity, reorderLevel, batchNo, expiry.
+                genericName, brand, strength, packSize, regulatoryClass, nafdacRegNo, manufacturer,
+                openingQuantity, reorderLevel, batchNo, expiry.
               </div>
 
               <InlineNotice message={bulkMessage} />
@@ -599,7 +599,10 @@ export default function ProductsPage() {
                 </div>
               ) : null}
 
-              <Button type="submit" disabled={bulkImportMutation.isPending || branches.length === 0}>
+              <Button
+                type="submit"
+                disabled={bulkImportMutation.isPending || branches.length === 0}
+              >
                 {bulkImportMutation.isPending ? (
                   <>
                     <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Importing...

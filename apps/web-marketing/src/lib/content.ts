@@ -119,7 +119,13 @@ export const fallbackBranches: BranchSummaryDto[] = [
     code: 'LAG-AGO-01',
     name: 'Lanyard Pharmacy',
     status: 'ACTIVE',
-    address: { line1: '86 Ago Palace way', city: 'Lagos', state: 'Lagos State', lat: 6.5136, lng: 3.3347 },
+    address: {
+      line1: '86 Ago Palace way',
+      city: 'Lagos',
+      state: 'Lagos State',
+      lat: 6.5136,
+      lng: 3.3347,
+    },
     fulfillment: { pickup: true, delivery: true },
   },
 ];
