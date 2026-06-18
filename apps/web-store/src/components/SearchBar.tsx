@@ -147,7 +147,9 @@ export function SearchBar() {
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-ink-900">{p.name}</span>
-                    {meta ? <span className="block truncate text-xs text-ink-900/55">{meta}</span> : null}
+                    {meta ? (
+                      <span className="block truncate text-xs text-ink-900/55">{meta}</span>
+                    ) : null}
                   </span>
                   {p.price?.priceKobo != null ? (
                     <span className="tnum flex-none text-xs font-semibold text-ink-900">
