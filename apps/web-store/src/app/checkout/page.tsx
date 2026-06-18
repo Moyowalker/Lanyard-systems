@@ -169,7 +169,9 @@ export default function CheckoutPage() {
       return;
     }
     if (needsRx && !cart?.branchId) {
-      setError('We could not determine your pharmacy branch. Please re-add your items and try again.');
+      setError(
+        'We could not determine your pharmacy branch. Please re-add your items and try again.',
+      );
       return;
     }
     if (fulfillment === 'delivery' && (!address.line1 || !address.city || !address.state)) {

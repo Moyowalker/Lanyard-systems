@@ -150,7 +150,10 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
             </p>
           )}
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Note <span className="font-normal normal-case text-slate-400">(optional to approve · required to decline)</span>
+            Note{' '}
+            <span className="font-normal normal-case text-slate-400">
+              (optional to approve · required to decline)
+            </span>
           </label>
           <textarea
             value={note}

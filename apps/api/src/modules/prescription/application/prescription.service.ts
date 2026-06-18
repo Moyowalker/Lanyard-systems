@@ -58,7 +58,15 @@ export class PrescriptionService {
     customerId: string,
     rxId: Types.ObjectId,
     files: UploadedRxFile[],
-  ): Promise<Array<{ objectKey: string; mime: string; sizeBytes: number; avScan: AvScanStatus; uploadedAt: Date }>> {
+  ): Promise<
+    Array<{
+      objectKey: string;
+      mime: string;
+      sizeBytes: number;
+      avScan: AvScanStatus;
+      uploadedAt: Date;
+    }>
+  > {
     const fileDocs = [];
     for (const file of files) {
       const objectKey = `prescriptions/${customerId}/${rxId.toString()}/${randomUUID()}.${file.ext}`;
