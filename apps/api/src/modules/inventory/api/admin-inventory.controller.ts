@@ -1,8 +1,21 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   AdjustInventoryInput,
   AdjustInventorySchema,
+  InventoryExportQuery,
+  InventoryExportQuerySchema,
+  InventoryExpiringQuery,
+  InventoryExpiringQuerySchema,
   ReceiveInventoryInput,
   ReceiveInventorySchema,
 } from '@lanyard/contracts';
@@ -37,6 +50,31 @@ export class AdminInventoryController {
   @RequirePermissions('inventory:read')
   async lowStock(@Param('branchId') branchId: string) {
     return { data: await this.inventory.listLowStock(branchId) };
+  }
+
+  @Get('expiring')
+  @RequirePermissions('inventory:read')
+  async expiring(
+    @Param('branchId') branchId: string,
+    @Query(new ZodValidationPipe(InventoryExpiringQuerySchema)) query: InventoryExpiringQuery,
+  ) {
+    return { data: await this.inventory.listExpiring(branchId, query.days) };
+  }
+
+  @Get('export')
+  @RequirePermissions('inventory:read')
+  async export(
+    @Param('branchId') branchId: string,
+    @Query(new ZodValidationPipe(InventoryExportQuerySchema)) query: InventoryExportQuery,
+  ): Promise<StreamableFile> {
+    const { buffer, filename, contentType } = await this.inventory.exportBranchInventory(
+      branchId,
+      query.format,
+    );
+    return new StreamableFile(buffer, {
+      type: contentType,
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 
   @Post('receive')
