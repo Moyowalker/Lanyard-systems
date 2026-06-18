@@ -110,8 +110,18 @@ export class ReportsService {
     );
 
     const filter: Record<string, unknown> = { createdAt: { $gte: clampedFrom, $lte: to } };
-    if (!branchScope.includes(ALL_BRANCHES)) {
+    const scopeAll = branchScope.includes(ALL_BRANCHES);
+    if (range.branchId) {
+      // Honour an explicit branch filter, but never let it widen the caller's scope.
+      filter.branchId =
+        scopeAll || branchScope.includes(range.branchId)
+          ? new Types.ObjectId(range.branchId)
+          : new Types.ObjectId('000000000000000000000000'); // out of scope → no data
+    } else if (!scopeAll) {
       filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
+    }
+    if (range.fulfillmentType) {
+      filter['fulfillment.type'] = range.fulfillmentType;
     }
 
     const orders = await this.orderModel

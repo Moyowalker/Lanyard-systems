@@ -2,12 +2,13 @@ import { RoleKey } from '@lanyard/contracts';
 import type { IconKey } from '@/components/icons';
 
 /** Business personas the console is designed around. */
-export type Persona = 'owner' | 'manager' | 'pharmacist' | 'support';
+export type Persona = 'owner' | 'manager' | 'pharmacist' | 'inventory' | 'support';
 
 export function personaFor(roles: string[]): Persona {
   if (roles.includes(RoleKey.ADMIN) || roles.includes(RoleKey.SUPER_ADMIN)) return 'owner';
   if (roles.includes(RoleKey.BRANCH_MANAGER)) return 'manager';
   if (roles.includes(RoleKey.PHARMACIST)) return 'pharmacist';
+  if (roles.includes(RoleKey.INVENTORY_OFFICER)) return 'inventory';
   return 'support';
 }
 
@@ -15,6 +16,7 @@ export const PERSONA_LABEL: Record<Persona, string> = {
   owner: 'Owner · Administrator',
   manager: 'Branch Manager',
   pharmacist: 'Pharmacist',
+  inventory: 'Inventory Officer',
   support: 'Support',
 };
 
@@ -22,6 +24,7 @@ export const PERSONA_FOCUS: Record<Persona, string> = {
   owner: 'Business performance, compliance & finance',
   manager: 'Branch operations & fulfilment',
   pharmacist: 'Prescription verification & dispensing',
+  inventory: 'Stock, pricing & product catalog',
   support: 'Customer orders & assistance',
 };
 
@@ -67,7 +70,12 @@ export const NAV: NavSection[] = [
         label: 'Inventory',
         href: '/inventory',
         icon: 'inventory',
-        roles: [RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
+        roles: [
+          RoleKey.INVENTORY_OFFICER,
+          RoleKey.BRANCH_MANAGER,
+          RoleKey.ADMIN,
+          RoleKey.SUPER_ADMIN,
+        ],
       },
     ],
   },
@@ -78,13 +86,18 @@ export const NAV: NavSection[] = [
         label: 'Products',
         href: '/products',
         icon: 'catalog',
-        roles: [RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
+        roles: [RoleKey.INVENTORY_OFFICER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
       },
       {
         label: 'Pricing',
         href: '/pricing',
         icon: 'pricing',
-        roles: [RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
+        roles: [
+          RoleKey.INVENTORY_OFFICER,
+          RoleKey.BRANCH_MANAGER,
+          RoleKey.ADMIN,
+          RoleKey.SUPER_ADMIN,
+        ],
       },
       {
         label: 'Branches',
