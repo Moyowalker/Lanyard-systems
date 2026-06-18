@@ -72,8 +72,9 @@ export class CatalogService {
       .lean();
 
     const items = await this.decorate(rows, query.branchId);
-    // Storefront hides items unavailable at the selected branch.
-    const visible = query.branchId ? items.filter((i) => i.price && i.inStock) : items;
+    // Show every priced product at the branch; out-of-stock ones render with an
+    // "Out of stock" badge (the card disables buying), rather than disappearing.
+    const visible = query.branchId ? items.filter((i) => i.price) : items;
     return paginate(visible, query.limit);
   }
 
@@ -302,7 +303,8 @@ export class CatalogService {
     branchId?: string,
   ): Promise<ProductListItemDto[]> {
     const items = await this.decorate(rows, branchId);
-    return branchId ? items.filter((i) => i.price && i.inStock) : items;
+    // Keep priced products even when out of stock (shown with an "Out of stock" badge).
+    return branchId ? items.filter((i) => i.price) : items;
   }
 
   /** Case-insensitive substring match across the customer-facing fields. */

@@ -43,7 +43,9 @@ export const CreateProductSchema = z.object({
   regulatoryClass: z.nativeEnum(RegulatoryClass).default(RegulatoryClass.OTC),
   nafdacRegNo: z.string().trim().optional(),
   manufacturer: z.string().trim().optional(),
-  status: z.nativeEnum(ProductStatus).default(ProductStatus.DRAFT),
+  // New products go live by default once they have a branch price; admins can still
+  // pick Draft for work-in-progress entries.
+  status: z.nativeEnum(ProductStatus).default(ProductStatus.PUBLISHED),
   searchTokens: z.array(z.string()).optional(),
 });
 export type CreateProductInput = z.infer<typeof CreateProductSchema>;
