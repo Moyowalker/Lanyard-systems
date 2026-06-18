@@ -283,7 +283,11 @@ export class BulkMedicineImportService {
     return String(value).trim();
   }
 
-  private toRowError(rowNumber: number, name: string | undefined, err: unknown): BulkMedicineImportRowError {
+  private toRowError(
+    rowNumber: number,
+    name: string | undefined,
+    err: unknown,
+  ): BulkMedicineImportRowError {
     if (err instanceof DomainError) {
       return { rowNumber, name, code: err.code, message: err.message };
     }

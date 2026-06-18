@@ -168,6 +168,12 @@ export default function CheckoutPage() {
       setError('This order needs a prescription. Please upload one.');
       return;
     }
+    if (needsRx && !cart?.branchId) {
+      setError(
+        'We could not determine your pharmacy branch. Please re-add your items and try again.',
+      );
+      return;
+    }
     if (fulfillment === 'delivery' && (!address.line1 || !address.city || !address.state)) {
       setError('Please complete the delivery address.');
       return;
@@ -182,9 +188,13 @@ export default function CheckoutPage() {
         form.append('branchId', cart.branchId ?? '');
         Array.from(files).forEach((f) => form.append('files', f));
         const upRes = await fetch('/api/prescriptions', { method: 'POST', body: form });
-        if (!upRes.ok) throw new Error('Prescription upload failed');
-        const rx = (await upRes.json()) as PrescriptionDto;
-        prescriptionIds = [rx.id];
+        const rx = (await upRes.json().catch(() => null)) as
+          | (PrescriptionDto & { error?: { message: string } })
+          | null;
+        if (!upRes.ok) {
+          throw new Error(rx?.error?.message ?? 'Prescription upload failed. Please try again.');
+        }
+        prescriptionIds = [rx!.id];
       }
 
       // 2. Create the order.

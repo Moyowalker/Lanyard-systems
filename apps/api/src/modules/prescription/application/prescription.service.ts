@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -48,6 +48,53 @@ interface RxFileSubdoc {
 
 @Injectable()
 export class PrescriptionService {
+  private readonly logger = new Logger(PrescriptionService.name);
+
+  /**
+   * Persist uploaded files to the object store, surfacing storage misconfiguration
+   * (missing/invalid S3 creds or bucket) as a clear error instead of an opaque 500.
+   */
+  private async storeFiles(
+    customerId: string,
+    rxId: Types.ObjectId,
+    files: UploadedRxFile[],
+  ): Promise<
+    Array<{
+      objectKey: string;
+      mime: string;
+      sizeBytes: number;
+      avScan: AvScanStatus;
+      uploadedAt: Date;
+    }>
+  > {
+    const fileDocs = [];
+    for (const file of files) {
+      const objectKey = `prescriptions/${customerId}/${rxId.toString()}/${randomUUID()}.${file.ext}`;
+      try {
+        await this.storage.putObject(objectKey, file.buffer, file.mime);
+      } catch (err) {
+        this.logger.error(
+          `Prescription file upload to object storage failed (key=${objectKey}): ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          err instanceof Error ? err.stack : undefined,
+        );
+        throw new DomainError(
+          ErrorCode.INTERNAL,
+          'We could not store your prescription right now. Please try again shortly.',
+        );
+      }
+      fileDocs.push({
+        objectKey,
+        mime: file.mime,
+        sizeBytes: file.sizeBytes,
+        avScan: AvScanStatus.PENDING,
+        uploadedAt: new Date(),
+      });
+    }
+    return fileDocs;
+  }
+
   constructor(
     @InjectModel(Prescription.name) private readonly rxModel: Model<Prescription>,
     @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
@@ -69,18 +116,7 @@ export class PrescriptionService {
     }
 
     const rxId = new Types.ObjectId();
-    const fileDocs = [];
-    for (const file of files) {
-      const objectKey = `prescriptions/${customerId}/${rxId.toString()}/${randomUUID()}.${file.ext}`;
-      await this.storage.putObject(objectKey, file.buffer, file.mime);
-      fileDocs.push({
-        objectKey,
-        mime: file.mime,
-        sizeBytes: file.sizeBytes,
-        avScan: AvScanStatus.PENDING,
-        uploadedAt: new Date(),
-      });
-    }
+    const fileDocs = await this.storeFiles(customerId, rxId, files);
 
     const rx = await this.rxModel.create({
       _id: rxId,
@@ -150,18 +186,7 @@ export class PrescriptionService {
       );
     }
 
-    const fileDocs = [];
-    for (const file of files) {
-      const objectKey = `prescriptions/${customerId}/${rx._id.toString()}/${randomUUID()}.${file.ext}`;
-      await this.storage.putObject(objectKey, file.buffer, file.mime);
-      fileDocs.push({
-        objectKey,
-        mime: file.mime,
-        sizeBytes: file.sizeBytes,
-        avScan: AvScanStatus.PENDING,
-        uploadedAt: new Date(),
-      });
-    }
+    const fileDocs = await this.storeFiles(customerId, rx._id, files);
 
     rx.files.push(...fileDocs);
     rx.status = RxStatus.PENDING;
