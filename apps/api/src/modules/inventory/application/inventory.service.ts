@@ -86,7 +86,10 @@ export class InventoryService {
     const rows = await this.listBranchInventory(branchId);
     return rows
       .filter((row) => row.nextExpiry && new Date(row.nextExpiry).getTime() <= cutoff)
-      .sort((left, right) => new Date(left.nextExpiry!).getTime() - new Date(right.nextExpiry!).getTime());
+      .sort(
+        (left, right) =>
+          new Date(left.nextExpiry!).getTime() - new Date(right.nextExpiry!).getTime(),
+      );
   }
 
   /** Build a spreadsheet/CSV of branch stock, one row per batch (and per batchless item). */

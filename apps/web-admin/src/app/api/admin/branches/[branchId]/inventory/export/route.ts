@@ -6,10 +6,7 @@ import { proxy } from '@/lib/proxy';
  * (which relays everything as JSON text), this passes the binary spreadsheet body
  * and the upstream content-type / attachment headers through unchanged.
  */
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ branchId: string }> },
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ branchId: string }> }) {
   const { branchId } = await params;
   const format = req.nextUrl.searchParams.get('format') === 'csv' ? 'csv' : 'xlsx';
   const upstream = await proxy(`/admin/branches/${branchId}/inventory/export?format=${format}`);
