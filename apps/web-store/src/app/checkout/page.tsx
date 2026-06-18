@@ -206,7 +206,9 @@ export default function CheckoutPage() {
           }),
         });
         if (!gRes.ok) {
-          const body = (await gRes.json().catch(() => null)) as { error?: { message: string } } | null;
+          const body = (await gRes.json().catch(() => null)) as {
+            error?: { message: string };
+          } | null;
           throw new Error(body?.error?.message ?? 'Could not start guest checkout.');
         }
       }
@@ -297,7 +299,9 @@ export default function CheckoutPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="section-kicker">Your details</div>
-                  <h2 className="mt-3 font-display text-xl text-ink-950">Checking out as a guest</h2>
+                  <h2 className="mt-3 font-display text-xl text-ink-950">
+                    Checking out as a guest
+                  </h2>
                 </div>
                 <Link
                   href="/account/login"

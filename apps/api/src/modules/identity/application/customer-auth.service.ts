@@ -52,7 +52,9 @@ export class CustomerAuthService {
    * never silently signed in — the guest is told to sign in instead.
    */
   async guestSession(input: GuestCheckoutInput, context?: { ip?: string }): Promise<AuthTokens> {
-    const existing = await this.customerModel.findOne({ phone: input.phone }).select('+passwordHash');
+    const existing = await this.customerModel
+      .findOne({ phone: input.phone })
+      .select('+passwordHash');
     let customer: CustomerDocument;
     if (existing) {
       if (existing.phoneVerified || existing.passwordHash) {

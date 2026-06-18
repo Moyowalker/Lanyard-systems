@@ -33,7 +33,10 @@ export class CustomerAuthController {
   @Post('guest')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 10 * 60_000 } })
-  guest(@Body(new ZodValidationPipe(GuestCheckoutSchema)) dto: GuestCheckoutInput, @Ip() ip: string) {
+  guest(
+    @Body(new ZodValidationPipe(GuestCheckoutSchema)) dto: GuestCheckoutInput,
+    @Ip() ip: string,
+  ) {
     return this.customerAuth.guestSession(dto, { ip });
   }
 
