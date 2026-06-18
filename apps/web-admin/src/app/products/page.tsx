@@ -94,7 +94,7 @@ const EMPTY_PRODUCT_FORM: ProductFormState = {
   strength: '',
   packSize: '',
   regulatoryClass: RegulatoryClass.OTC,
-  status: ProductStatus.DRAFT,
+  status: ProductStatus.PUBLISHED,
   manufacturer: '',
   nafdacRegNo: '',
   categoryIds: [],
@@ -1087,6 +1087,13 @@ export default function ProductsPage() {
               </form>
             </Panel>
           </div>
+
+          <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            A product appears on the storefront once its status is{' '}
+            <strong className="text-slate-700">Published</strong> and it has a branch price (set
+            prices under <strong className="text-slate-700">Inventory → Pricing</strong>).
+            Out-of-stock items still show, marked “Out of stock”.
+          </p>
 
           {rows.length === 0 ? (
             <Card>
