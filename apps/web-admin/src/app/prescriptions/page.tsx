@@ -8,11 +8,12 @@ import { Badge, Card, EmptyState, PageHeader, Skeleton } from '@/components/ui';
 import { IconCheck, IconChevronRight, IconRx, IconShield } from '@/components/icons';
 
 export default function PrescriptionQueue() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['rx-queue'],
     queryFn: async () => {
-      const r = await fetch('/api/admin/prescriptions?status=pending');
-      return r.ok ? ((await r.json()) as Paginated<PrescriptionDto>) : null;
+      const r = await fetch('/api/admin/prescriptions');
+      if (!r.ok) throw new Error('Could not load the prescription queue');
+      return (await r.json()) as Paginated<PrescriptionDto>;
     },
     refetchInterval: 10000,
   });
@@ -37,6 +38,14 @@ export default function PrescriptionQueue() {
             <Skeleton key={i} className="h-20 w-full rounded-2xl" />
           ))}
         </div>
+      ) : isError ? (
+        <Card>
+          <EmptyState
+            title="Couldn’t load the queue"
+            description="There was a problem reaching the prescription service. Retrying automatically — if this persists, check the API and storage configuration."
+            icon={IconShield}
+          />
+        </Card>
       ) : rows.length === 0 ? (
         <Card>
           <EmptyState

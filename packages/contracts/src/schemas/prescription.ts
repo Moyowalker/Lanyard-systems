@@ -26,10 +26,22 @@ export const CreatePrescriptionMetaSchema = z.object({
 });
 export type CreatePrescriptionMetaInput = z.infer<typeof CreatePrescriptionMetaSchema>;
 
-export const VerifyPrescriptionSchema = z.object({
-  decision: z.nativeEnum(VerificationDecision),
-  note: z.string().trim().max(1000).optional(),
-});
+// A rejection must always carry a reason — it is shown to the customer and kept
+// for the audit trail. An approval note stays optional.
+export const VerifyPrescriptionSchema = z
+  .object({
+    decision: z.nativeEnum(VerificationDecision),
+    note: z.string().trim().max(1000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.decision === VerificationDecision.REJECTED && !value.note?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['note'],
+        message: 'A reason is required when declining a prescription',
+      });
+    }
+  });
 export type VerifyPrescriptionInput = z.infer<typeof VerifyPrescriptionSchema>;
 
 export const RequestPrescriptionInfoSchema = z.object({

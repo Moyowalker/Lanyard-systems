@@ -48,6 +48,9 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
   }
 
   async function decide(decision: 'verified' | 'rejected') {
+    if (decision === 'rejected' && !note.trim()) {
+      return setError('Add a reason before declining this prescription.');
+    }
     setBusy(true);
     setError(undefined);
     const r = await fetch(`/api/admin/prescriptions/${id}/verify`, {
@@ -126,6 +129,12 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
           <p className="text-sm text-slate-600">
             This prescription is <strong className="text-slate-900">{rx.status}</strong>.
           </p>
+          {rx.verification?.note ? (
+            <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {rx.verification.decision === 'rejected' ? 'Decline reason' : 'Note'}:{' '}
+              {rx.verification.note}
+            </p>
+          ) : null}
           {rx.clarificationRequest ? (
             <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
               More information requested: {rx.clarificationRequest.note}
@@ -140,10 +149,13 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
               All files must pass the antivirus scan before this prescription can be verified.
             </p>
           )}
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Note <span className="font-normal normal-case text-slate-400">(optional to approve · required to decline)</span>
+          </label>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Add a verification note (optional)"
+            placeholder="Reason shown to the customer when declining, or an optional approval note"
             className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500"
             rows={2}
           />
