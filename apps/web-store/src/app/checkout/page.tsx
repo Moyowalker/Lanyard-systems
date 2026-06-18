@@ -41,6 +41,7 @@ export default function CheckoutPage() {
   const [selectedAddress, setSelectedAddress] = useState('manual');
   const [address, setAddress] = useState<CheckoutAddress>({ line1: '', city: '', state: '' });
   const [files, setFiles] = useState<FileList | null>(null);
+  const [guest, setGuest] = useState({ firstName: '', lastName: '', phone: '', email: '' });
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState('');
   const [error, setError] = useState<string | undefined>();
@@ -102,18 +103,6 @@ export default function CheckoutPage() {
   });
 
   if (isLoading || isMeLoading) return <p className="text-ink-700/60">Loading…</p>;
-  if (!me)
-    return (
-      <div className="state-card mx-auto max-w-md text-center">
-        <p className="text-ink-700/80">
-          Please{' '}
-          <Link href="/account/login" className="font-semibold text-brand-700 hover:underline">
-            sign in
-          </Link>{' '}
-          to check out.
-        </p>
-      </div>
-    );
   if (!cart)
     return (
       <div className="state-card mx-auto max-w-md text-center">
@@ -136,6 +125,22 @@ export default function CheckoutPage() {
     );
 
   const needsRx = cart.requiresRxVerification;
+  const isGuest = !me;
+
+  // Prescription orders need an account (PHI ownership + verification), so guests
+  // must sign in for those; OTC carts can check out as a guest.
+  if (isGuest && needsRx)
+    return (
+      <div className="state-card mx-auto max-w-md text-center">
+        <p className="text-ink-700/80">
+          Your cart contains prescription-only medicine. Please{' '}
+          <Link href="/account/login" className="font-semibold text-brand-700 hover:underline">
+            sign in or create an account
+          </Link>{' '}
+          so a pharmacist can verify your prescription.
+        </p>
+      </div>
+    );
 
   function updateLineQuantity(productId: string, quantity: number) {
     const branchId = cart?.branchId;
@@ -178,8 +183,34 @@ export default function CheckoutPage() {
       setError('Please complete the delivery address.');
       return;
     }
+    if (isGuest) {
+      if (!guest.firstName.trim() || !guest.lastName.trim() || !guest.phone.trim()) {
+        setError('Please enter your name and phone number to check out as a guest.');
+        return;
+      }
+    }
     setBusy(true);
     try {
+      // 0. Guests: create/reuse a lightweight account by phone, which sets the session
+      //    cookie and merges the cart — the rest of the flow then runs authenticated.
+      if (isGuest) {
+        setStep('Setting up your details…');
+        const gRes = await fetch('/api/auth/guest', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            firstName: guest.firstName.trim(),
+            lastName: guest.lastName.trim(),
+            phone: guest.phone.trim(),
+            email: guest.email.trim() || undefined,
+          }),
+        });
+        if (!gRes.ok) {
+          const body = (await gRes.json().catch(() => null)) as { error?: { message: string } } | null;
+          throw new Error(body?.error?.message ?? 'Could not start guest checkout.');
+        }
+      }
+
       // 1. Upload prescription(s) if required.
       let prescriptionIds: string[] = [];
       if (needsRx && files && cart) {
@@ -245,7 +276,10 @@ export default function CheckoutPage() {
   }
 
   const fileNames = files && files.length > 0 ? Array.from(files).map((f) => f.name) : [];
-  const deliveryKobo = quote?.deliveryKobo ?? 0;
+  // Guests have no server quote (it needs auth); fall back to the selected zone's fee.
+  const selectedZone = deliveryZones.find((z) => z.name === deliveryZoneName);
+  const deliveryKobo =
+    quote?.deliveryKobo ?? (fulfillment === 'delivery' ? (selectedZone?.feeKobo ?? 0) : 0);
   const totalKobo = quote?.totalKobo ?? cart.subtotalKobo + deliveryKobo;
 
   return (
@@ -258,6 +292,58 @@ export default function CheckoutPage() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         {/* Left: choices */}
         <div className="space-y-5">
+          {isGuest ? (
+            <section className="surface-panel px-5 py-6 sm:px-7">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="section-kicker">Your details</div>
+                  <h2 className="mt-3 font-display text-xl text-ink-950">Checking out as a guest</h2>
+                </div>
+                <Link
+                  href="/account/login"
+                  className="text-sm font-semibold text-brand-700 hover:underline"
+                >
+                  Sign in instead
+                </Link>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <input
+                  className="input-field"
+                  placeholder="First name"
+                  autoComplete="given-name"
+                  value={guest.firstName}
+                  onChange={(e) => setGuest((g) => ({ ...g, firstName: e.target.value }))}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Last name"
+                  autoComplete="family-name"
+                  value={guest.lastName}
+                  onChange={(e) => setGuest((g) => ({ ...g, lastName: e.target.value }))}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Phone (e.g. +2348012345678)"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={guest.phone}
+                  onChange={(e) => setGuest((g) => ({ ...g, phone: e.target.value }))}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Email (optional)"
+                  type="email"
+                  autoComplete="email"
+                  value={guest.email}
+                  onChange={(e) => setGuest((g) => ({ ...g, email: e.target.value }))}
+                />
+              </div>
+              <p className="mt-2 text-xs text-ink-900/55">
+                We’ll create a quick account from your phone so you can track this order.
+              </p>
+            </section>
+          ) : null}
+
           {/* Fulfillment */}
           <section className="surface-panel px-5 py-6 sm:px-7">
             <div className="section-kicker">Fulfilment</div>
