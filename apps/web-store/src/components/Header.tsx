@@ -6,6 +6,7 @@ import { BranchSelector } from './BranchSelector';
 import { SearchBar } from './SearchBar';
 import { AccountMenu } from './AccountMenu';
 import { CartLink } from './CartLink';
+import { BrandLogo } from './BrandLogo';
 import { supportContact } from '@/lib/support';
 
 export async function Header() {
@@ -42,25 +43,8 @@ export async function Header() {
 
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 py-3">
-          <Link href="/" className="group inline-flex flex-none items-center gap-2.5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white transition group-hover:bg-brand-700">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
-                <path
-                  d="M12 4v16M4 12h16"
-                  stroke="currentColor"
-                  strokeWidth="2.6"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>
-            <span className="flex flex-col leading-none">
-              <span className="text-[1.15rem] font-semibold tracking-[-0.01em] text-ink-900">
-                Lanyard
-              </span>
-              <span className="mt-0.5 hidden text-[0.7rem] font-medium text-ink-900/55 sm:block">
-                Pharmacy
-              </span>
-            </span>
+          <Link href="/" className="inline-flex flex-none items-center">
+            <BrandLogo className="h-auto w-28 sm:w-32" />
           </Link>
 
           {/* Desktop search */}

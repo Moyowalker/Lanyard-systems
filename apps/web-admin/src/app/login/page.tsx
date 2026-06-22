@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Spinner, cn } from '@/components/ui';
-import { IconAlert, IconCheck, IconClock, IconShield } from '@/components/icons';
+import { BrandLogo } from '@/components/BrandLogo';
+import { IconAlert, IconCheck, IconClock } from '@/components/icons';
 
 type HealthState = {
   title: string;
@@ -247,15 +248,10 @@ export default function LoginPage() {
           <div className="absolute -left-20 bottom-12 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
 
           <div className="relative">
-            <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-500 text-white shadow-lg shadow-brand-900/30">
-                <IconShield width={22} height={22} />
-              </span>
-              <div>
-                <div className="text-sm font-semibold tracking-wide">Lanyard Pharmacy</div>
-                <div className="text-[11px] uppercase tracking-[0.28em] text-brand-200">
-                  Operations Console
-                </div>
+            <div className="inline-flex flex-col rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
+              <BrandLogo className="h-auto w-40" />
+              <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-200">
+                Operations Console
               </div>
             </div>
 

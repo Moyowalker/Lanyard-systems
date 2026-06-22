@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { MeResponse } from '@lanyard/contracts';
 import { Icons } from './icons';
 import { IconBell, IconClose, IconLogout, IconMenu, IconShield } from './icons';
+import { BrandLogo } from './BrandLogo';
 import { cn } from './ui';
 import { visibleNav, personaFor, PERSONA_LABEL, initialsOf, type NavItem } from '@/lib/roles';
 
@@ -111,15 +112,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-gradient-to-b from-ink-800 via-ink-900 to-ink-950 shadow-sidebar lg:flex">
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-lg shadow-brand-900/40">
-            <IconShield width={20} height={20} />
-          </span>
-          <div className="leading-tight">
-            <div className="text-sm font-bold text-white">Lanyard</div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-brand-300">
-              Pharmacy Console
-            </div>
+        <div className="px-5 py-5">
+          <BrandLogo className="h-auto w-36" />
+          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-brand-300">
+            Pharmacy Console
           </div>
         </div>
 
@@ -171,15 +167,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-5">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-white">
-                  <IconShield width={20} height={20} />
-                </span>
-                <div className="leading-tight">
-                  <div className="text-sm font-bold text-white">Lanyard</div>
-                  <div className="text-[11px] font-medium uppercase tracking-wide text-brand-300">
-                    Pharmacy Console
-                  </div>
+              <div>
+                <BrandLogo className="h-auto w-36" />
+                <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-brand-300">
+                  Pharmacy Console
                 </div>
               </div>
               <button
@@ -251,11 +242,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <IconMenu width={20} height={20} />
           </button>
-          <Link href="/" className="flex items-center gap-2 lg:hidden">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white">
-              <IconShield width={18} height={18} />
-            </span>
-            <span className="font-bold text-slate-900">Lanyard</span>
+          <Link href="/" className="flex items-center lg:hidden">
+            <BrandLogo className="h-auto w-28" />
           </Link>
 
           <div className="ml-auto flex items-center gap-3">

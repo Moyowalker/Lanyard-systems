@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { marketingNav } from '@/lib/content';
 import { contactChannels } from '@/lib/content';
+import { BrandLogo } from './BrandLogo';
 import { StoreLink } from './StoreLink';
 
 export function SiteFooter() {
@@ -8,19 +9,7 @@ export function SiteFooter() {
     <footer className="mt-20 border-t border-paper-200 bg-ink-900 text-white">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.2fr_.8fr] lg:px-8">
         <div>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-white">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                <path
-                  d="M12 4v16M4 12h16"
-                  stroke="currentColor"
-                  strokeWidth="2.6"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>
-            <span className="text-lg font-semibold">Lanyard Pharmacy</span>
-          </div>
+          <BrandLogo className="h-auto w-36" />
           <p className="mt-4 max-w-md text-sm leading-7 text-white/70">
             Genuine medicines from a licensed pharmacy near you — delivered fast across Lagos, or
             ready for free pickup. Every prescription checked by a pharmacist.

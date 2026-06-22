@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { Providers } from './providers';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
+import { BrandLogo } from '@/components/BrandLogo';
 import { supportContact } from '@/lib/support';
 
 const policyLinks = [
@@ -17,6 +18,7 @@ const sans = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-sans', di
 export const metadata: Metadata = {
   title: { default: 'Lanyard Pharmacy', template: '%s · Lanyard Pharmacy' },
   description: 'Order medicines and upload prescriptions for pickup or delivery in Nigeria.',
+  icons: { icon: '/favicon.svg' },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -35,19 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <div className="mx-auto w-full max-w-[1280px] px-4 py-8 sm:px-6 lg:px-8">
                 <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                   <div className="max-w-md">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
-                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                          <path
-                            d="M12 4v16M4 12h16"
-                            stroke="currentColor"
-                            strokeWidth="2.6"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      </span>
-                      <span className="text-base font-semibold text-ink-900">Lanyard Pharmacy</span>
-                    </div>
+                    <BrandLogo className="h-auto w-32" />
                     <p className="mt-3 text-sm leading-6 text-ink-900/65">
                       Prescription-only medicines are dispensed only after licensed pharmacist
                       review, with branch-level stock and transparent order tracking.

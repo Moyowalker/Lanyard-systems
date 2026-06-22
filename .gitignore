@@ -38,3 +38,11 @@ apps/web-marketing/.env.example
 apps/web-marketing/.env.example
 apps/web-marketing/.env.example
 apps/web-marketing/.env.example
+docs/medicine-import-template.csv
+docs/medicine-one-time-import-template.csv
+docs/imports/chunks/inventory-3000.import.part-01.csv
+docs/imports/chunks/inventory-3000.import.part-02.csv
+docs/imports/chunks/inventory-3000.import.part-03.csv
+docs/imports/chunks/inventory-3000.import.part-04.csv
+docs/imports/chunks/inventory-3000.import.part-05.csv
+docs/imports/chunks/inventory-3000.import.part-06.csv
