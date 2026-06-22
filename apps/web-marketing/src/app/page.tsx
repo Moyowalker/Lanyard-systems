@@ -124,19 +124,93 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {/* Hero image slot (drop a real photo here) */}
-        <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-paper-200 bg-brand-50">
-          <div className="flex h-full w-full items-center justify-center">
-            <Icon name="seal" className="h-16 w-16 text-brand-300" />
-          </div>
-          <div className="absolute bottom-4 left-4 flex items-center gap-2.5 rounded-xl border border-paper-200 bg-white px-3.5 py-2.5 shadow-card">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-              <Icon name="truck" className="h-5 w-5" />
-            </span>
-            <span className="text-sm leading-tight">
-              <span className="block font-semibold text-ink-900">Delivered in ~60 min</span>
-              <span className="block text-xs text-ink-900/55">to your door across Lagos</span>
-            </span>
+        <div className="relative overflow-hidden rounded-2xl border border-paper-200 bg-[#eefcf8] p-4 shadow-card sm:p-5 lg:min-h-[460px]">
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(13,148,136,0.16),transparent_38%),radial-gradient(circle_at_78%_16%,rgba(0,105,217,0.14),transparent_26%),radial-gradient(circle_at_20%_90%,rgba(20,184,166,0.18),transparent_30%)]" />
+
+          <div className="relative flex h-full flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="rounded-full border border-white/70 bg-white/75 px-3 py-1.5 text-xs font-semibold text-brand-800 shadow-card backdrop-blur">
+                Live branch stock
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/75 px-3 py-1.5 text-xs font-semibold text-ink-900/70 shadow-card backdrop-blur">
+                <Icon name="seal" className="h-4 w-4 text-brand-600" /> Pharmacist checked
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {heroStats.map((stat) => (
+                <div
+                  key={stat.value}
+                  className="rounded-xl border border-white/80 bg-white/85 px-3 py-2 shadow-card backdrop-blur"
+                >
+                  <div className="text-base font-semibold text-ink-900">{stat.value}</div>
+                  <div className="mt-0.5 text-[10px] leading-4 text-ink-900/55">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid flex-1 gap-4 lg:grid-cols-[1fr_0.75fr]">
+              <div className="rounded-2xl border border-paper-200 bg-white p-4 shadow-card sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">
+                      Today&apos;s order
+                    </div>
+                    <h2 className="mt-2 text-xl font-semibold leading-tight text-ink-900">
+                      Prescription verified and packed
+                    </h2>
+                  </div>
+                  <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+                    <Icon name="shield" className="h-6 w-6" />
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-2.5">
+                  {[
+                    ['Amoxicillin 500mg', 'Capsules · prescription'],
+                    ['Vitamin C 1000mg', 'Tablet · OTC'],
+                    ['Oral rehydration salts', 'Sachet · in stock'],
+                  ].map(([name, meta]) => (
+                    <div
+                      key={name}
+                      className="flex items-center gap-3 rounded-xl border border-paper-200 bg-paper-50 px-3 py-2.5"
+                    >
+                      <span className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-white text-brand-700">
+                        <Icon name="seal" className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-ink-900">
+                          {name}
+                        </span>
+                        <span className="block truncate text-xs text-ink-900/55">{meta}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                <div className="rounded-2xl border border-white/80 bg-ink-900 p-4 text-white shadow-card">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-brand-100">
+                    <Icon name="store" className="h-4 w-4" /> Branch ready
+                  </div>
+                  <div className="mt-3 text-3xl font-semibold leading-none">98%</div>
+                  <div className="mt-1 text-xs leading-5 text-white/65">
+                    common essentials available for same-day handoff.
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 rounded-xl border border-paper-200 bg-white px-3.5 py-3 shadow-card">
+                  <span className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                    <Icon name="truck" className="h-5 w-5" />
+                  </span>
+                  <span className="text-sm leading-tight">
+                    <span className="block font-semibold text-ink-900">Delivered in ~60 min</span>
+                    <span className="block text-xs text-ink-900/55">to your door across Lagos</span>
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
