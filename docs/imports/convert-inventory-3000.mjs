@@ -27,12 +27,26 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const [, , inPath = 'docs/imports/inventory-3000.source.csv', outPath = 'docs/imports/inventory-3000.import.csv'] =
-  process.argv;
+const [
+  ,
+  ,
+  inPath = 'docs/imports/inventory-3000.source.csv',
+  outPath = 'docs/imports/inventory-3000.import.csv',
+] = process.argv;
 
 const VALID_FORMS = new Set([
-  'tablet', 'capsule', 'syrup', 'suspension', 'injection', 'cream', 'ointment',
-  'drops', 'inhaler', 'suppository', 'device', 'other',
+  'tablet',
+  'capsule',
+  'syrup',
+  'suspension',
+  'injection',
+  'cream',
+  'ointment',
+  'drops',
+  'inhaler',
+  'suppository',
+  'device',
+  'other',
 ]);
 const FORM_MAP = {
   'oral suspension': 'suspension',
@@ -42,10 +56,29 @@ const FORM_MAP = {
 };
 
 const OUTPUT_COLUMNS = [
-  'name', 'slug', 'sku', 'genericName', 'brand', 'description', 'form', 'strength',
-  'packSize', 'categoryIds', 'regulatoryClass', 'nafdacRegNo', 'manufacturer', 'status',
-  'price', 'cost', 'compareAt', 'isAvailable', 'openingQuantity', 'reorderLevel',
-  'batchNo', 'expiry', 'reason',
+  'name',
+  'slug',
+  'sku',
+  'genericName',
+  'brand',
+  'description',
+  'form',
+  'strength',
+  'packSize',
+  'categoryIds',
+  'regulatoryClass',
+  'nafdacRegNo',
+  'manufacturer',
+  'status',
+  'price',
+  'cost',
+  'compareAt',
+  'isAvailable',
+  'openingQuantity',
+  'reorderLevel',
+  'batchNo',
+  'expiry',
+  'reason',
 ];
 
 /** Minimal RFC-4180-ish CSV parser (handles quoted fields, commas and quotes inside). */
@@ -58,15 +91,28 @@ function parseCsv(text) {
     const c = text[i];
     if (inQuotes) {
       if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i += 1; } else inQuotes = false;
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else inQuotes = false;
       } else field += c;
     } else if (c === '"') inQuotes = true;
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-    else if (c === '\r') { /* ignore */ }
-    else field += c;
+    else if (c === ',') {
+      row.push(field);
+      field = '';
+    } else if (c === '\n') {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else if (c === '\r') {
+      /* ignore */
+    } else field += c;
   }
-  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
   return rows;
 }
 
@@ -76,11 +122,17 @@ function csvField(value) {
 }
 
 function slugify(name) {
-  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function toIsoDate(value) {
-  const m = String(value).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const m = String(value)
+    .trim()
+    .match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!m) return { iso: '', ok: false };
   const [, d, mo, y] = m;
   return { iso: `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`, ok: true };
