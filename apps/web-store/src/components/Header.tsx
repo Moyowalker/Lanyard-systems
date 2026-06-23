@@ -44,7 +44,7 @@ export async function Header() {
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 py-3">
           <Link href="/" className="inline-flex flex-none items-center">
-            <BrandLogo className="h-auto w-28 sm:w-32" />
+            <BrandLogo className="h-10 w-auto sm:h-11" />
           </Link>
 
           {/* Desktop search */}
