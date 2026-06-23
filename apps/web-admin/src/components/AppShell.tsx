@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { MeResponse } from '@lanyard/contracts';
 import { Icons } from './icons';
-import { IconBell, IconClose, IconLogout, IconMenu, IconShield } from './icons';
+import { IconBell, IconClose, IconLogout, IconMenu } from './icons';
 import { BrandLogo } from './BrandLogo';
 import { cn } from './ui';
 import { visibleNav, personaFor, PERSONA_LABEL, initialsOf, type NavItem } from '@/lib/roles';
@@ -113,8 +113,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-gradient-to-b from-ink-800 via-ink-900 to-ink-950 shadow-sidebar lg:flex">
         <div className="px-5 py-5">
-          <BrandLogo className="h-auto w-36" />
-          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-brand-300">
+          <span className="inline-flex rounded-xl bg-white p-2 shadow-sm">
+            <BrandLogo className="h-9 w-auto" />
+          </span>
+          <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-brand-300">
             Pharmacy Console
           </div>
         </div>
@@ -168,8 +170,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <div className="flex items-center justify-between px-5 py-5">
               <div>
-                <BrandLogo className="h-auto w-36" />
-                <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-brand-300">
+                <span className="inline-flex rounded-xl bg-white p-2 shadow-sm">
+                  <BrandLogo className="h-9 w-auto" />
+                </span>
+                <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-brand-300">
                   Pharmacy Console
                 </div>
               </div>
@@ -243,7 +247,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <IconMenu width={20} height={20} />
           </button>
           <Link href="/" className="flex items-center lg:hidden">
-            <BrandLogo className="h-auto w-28" />
+            <BrandLogo className="h-8 w-auto" />
           </Link>
 
           <div className="ml-auto flex items-center gap-3">

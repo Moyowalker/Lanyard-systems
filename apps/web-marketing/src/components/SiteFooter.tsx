@@ -9,7 +9,9 @@ export function SiteFooter() {
     <footer className="mt-20 border-t border-paper-200 bg-ink-900 text-white">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.2fr_.8fr] lg:px-8">
         <div>
-          <BrandLogo className="h-auto w-36" />
+          <span className="inline-flex rounded-xl bg-white p-2.5 shadow-sm">
+            <BrandLogo className="h-11 w-auto" />
+          </span>
           <p className="mt-4 max-w-md text-sm leading-7 text-white/70">
             Genuine medicines from a licensed pharmacy near you — delivered fast across Lagos, or
             ready for free pickup. Every prescription checked by a pharmacist.

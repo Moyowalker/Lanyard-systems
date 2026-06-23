@@ -248,9 +248,11 @@ export default function LoginPage() {
           <div className="absolute -left-20 bottom-12 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
 
           <div className="relative">
-            <div className="inline-flex flex-col rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
-              <BrandLogo className="h-auto w-40" />
-              <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-200">
+            <div className="inline-flex flex-col items-start gap-2">
+              <span className="inline-flex rounded-2xl bg-white px-3 py-2.5 shadow-sm">
+                <BrandLogo className="h-12 w-auto" />
+              </span>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-200">
                 Operations Console
               </div>
             </div>

@@ -6,7 +6,7 @@ import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Lanyard Pharmacy Console',
-  icons: { icon: '/favicon.svg' },
+  icons: { icon: '/logo.png', apple: '/logo.png' },
   robots: { index: false, follow: false },
 };
 
