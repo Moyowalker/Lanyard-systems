@@ -30,11 +30,11 @@ services:
         - 'render.yaml'
     envVars:
       - key: NODE_ENV
-        value: development
+        value: production
       - key: API_GLOBAL_PREFIX
         value: api/v1
       - key: CORS_ORIGINS
-        value: https://lanyard-web-store.onrender.com,https://lanyard-web-admin.onrender.com,https://lanyard-web-marketing.onrender.com
+        value: https://lanyard-web-store.onrender.com,https://lanyard-web-admin.onrender.com,https://lanyard-web-marketing.onrender.com,https://lanyardpharmacy.com,https://www.lanyardpharmacy.com
       - key: JWT_SECRET
         generateValue: true
       - key: MONGODB_URI
@@ -108,7 +108,7 @@ services:
         - 'render.yaml'
     envVars:
       - key: NODE_ENV
-        value: development
+        value: production
       - key: API_GLOBAL_PREFIX
         fromService:
           name: lanyard-api
@@ -344,8 +344,8 @@ services:
       - key: NEXT_PUBLIC_STORE_URL
         value: https://lanyard-web-store.onrender.com
       - key: SITE_URL
-        value: https://lanyard-web-marketing.onrender.com
+        value: https://lanyardpharmacy.com
       - key: NEXT_PUBLIC_SITE_URL
-        value: https://lanyard-web-marketing.onrender.com
+        value: https://lanyardpharmacy.com
       - key: NEXT_PUBLIC_GA_ID
         sync: false

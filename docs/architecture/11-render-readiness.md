@@ -82,13 +82,12 @@ runtime for the fastest first deploy.
 
 Blueprint defaults worth knowing:
 
-- API and worker start in `NODE_ENV=development` on purpose so the first staging deploy
-  does not block on Termii, SMTP, and Paystack production secrets.
+- API and worker start in `NODE_ENV=production`, so set the required provider variables
+  before relying on production traffic.
 - The API start command runs the idempotent seed script before listening, which ensures
   the staging staff accounts exist and resets their development passwords.
-- When you switch the API and worker to `NODE_ENV=production`, set the required
-  Termii, SMTP, and Paystack variables on `lanyard-api`; the worker inherits the
-  same provider variables from the API service.
+- Set the required Termii, SMTP, and Paystack variables on `lanyard-api`; the worker
+  inherits the same provider variables from the API service.
 - The three Next.js apps now accept either `API_URL` or Render's internal
   `API_HOSTPORT` + `API_GLOBAL_PREFIX` to reach the API over the private network.
 - The store app receives `SITE_URL` and `NEXT_PUBLIC_SITE_URL`, and the marketing
@@ -131,12 +130,10 @@ Recommended additions once you move beyond a bare staging deploy:
 - `PAYSTACK_SECRET_KEY`
 - `PAYSTACK_WEBHOOK_SECRET`
 
-Temporary staging note:
+Production note:
 
-- With the Blueprint's default `NODE_ENV=development`, the API can boot without the SMS,
-  SMTP, and Paystack secrets above.
-- Before public launch, switch API + worker to `NODE_ENV=production` and provide the
-  production-grade provider secrets required by `env.validation.ts`.
+- With the Blueprint's default `NODE_ENV=production`, provide the production-grade
+  provider secrets required by `env.validation.ts` before public launch.
 
 Feature notes:
 
@@ -158,6 +155,41 @@ Use the `render.yaml` Blueprint and set these values during the first sync:
    - customer OTP request/verify
    - staff login from web-admin
 4. Add S3, SMTP, Termii, and Paystack variables incrementally as each flow is required.
+
+## 4.2 Marketing custom domain on Hostinger
+
+The public marketing site is intended to run as the Render service
+`lanyard-web-marketing`, with Hostinger managing DNS for `lanyardpharmacy.com`.
+
+Render service values for the marketing app:
+
+- `SITE_URL=https://lanyardpharmacy.com`
+- `NEXT_PUBLIC_SITE_URL=https://lanyardpharmacy.com`
+- `STORE_URL=https://lanyard-web-store.onrender.com` until the store has its own domain
+- `NEXT_PUBLIC_STORE_URL=https://lanyard-web-store.onrender.com` until the store has its own domain
+
+API CORS must include both marketing hostnames:
+
+- `https://lanyardpharmacy.com`
+- `https://www.lanyardpharmacy.com`
+
+Hostinger DNS checklist:
+
+1. In Render, open `lanyard-web-marketing` and add custom domains for
+  `lanyardpharmacy.com` and `www.lanyardpharmacy.com`.
+2. Copy the DNS records Render gives for each hostname.
+3. In Hostinger hPanel, open the DNS zone for `lanyardpharmacy.com`.
+4. Point `www` to Render using the Render-provided `CNAME` target.
+5. Point the root/apex domain to Render using the record Render provides for
+  `lanyardpharmacy.com`.
+6. Wait for Render to mark both domains as verified and SSL certificates as issued.
+7. Confirm these URLs load the same marketing app:
+  - `https://lanyardpharmacy.com`
+  - `https://www.lanyardpharmacy.com`
+
+After DNS is live, submit the marketing contact form once. The form depends on the
+Next.js server route `/api/contact`, so it should be tested on the Render-hosted custom
+domain rather than as a static Hostinger file upload.
 
 ## 5. Swagger URLs
 
