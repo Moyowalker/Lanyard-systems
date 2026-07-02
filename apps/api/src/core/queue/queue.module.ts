@@ -14,11 +14,14 @@ import { ConfigService } from '@nestjs/config';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const url = new URL(config.get<string>('REDIS_URL', 'redis://localhost:6379'));
+        const usesTls = url.protocol === 'rediss:' || url.searchParams.get('tls') === 'true';
         return {
           connection: {
             host: url.hostname,
             port: Number(url.port || 6379),
+            username: url.username ? decodeURIComponent(url.username) : undefined,
             ...(url.password ? { password: url.password } : {}),
+            ...(usesTls ? { tls: {} } : {}),
           },
         };
       },

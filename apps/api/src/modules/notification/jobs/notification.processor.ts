@@ -33,17 +33,26 @@ export class NotificationProcessor extends WorkerHost {
   async process(job: Job<NotificationJobData>): Promise<void> {
     if (job.data.direct) {
       const channel = job.data.direct.channel === NotificationChannel.EMAIL ? this.email : this.sms;
+      this.logger.log(
+        `Processing direct notification: id=${job.id ?? 'unknown'} channel=${job.data.direct.channel}`,
+      );
       try {
-        await channel.send({
+        const result = await channel.send({
           to: job.data.direct.to,
           subject: job.data.direct.subject,
           text: job.data.direct.text,
         });
+        this.logger.log(
+          `Direct notification delivered: id=${job.id ?? 'unknown'} providerRef=${result.providerRef}`,
+        );
       } catch (err) {
         if (err instanceof NotificationDeliveryError && !err.retryable) {
           this.logger.warn(`Direct notification dropped: reason=${err.message}`);
           return;
         }
+        this.logger.error(
+          `Direct notification failed: id=${job.id ?? 'unknown'} reason=${(err as Error).message}`,
+        );
         throw err;
       }
       return;

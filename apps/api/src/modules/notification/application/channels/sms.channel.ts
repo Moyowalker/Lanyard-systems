@@ -39,8 +39,12 @@ export class SmsChannel implements NotificationChannelPort {
       'https://api.sendchamp.com/api/v1',
     );
     const route = this.config.get<string>('SENDCHAMP_SMS_ROUTE', 'non_dnd');
+    const to = input.to.replace(/^\+/, '');
+    const url = `${baseUrl.replace(/\/+$/, '')}/sms/send`;
 
-    const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/sms/send`, {
+    this.logger.log(`Sending SMS via Sendchamp: destination=${toMasked} route=${route}`);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -48,7 +52,7 @@ export class SmsChannel implements NotificationChannelPort {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        to: input.to.replace(/^\+/, ''),
+        to,
         message: input.text,
         sender_name: senderName,
         route,
