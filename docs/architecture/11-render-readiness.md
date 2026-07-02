@@ -86,7 +86,7 @@ Blueprint defaults worth knowing:
   before relying on production traffic.
 - The API start command runs the idempotent seed script before listening, which ensures
   the staging staff accounts exist and resets their development passwords.
-- Set the required Termii, SMTP, and Paystack variables on `lanyard-api`; the worker
+- Set the required Sendchamp, SMTP, and Paystack variables on `lanyard-api`; the worker
   inherits the same provider variables from the API service.
 - The three Next.js apps now accept either `API_URL` or Render's internal
   `API_HOSTPORT` + `API_GLOBAL_PREFIX` to reach the API over the private network.
@@ -125,8 +125,10 @@ Recommended additions once you move beyond a bare staging deploy:
 - `SMTP_PORT`
 - `SMTP_FROM`
 - `SMTP_USER` / `SMTP_PASS` when your relay requires auth
-- `TERMII_API_KEY`
-- `TERMII_SENDER_ID`
+- `SENDCHAMP_ACCESS_KEY`
+- `SENDCHAMP_SENDER_NAME`
+- `SENDCHAMP_BASE_URL`
+- `SENDCHAMP_SMS_ROUTE`
 - `PAYSTACK_SECRET_KEY`
 - `PAYSTACK_WEBHOOK_SECRET`
 
@@ -140,7 +142,7 @@ Feature notes:
 - Without `REDIS_URL`, queue-backed workloads degrade or fail; the Blueprint handles this.
 - Without the S3 variables, prescription document flows will not behave correctly.
 - Without Paystack secrets, only mock/dev payment behavior should be expected.
-- Without SMTP or Termii, notifications and OTP delivery remain incomplete.
+- Without SMTP or Sendchamp, notifications and OTP delivery remain incomplete.
 
 ## 4.1 First Render sync checklist
 
@@ -154,7 +156,7 @@ Use the `render.yaml` Blueprint and set these values during the first sync:
    - marketing to store handoff
    - customer OTP request/verify
    - staff login from web-admin
-4. Add S3, SMTP, Termii, and Paystack variables incrementally as each flow is required.
+4. Add S3, SMTP, Sendchamp, and Paystack variables incrementally as each flow is required.
 
 ## 4.2 Marketing custom domain on Hostinger
 

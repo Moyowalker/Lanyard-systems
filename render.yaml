@@ -56,14 +56,14 @@ services:
         sync: false
       - key: S3_FORCE_PATH_STYLE
         value: 'true'
-      - key: TERMII_API_KEY
+      - key: SENDCHAMP_ACCESS_KEY
         sync: false
-      - key: TERMII_SENDER_ID
+      - key: SENDCHAMP_SENDER_NAME
         sync: false
-      - key: TERMII_BASE_URL
-        value: https://api.ng.termii.com
-      - key: TERMII_SMS_CHANNEL
-        value: generic
+      - key: SENDCHAMP_BASE_URL
+        value: https://api.sendchamp.com/api/v1
+      - key: SENDCHAMP_SMS_ROUTE
+        value: non_dnd
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -159,26 +159,26 @@ services:
           name: lanyard-api
           type: web
           envVarKey: S3_FORCE_PATH_STYLE
-      - key: TERMII_API_KEY
+      - key: SENDCHAMP_ACCESS_KEY
         fromService:
           name: lanyard-api
           type: web
-          envVarKey: TERMII_API_KEY
-      - key: TERMII_SENDER_ID
+          envVarKey: SENDCHAMP_ACCESS_KEY
+      - key: SENDCHAMP_SENDER_NAME
         fromService:
           name: lanyard-api
           type: web
-          envVarKey: TERMII_SENDER_ID
-      - key: TERMII_BASE_URL
+          envVarKey: SENDCHAMP_SENDER_NAME
+      - key: SENDCHAMP_BASE_URL
         fromService:
           name: lanyard-api
           type: web
-          envVarKey: TERMII_BASE_URL
-      - key: TERMII_SMS_CHANNEL
+          envVarKey: SENDCHAMP_BASE_URL
+      - key: SENDCHAMP_SMS_ROUTE
         fromService:
           name: lanyard-api
           type: web
-          envVarKey: TERMII_SMS_CHANNEL
+          envVarKey: SENDCHAMP_SMS_ROUTE
       - key: SMTP_HOST
         fromService:
           name: lanyard-api

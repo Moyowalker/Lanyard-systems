@@ -12,7 +12,7 @@ import {
 
 /**
  * SMS transport. In non-production it logs and returns a synthetic ref so OTP flows
- * remain testable without a live provider. Production uses a real Termii HTTP send.
+ * remain testable without a live provider. Production uses a real Sendchamp HTTP send.
  */
 @Injectable()
 export class SmsChannel implements NotificationChannelPort {
@@ -32,31 +32,37 @@ export class SmsChannel implements NotificationChannelPort {
       return { providerRef: `sms_${randomUUID()}` };
     }
 
-    const apiKey = this.config.get<string>('TERMII_API_KEY');
-    const senderId = this.config.get<string>('TERMII_SENDER_ID');
-    const baseUrl = this.config.get<string>('TERMII_BASE_URL', 'https://api.ng.termii.com');
-    const channel = this.config.get<string>('TERMII_SMS_CHANNEL', 'generic');
+    const accessKey = this.config.get<string>('SENDCHAMP_ACCESS_KEY');
+    const senderName = this.config.get<string>('SENDCHAMP_SENDER_NAME');
+    const baseUrl = this.config.get<string>(
+      'SENDCHAMP_BASE_URL',
+      'https://api.sendchamp.com/api/v1',
+    );
+    const route = this.config.get<string>('SENDCHAMP_SMS_ROUTE', 'non_dnd');
 
-    const response = await fetch(`${baseUrl}/api/sms/send`, {
+    const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/sms/send`, {
       method: 'POST',
       headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        api_key: apiKey,
-        to: input.to,
-        from: senderId,
-        sms: input.text,
-        type: 'plain',
-        channel,
+        to: input.to.replace(/^\+/, ''),
+        message: input.text,
+        sender_name: senderName,
+        route,
       }),
     });
 
     const body = (await response.json().catch(() => null)) as {
-      code?: string;
-      message_id?: string;
       message?: string;
-      balance?: string;
+      data?: {
+        id?: string;
+        reference?: string;
+        sms_uid?: string;
+        uid?: string;
+      };
     } | null;
 
     if (!response.ok) {
@@ -67,13 +73,12 @@ export class SmsChannel implements NotificationChannelPort {
       throw new NotificationDeliveryError(message, response.status >= 500);
     }
 
-    if (body?.code && body.code !== 'ok') {
-      const message = body.message || 'SMS provider rejected the message';
-      this.logger.warn(`SMS provider rejected delivery: destination=${toMasked} code=${body.code}`);
-      throw new NotificationDeliveryError(message, false);
-    }
-
-    const providerRef = body?.message_id || `termii_${randomUUID()}`;
+    const providerRef =
+      body?.data?.sms_uid ||
+      body?.data?.uid ||
+      body?.data?.reference ||
+      body?.data?.id ||
+      `sendchamp_${randomUUID()}`;
     this.logger.log(`SMS delivered: destination=${toMasked} providerRef=${providerRef}`);
     return { providerRef };
   }

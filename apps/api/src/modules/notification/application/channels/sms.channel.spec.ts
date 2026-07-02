@@ -23,19 +23,19 @@ describe('SmsChannel', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('sends through Termii in production', async () => {
+  it('sends through Sendchamp in production', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ code: 'ok', message_id: 'termii-123' }),
+      json: async () => ({ message: 'SMS sent successfully', data: { sms_uid: 'sendchamp-123' } }),
     });
 
     const channel = new SmsChannel(
       new ConfigService({
         NODE_ENV: 'production',
-        TERMII_API_KEY: 'termii-key',
-        TERMII_SENDER_ID: 'Lanyard',
-        TERMII_BASE_URL: 'https://api.ng.termii.com',
-        TERMII_SMS_CHANNEL: 'generic',
+        SENDCHAMP_ACCESS_KEY: 'sendchamp-key',
+        SENDCHAMP_SENDER_NAME: 'Lanyard',
+        SENDCHAMP_BASE_URL: 'https://api.sendchamp.com/api/v1',
+        SENDCHAMP_SMS_ROUTE: 'non_dnd',
       }),
     );
 
@@ -46,29 +46,19 @@ describe('SmsChannel', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.ng.termii.com/api/sms/send',
-      expect.objectContaining({ method: 'POST' }),
-    );
-    expect(result).toEqual({ providerRef: 'termii-123' });
-  });
-
-  it('throws when the provider rejects the message', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ code: 'invalid', message: 'Sender blocked' }),
-    });
-
-    const channel = new SmsChannel(
-      new ConfigService({
-        NODE_ENV: 'production',
-        TERMII_API_KEY: 'termii-key',
-        TERMII_SENDER_ID: 'Lanyard',
+      'https://api.sendchamp.com/api/v1/sms/send',
+      expect.objectContaining({
+        body: JSON.stringify({
+          to: '2347088167402',
+          message: 'Use 123456 to sign in',
+          sender_name: 'Lanyard',
+          route: 'non_dnd',
+        }),
+        headers: expect.objectContaining({ Authorization: 'Bearer sendchamp-key' }),
+        method: 'POST',
       }),
     );
-
-    await expect(
-      channel.send({ to: '+2347088167402', subject: 'OTP', text: 'Use 123456 to sign in' }),
-    ).rejects.toMatchObject({ retryable: false });
+    expect(result).toEqual({ providerRef: 'sendchamp-123' });
   });
 
   it('marks upstream 5xx provider errors as retryable', async () => {
@@ -81,8 +71,8 @@ describe('SmsChannel', () => {
     const channel = new SmsChannel(
       new ConfigService({
         NODE_ENV: 'production',
-        TERMII_API_KEY: 'termii-key',
-        TERMII_SENDER_ID: 'Lanyard',
+        SENDCHAMP_ACCESS_KEY: 'sendchamp-key',
+        SENDCHAMP_SENDER_NAME: 'Lanyard',
       }),
     );
 

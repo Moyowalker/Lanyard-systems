@@ -44,7 +44,7 @@ prescription, or real money touches the system.
 - [x] **Disable the dev payment-confirm endpoint.** `/payments/dev/confirm/:intentId` now
       requires both non-production mode and explicit `ENABLE_DEV_PAYMENT_CONFIRM=true`; Render
       sets the flag to `false`.
-- [ ] **Provision real provider secrets** (Paystack live, Termii, SMTP) so payments and
+- [ ] **Provision real provider secrets** (Paystack live, Sendchamp, SMTP) so payments and
       notifications actually work. `render.yaml` now declares the required secret placeholders,
       but values must be entered in Render before the production boot check will pass.
 - [x] **Add rate limiting.** `@nestjs/throttler` is now globally enabled, with stricter limits
@@ -87,7 +87,7 @@ prescription, or real money touches the system.
       ([jwt-auth.guard.ts](../apps/api/src/core/auth/jwt-auth.guard.ts) never checks session state).
 - [ ] **No CSRF defense beyond `sameSite=lax`.** Acceptable for same-origin fetch today, but add a
       token for money-moving routes.
-- [ ] **Notifications hard-depend on dev fallback.** Real Termii/SMTP adapters exist but only fire
+- [ ] **Notifications hard-depend on dev fallback.** Real Sendchamp/SMTP adapters exist but only fire
       in production with secrets set; validate deliverability end-to-end before launch.
 - [ ] **CI doesn't run integration or E2E.** [ci.yml](../.github/workflows/ci.yml) builds,
       typechecks, unit-tests, and format-checks only. The transactional money/stock invariants
@@ -140,7 +140,7 @@ prescription, or real money touches the system.
 
 - [x] Typed + validated at boot via Zod; fails fast
       ([env.validation.ts](../apps/api/src/core/config/env.validation.ts)).
-- [x] Production branch requires Termii/SMTP/Paystack secrets (`superRefine`).
+- [x] Production branch requires Sendchamp/SMTP/Paystack secrets (`superRefine`).
 - [x] Guard rejects localhost Mongo on Render.
 - [x] **P0:** Render blueprint runs the API in `production`; confirm the live services are synced.
 - [ ] **P2:** CORS origins hard-coded in `render.yaml` rather than env-driven.
@@ -219,7 +219,7 @@ prescription, or real money touches the system.
 
 ### Notifications — ⚠️
 
-- [x] Real Termii (SMS) + SMTP (email) adapters; queue-backed; destination masking.
+- [x] Real Sendchamp (SMS) + SMTP (email) adapters; queue-backed; destination masking.
 - [ ] **P1:** only active in production with secrets; verify deliverability before launch.
 
 ### Render deployment — ⚠️
@@ -240,7 +240,7 @@ Goal: the deployed environment is no longer a public dev build.
 1. Set `NODE_ENV=production` on `lanyard-api` and `lanyard-api-worker`.
 2. Provision MongoDB Atlas (replica set) with automated backups + PITR enabled; set
    `MONGODB_URI`; run one restore drill and record RPO/RTO.
-3. Add Paystack live, Termii, and SMTP secrets; confirm the real Paystack provider is selected
+3. Add Paystack live, Sendchamp, and SMTP secrets; confirm the real Paystack provider is selected
    and the dev-confirm route 404s.
 4. Smoke test: OTP no longer returned in responses; a real test charge settles via webhook only.
    **Exit criteria:** no auth bypass, no free-payment path, data is recoverable.

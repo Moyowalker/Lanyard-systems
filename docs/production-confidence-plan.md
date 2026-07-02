@@ -60,7 +60,7 @@ Do not launch with mock or unverified provider behavior.
 - [ ] Run and document a restore drill.
 - [ ] Add Paystack credentials.
 - [ ] Configure the Paystack webhook URL.
-- [ ] Add Termii SMS credentials.
+- [ ] Add Sendchamp SMS credentials.
 - [ ] Add SMTP/email credentials.
 - [ ] Add S3-compatible storage credentials.
 - [ ] Confirm the API boots in `NODE_ENV=production`.
@@ -438,7 +438,7 @@ This phase blocks real prescriptions, real customers, and real money.
 - [ ] Run and document one restore drill.
 - [ ] Add Paystack test/live credentials.
 - [ ] Configure Paystack webhook URL.
-- [ ] Add Termii SMS credentials.
+- [ ] Add Sendchamp SMS credentials.
 - [ ] Add SMTP/email credentials.
 - [ ] Add S3-compatible storage credentials.
 - [ ] Confirm API boots in `NODE_ENV=production`.

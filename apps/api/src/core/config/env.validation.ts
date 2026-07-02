@@ -59,11 +59,11 @@ export const envSchema = z
     OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
     OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 
-    // SMS delivery (Termii in production; dev/test fall back to logging).
-    TERMII_API_KEY: z.string().optional(),
-    TERMII_SENDER_ID: z.string().optional(),
-    TERMII_BASE_URL: z.string().url().default('https://api.ng.termii.com'),
-    TERMII_SMS_CHANNEL: z.string().default('generic'),
+    // SMS delivery (Sendchamp in production; dev/test fall back to logging).
+    SENDCHAMP_ACCESS_KEY: z.string().optional(),
+    SENDCHAMP_SENDER_NAME: z.string().optional(),
+    SENDCHAMP_BASE_URL: z.string().url().default('https://api.sendchamp.com/api/v1'),
+    SENDCHAMP_SMS_ROUTE: z.string().default('non_dnd'),
 
     // Email delivery (SMTP relay)
     SMTP_HOST: z.string().optional(),
@@ -83,19 +83,19 @@ export const envSchema = z
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;
 
-    if (!value.TERMII_API_KEY) {
+    if (!value.SENDCHAMP_ACCESS_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['TERMII_API_KEY'],
-        message: 'TERMII_API_KEY is required in production',
+        path: ['SENDCHAMP_ACCESS_KEY'],
+        message: 'SENDCHAMP_ACCESS_KEY is required in production',
       });
     }
 
-    if (!value.TERMII_SENDER_ID) {
+    if (!value.SENDCHAMP_SENDER_NAME) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['TERMII_SENDER_ID'],
-        message: 'TERMII_SENDER_ID is required in production',
+        path: ['SENDCHAMP_SENDER_NAME'],
+        message: 'SENDCHAMP_SENDER_NAME is required in production',
       });
     }
 
