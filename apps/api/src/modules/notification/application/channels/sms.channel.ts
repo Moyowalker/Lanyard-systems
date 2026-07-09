@@ -49,10 +49,9 @@ export class SmsChannel implements NotificationChannelPort {
 
     const accessKey = this.config.get<string>('SENDCHAMP_ACCESS_KEY')?.trim();
     const senderName = this.config.get<string>('SENDCHAMP_SENDER_NAME')?.trim();
-    const baseUrl = this.config.get<string>(
-      'SENDCHAMP_BASE_URL',
-      'https://api.sendchamp.com/api/v1',
-    ).trim();
+    const baseUrl = this.config
+      .get<string>('SENDCHAMP_BASE_URL', 'https://api.sendchamp.com/api/v1')
+      .trim();
     const route = this.config.get<string>('SENDCHAMP_SMS_ROUTE', 'non_dnd').trim();
     const to = input.to.replace(/^\+/, '');
     const url = `${baseUrl.replace(/\/+$/, '')}/sms/send`;

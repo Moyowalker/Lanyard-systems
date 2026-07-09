@@ -32,7 +32,7 @@ import { assertTransition } from '../domain/order-state-machine';
 import { cursorFilter, paginate } from '../../../core/pagination/cursor';
 import { AuthPrincipal } from '../../../core/auth/principal';
 
-interface Actor {
+export interface Actor {
   id?: string;
   role?: string;
   type: ActorType;
@@ -470,36 +470,50 @@ export class OrderService {
 
   /** Complete an order: dispense reserved stock (reserved→onHand decrement) atomically. */
   async complete(id: string, actor: Actor, reason?: string): Promise<OrderDto> {
-    const updated = await this.tx.run(async (session) => {
-      const order = await this.orderModel.findById(id).session(session);
-      if (!order) throw new DomainError(ErrorCode.NOT_FOUND, 'Order not found');
-      this.apply(order, OrderStatus.COMPLETED, actor, reason ?? 'Order completed');
-      for (const item of order.items) {
-        await this.inventory.dispense(
-          order.branchId.toString(),
-          item.productId.toString(),
-          item.quantity,
-          session,
-          order._id.toString(),
-        );
-      }
-      await order.save({ session });
-      await this.audit.record(
-        {
-          actorId: actor.id,
-          actorType: actor.type,
-          action: 'order.completed',
-          targetType: 'order',
-          targetId: order._id.toString(),
-          branchId: order.branchId.toString(),
-          metadata: { dispensedItems: order.items.length },
-        },
-        session,
-      );
-      return order;
-    });
+    const updated = await this.tx.run((session) =>
+      this.completeInSession(id, actor, reason ?? 'Order completed', session),
+    );
     await this.notifications.notifyOrderEvent(id, 'order.completed');
     return this.toDto(updated);
+  }
+
+  /**
+   * Session-scoped completion core: applies →COMPLETED and dispenses each line.
+   * Used by complete() (own transaction + notification) and by the POS, which
+   * settles payment + completion in ONE transaction and sends no notifications.
+   */
+  async completeInSession(
+    id: string,
+    actor: Actor,
+    reason: string,
+    session: ClientSession,
+  ): Promise<OrderDocument> {
+    const order = await this.orderModel.findById(id).session(session);
+    if (!order) throw new DomainError(ErrorCode.NOT_FOUND, 'Order not found');
+    this.apply(order, OrderStatus.COMPLETED, actor, reason);
+    for (const item of order.items) {
+      await this.inventory.dispense(
+        order.branchId.toString(),
+        item.productId.toString(),
+        item.quantity,
+        session,
+        order._id.toString(),
+      );
+    }
+    await order.save({ session });
+    await this.audit.record(
+      {
+        actorId: actor.id,
+        actorType: actor.type,
+        action: 'order.completed',
+        targetType: 'order',
+        targetId: order._id.toString(),
+        branchId: order.branchId.toString(),
+        metadata: { dispensedItems: order.items.length },
+      },
+      session,
+    );
+    return order;
   }
 
   /** Cancel an order, releasing any held stock reservation. */
@@ -595,7 +609,8 @@ export class OrderService {
     });
   }
 
-  private genOrderNo(): string {
+  /** Human-friendly unique order reference; shared with the POS module. */
+  genOrderNo(): string {
     return `LNY-${randomBytes(4).toString('hex').toUpperCase()}`;
   }
 

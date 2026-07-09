@@ -2,13 +2,14 @@ import { RoleKey } from '@lanyard/contracts';
 import type { IconKey } from '@/components/icons';
 
 /** Business personas the console is designed around. */
-export type Persona = 'owner' | 'manager' | 'pharmacist' | 'inventory' | 'support';
+export type Persona = 'owner' | 'manager' | 'pharmacist' | 'inventory' | 'cashier' | 'support';
 
 export function personaFor(roles: string[]): Persona {
   if (roles.includes(RoleKey.ADMIN) || roles.includes(RoleKey.SUPER_ADMIN)) return 'owner';
   if (roles.includes(RoleKey.BRANCH_MANAGER)) return 'manager';
   if (roles.includes(RoleKey.PHARMACIST)) return 'pharmacist';
   if (roles.includes(RoleKey.INVENTORY_OFFICER)) return 'inventory';
+  if (roles.includes(RoleKey.CASHIER)) return 'cashier';
   return 'support';
 }
 
@@ -17,6 +18,7 @@ export const PERSONA_LABEL: Record<Persona, string> = {
   manager: 'Branch Manager',
   pharmacist: 'Pharmacist',
   inventory: 'Inventory Officer',
+  cashier: 'Cashier',
   support: 'Support',
 };
 
@@ -25,6 +27,7 @@ export const PERSONA_FOCUS: Record<Persona, string> = {
   manager: 'Branch operations & fulfilment',
   pharmacist: 'Prescription verification & dispensing',
   inventory: 'Stock, pricing & product catalog',
+  cashier: 'Counter sales & receipts',
   support: 'Customer orders & assistance',
 };
 
@@ -57,9 +60,31 @@ export const NAV: NavSection[] = [
     ],
   },
   {
+    heading: 'Sales',
+    items: [
+      {
+        label: 'Point of Sale',
+        href: '/pos',
+        icon: 'cash',
+        roles: [RoleKey.CASHIER, RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
+      },
+    ],
+  },
+  {
     heading: 'Operations',
     items: [
-      { label: 'Orders', href: '/orders', icon: 'orders' },
+      {
+        label: 'Orders',
+        href: '/orders',
+        icon: 'orders',
+        roles: [
+          RoleKey.SUPPORT,
+          RoleKey.PHARMACIST,
+          RoleKey.BRANCH_MANAGER,
+          RoleKey.ADMIN,
+          RoleKey.SUPER_ADMIN,
+        ],
+      },
       {
         label: 'Deliveries',
         href: '/deliveries',

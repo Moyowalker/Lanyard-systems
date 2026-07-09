@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { randomBytes } from 'node:crypto';
 import {
   ActorType,
@@ -10,6 +10,7 @@ import {
   PaymentIntentDto,
   PaymentInitDto,
   PaymentIntentStatus,
+  PaymentProvider,
   PaymentTxnType,
 } from '@lanyard/contracts';
 
@@ -241,6 +242,87 @@ export class PaymentService {
       channel: PaymentChannel.CARD,
       raw: { dev: true },
     });
+  }
+
+  /**
+   * Record a payment physically collected at the counter (POS): cash, a card
+   * terminal, or a bank transfer sighted by the cashier. Creates a SUCCEEDED
+   * OFFLINE intent + an append-only PaymentTransaction, then marks the order paid
+   * (which reserves stock) — all in the caller's session so the whole counter sale
+   * commits or rolls back as one unit. Idempotent via the transaction's unique
+   * providerEventId (`pos:<ourRef>`).
+   */
+  async recordOfflinePayment(
+    orderId: string,
+    channel: PaymentChannel,
+    cashierStaffId: string,
+    session: ClientSession,
+  ): Promise<{ intentId: string }> {
+    const order = await this.orderModel.findById(orderId).session(session);
+    if (!order) throw new DomainError(ErrorCode.NOT_FOUND, 'Order not found');
+
+    const ourRef = `POS-${order.orderNo}`;
+    // Replay-safe: reuse an existing intent (retry of the same sale) rather than
+    // colliding on the unique `ourRef`. The txn/markPaid steps below are themselves
+    // idempotent (unique providerEventId; markPaid no-ops once PAID).
+    const existing = await this.intentModel.findOne({ ourRef }).session(session);
+    const intent =
+      existing ??
+      (
+        await this.intentModel.create(
+          [
+            {
+              orderId: order._id,
+              provider: PaymentProvider.OFFLINE,
+              ourRef,
+              amountKobo: order.totals.totalKobo,
+              currency: order.totals.currency,
+              status: PaymentIntentStatus.SUCCEEDED,
+              idempotencyKey: ourRef,
+            },
+          ],
+          { session },
+        )
+      )[0];
+
+    const eventId = `pos:${ourRef}`;
+    const dup = await this.txnModel.exists({ providerEventId: eventId }).session(session);
+    if (!dup) {
+      await this.txnModel.create(
+        [
+          {
+            intentId: intent._id,
+            orderId: order._id,
+            provider: PaymentProvider.OFFLINE,
+            providerEventId: eventId,
+            type: PaymentTxnType.CHARGE,
+            status: 'success',
+            amountKobo: order.totals.totalKobo,
+            currency: order.totals.currency,
+            channel,
+            rawProviderPayload: { pos: true, cashierStaffId },
+          },
+        ],
+        { session },
+      );
+    }
+
+    await this.orders.markPaid(orderId, { intentId: intent._id.toString() }, session);
+
+    await this.audit.record(
+      {
+        actorId: cashierStaffId,
+        actorType: ActorType.STAFF,
+        action: 'payment.offline_recorded',
+        targetType: 'order',
+        targetId: orderId,
+        branchId: order.branchId.toString(),
+        metadata: { channel, amountKobo: order.totals.totalKobo, ourRef },
+      },
+      session,
+    );
+
+    return { intentId: intent._id.toString() };
   }
 
   private toInitDto(intent: PaymentIntent & { _id: Types.ObjectId }): PaymentInitDto {

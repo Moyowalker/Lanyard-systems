@@ -211,6 +211,7 @@ export const Icons = {
   bell: IconBell,
   reports: IconReports,
   shield: IconShield,
+  cash: IconCash,
 } as const;
 
 export type IconKey = keyof typeof Icons;

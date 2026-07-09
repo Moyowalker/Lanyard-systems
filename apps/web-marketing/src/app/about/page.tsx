@@ -50,7 +50,10 @@ export default function AboutPage() {
                 ['A real pharmacist', 'Every prescription is checked before it is dispensed.'],
                 ['Fast and flexible', 'Delivery to your door or free pickup, with live tracking.'],
               ].map(([title, body]) => (
-                <div key={title} className="rounded-xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+                <div
+                  key={title}
+                  className="rounded-xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm"
+                >
                   <div className="text-lg font-semibold">{title}</div>
                   <p className="mt-1.5 text-sm leading-7 text-white/80">{body}</p>
                 </div>

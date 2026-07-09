@@ -201,6 +201,7 @@ export default function ReportsPage() {
                 <option value="">All types</option>
                 <option value="pickup">Pickup</option>
                 <option value="delivery">Delivery</option>
+                <option value="counter">Counter (POS)</option>
               </select>
             </div>
             <div className="ml-auto flex items-center gap-2">

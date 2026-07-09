@@ -45,6 +45,7 @@ const PERMISSIONS: Array<{
   { key: 'order:read', description: 'View orders', group: 'orders' },
   { key: 'order:transition', description: 'Move orders through fulfillment', group: 'orders' },
   { key: 'order:cancel', description: 'Cancel orders', group: 'orders' },
+  { key: 'pos:sell', description: 'Ring up counter (POS) sales', group: 'pos' },
   { key: 'refund:create', description: 'Issue refunds', group: 'payments' },
   { key: 'rx:read', description: 'View prescriptions', group: 'prescriptions' },
   {
@@ -92,6 +93,12 @@ const ROLES: Array<{ key: RoleKey; name: string; permissionKeys: string[] }> = [
     ],
   },
   {
+    key: RoleKey.CASHIER,
+    name: 'Cashier',
+    // Counter sales only: ring up POS sales, look up the catalog, review own sales.
+    permissionKeys: ['pos:sell', 'catalog:read', 'order:read'],
+  },
+  {
     key: RoleKey.INVENTORY_OFFICER,
     name: 'Inventory Officer',
     // Stock, pricing, and product catalog only — no orders, prescriptions, PHI,
@@ -119,6 +126,7 @@ const ROLES: Array<{ key: RoleKey; name: string; permissionKeys: string[] }> = [
       'order:read',
       'order:transition',
       'order:cancel',
+      'pos:sell',
       'refund:create',
       'customer:read',
       'report:read',

@@ -42,5 +42,7 @@ import { AdminStaffController } from './api/admin-staff.controller';
     AuthService,
     StaffDirectoryService,
   ],
+  // CustomerAuthService is exported for the POS module (walk-in customer linking).
+  exports: [CustomerAuthService],
 })
 export class IdentityModule {}

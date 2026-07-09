@@ -41,6 +41,7 @@ export enum OtpPurpose {
 export enum RoleKey {
   SUPPORT = 'SUPPORT',
   PHARMACIST = 'PHARMACIST',
+  CASHIER = 'CASHIER',
   INVENTORY_OFFICER = 'INVENTORY_OFFICER',
   BRANCH_MANAGER = 'BRANCH_MANAGER',
   ADMIN = 'ADMIN',
@@ -132,6 +133,8 @@ export enum OrderStatus {
 export enum FulfillmentType {
   PICKUP = 'pickup',
   DELIVERY = 'delivery',
+  /** Walk-in POS sale rung up and handed over at the branch counter. */
+  COUNTER = 'counter',
 }
 
 /* ───────────────────────── Payments (Paystack at MVP) ───────────────────────── */
@@ -139,6 +142,8 @@ export enum FulfillmentType {
 export enum PaymentProvider {
   PAYSTACK = 'paystack',
   FLUTTERWAVE = 'flutterwave', // adapter exists; not enabled at MVP launch
+  /** Payment collected physically at the counter (cash / card terminal / transfer). */
+  OFFLINE = 'offline',
 }
 
 /** Status of a single payment attempt/intent with a provider. */
@@ -163,6 +168,10 @@ export enum PaymentChannel {
   CARD = 'card',
   BANK_TRANSFER = 'bank_transfer',
   USSD = 'ussd',
+  /** Cash handed over at the counter (POS). */
+  CASH = 'cash',
+  /** Physical card terminal at the counter (POS). */
+  POS_TERMINAL = 'pos_terminal',
 }
 
 export enum PaymentTxnType {
