@@ -28,7 +28,11 @@ export const PosCreateSaleSchema = z.object({
     .min(1)
     .max(100),
   payment: z.object({
-    channel: z.enum([PaymentChannel.CASH, PaymentChannel.POS_TERMINAL, PaymentChannel.BANK_TRANSFER]),
+    channel: z.enum([
+      PaymentChannel.CASH,
+      PaymentChannel.POS_TERMINAL,
+      PaymentChannel.BANK_TRANSFER,
+    ]),
   }),
   /** Optional walk-in customer capture — links the sale to a customer account by phone. */
   customer: z

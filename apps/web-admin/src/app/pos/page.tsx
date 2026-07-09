@@ -218,7 +218,11 @@ export default function PosPage() {
       const line = next.get(productId);
       if (!line) return current;
       if (quantity <= 0) next.delete(productId);
-      else next.set(productId, { ...line, quantity: Math.min(quantity, line.product.available ?? quantity) });
+      else
+        next.set(productId, {
+          ...line,
+          quantity: Math.min(quantity, line.product.available ?? quantity),
+        });
       return next;
     });
   }
@@ -272,7 +276,9 @@ export default function PosPage() {
     setError(undefined);
     if (lines.length === 0) return setError('Add at least one item to the sale.');
     if (hasPomLine && !rxNote.trim()) {
-      return setError('This sale includes prescription-only medicine — record the sighted prescription first.');
+      return setError(
+        'This sale includes prescription-only medicine — record the sighted prescription first.',
+      );
     }
     if (customerPhone.trim() && !/^\+[1-9]\d{6,14}$/.test(customerPhone.trim())) {
       return setError('Customer phone must be in international format, e.g. +2348012345678.');
@@ -317,7 +323,10 @@ export default function PosPage() {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
         {/* ── Left: product picker ── */}
-        <Panel title="Find medicines" subtitle="Search the catalog — prices and stock are for this branch">
+        <Panel
+          title="Find medicines"
+          subtitle="Search the catalog — prices and stock are for this branch"
+        >
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -562,7 +571,9 @@ export default function PosPage() {
               <tbody className="divide-y divide-slate-100">
                 {todaysSales.map((sale) => (
                   <tr key={sale.orderId} className="hover:bg-slate-50/60">
-                    <Td className="font-mono text-xs font-semibold text-slate-700">{sale.orderNo}</Td>
+                    <Td className="font-mono text-xs font-semibold text-slate-700">
+                      {sale.orderNo}
+                    </Td>
                     <Td className="text-slate-500">{formatDateTime(sale.createdAt)}</Td>
                     <Td>{sale.items.reduce((n, i) => n + i.quantity, 0)}</Td>
                     <Td>

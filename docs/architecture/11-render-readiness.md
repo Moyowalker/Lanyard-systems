@@ -178,16 +178,17 @@ API CORS must include both marketing hostnames:
 Hostinger DNS checklist:
 
 1. In Render, open `lanyard-web-marketing` and add custom domains for
-  `lanyardpharmacy.com` and `www.lanyardpharmacy.com`.
+   `lanyardpharmacy.com` and `www.lanyardpharmacy.com`.
 2. Copy the DNS records Render gives for each hostname.
 3. In Hostinger hPanel, open the DNS zone for `lanyardpharmacy.com`.
 4. Point `www` to Render using the Render-provided `CNAME` target.
 5. Point the root/apex domain to Render using the record Render provides for
-  `lanyardpharmacy.com`.
+   `lanyardpharmacy.com`.
 6. Wait for Render to mark both domains as verified and SSL certificates as issued.
 7. Confirm these URLs load the same marketing app:
-  - `https://lanyardpharmacy.com`
-  - `https://www.lanyardpharmacy.com`
+
+- `https://lanyardpharmacy.com`
+- `https://www.lanyardpharmacy.com`
 
 After DNS is live, submit the marketing contact form once. The form depends on the
 Next.js server route `/api/contact`, so it should be tested on the Render-hosted custom

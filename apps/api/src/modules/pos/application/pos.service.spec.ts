@@ -106,7 +106,9 @@ function buildService(opts: {
   const productModel = {
     find: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(opts.products) }),
   };
-  const leanChain = { select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }) };
+  const leanChain = {
+    select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }),
+  };
   const staffModel = { findById: jest.fn().mockReturnValue(leanChain) };
   const customerModel = { findById: jest.fn().mockReturnValue(leanChain) };
 

@@ -80,7 +80,11 @@ export class PosService {
       }
     }
     if (problems.length > 0) {
-      throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Sale contains unsellable items', problems);
+      throw new DomainError(
+        ErrorCode.VALIDATION_FAILED,
+        'Sale contains unsellable items',
+        problems,
+      );
     }
 
     // POM gate: a paper prescription must be sighted and noted.
@@ -255,7 +259,10 @@ export class PosService {
       createdAt: { $gte: dayStart, $lt: dayEnd },
     };
     if (query.branchId) {
-      if (!principal.branchScope.includes('ALL') && !principal.branchScope.includes(query.branchId)) {
+      if (
+        !principal.branchScope.includes('ALL') &&
+        !principal.branchScope.includes(query.branchId)
+      ) {
         throw new DomainError(ErrorCode.BRANCH_SCOPE_VIOLATION, 'Outside your branch scope');
       }
       filter.branchId = new Types.ObjectId(query.branchId);
@@ -286,7 +293,10 @@ export class PosService {
     const cashierId = order.counterSale?.cashierStaffId?.toString() ?? principal.sub;
     const [cashier, customer] = await Promise.all([
       this.staffModel.findById(cashierId).select('firstName lastName').lean(),
-      this.customerModel.findById(order.customerId).select('firstName lastName phone isWalkIn').lean(),
+      this.customerModel
+        .findById(order.customerId)
+        .select('firstName lastName phone isWalkIn')
+        .lean(),
     ]);
 
     return {
@@ -325,7 +335,8 @@ export class PosService {
             }
           : undefined,
       rxNote: order.counterSale?.rxNote,
-      createdAt: (order as unknown as { createdAt?: Date }).createdAt?.toISOString() ??
+      createdAt:
+        (order as unknown as { createdAt?: Date }).createdAt?.toISOString() ??
         new Date().toISOString(),
     };
   }
