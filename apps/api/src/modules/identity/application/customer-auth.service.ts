@@ -155,8 +155,11 @@ export class CustomerAuthService {
     // NOTE: throws NOT_FOUND for login to a missing account; production should return a
     // uniform response to avoid account enumeration (doc 07 §9). Kept explicit for dev.
     if (purpose === OtpPurpose.LOGIN) {
-      const exists = await this.customerModel.exists({ phone });
-      if (!exists) throw new DomainError(ErrorCode.NOT_FOUND, 'No account for this phone');
+      // The shared walk-in placeholder is a system account, never a real login.
+      const customer = await this.customerModel.findOne({ phone }).select('isWalkIn').lean();
+      if (!customer || customer.isWalkIn) {
+        throw new DomainError(ErrorCode.NOT_FOUND, 'No account for this phone');
+      }
     }
     return this.otp.issue(OtpChannel.SMS, phone, purpose);
   }
@@ -170,7 +173,10 @@ export class CustomerAuthService {
     await this.otp.verify(phone, purpose, code);
 
     const customer = await this.customerModel.findOne({ phone });
-    if (!customer) throw new DomainError(ErrorCode.NOT_FOUND, 'Account not found');
+    // Treat the walk-in placeholder as non-existent — it must never be authenticatable.
+    if (!customer || customer.isWalkIn) {
+      throw new DomainError(ErrorCode.NOT_FOUND, 'Account not found');
+    }
     if (customer.status !== AccountStatus.ACTIVE) {
       throw new DomainError(ErrorCode.ACCOUNT_SUSPENDED, 'Account is not active');
     }

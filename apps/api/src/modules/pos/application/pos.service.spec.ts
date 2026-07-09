@@ -52,6 +52,7 @@ type Mocks = {
   orderFindOne: jest.Mock;
   orderCreate: jest.Mock;
   orderFindById: jest.Mock;
+  orderFind: jest.Mock;
   recordOfflinePayment: jest.Mock;
   completeInSession: jest.Mock;
   findOrCreateByPhone: jest.Mock;
@@ -60,11 +61,12 @@ type Mocks = {
 };
 
 function buildService(opts: {
-  products: unknown[];
+  products?: unknown[];
   priceMap?: Map<string, { priceKobo: number; isAvailable: boolean; currency: string }>;
   availability?: Map<string, number>;
   paidStatus?: OrderStatus;
   existingByIdempotency?: unknown;
+  salesRows?: unknown[];
 }): { service: PosService; mocks: Mocks } {
   const createdOrder = {
     _id: new Types.ObjectId(),
@@ -90,6 +92,7 @@ function buildService(opts: {
       session: jest.fn().mockResolvedValue(createdOrder),
       then: (resolve: (v: unknown) => void) => resolve(createdOrder),
     })),
+    orderFind: jest.fn(),
     recordOfflinePayment: jest.fn().mockResolvedValue({ intentId: 'i1' }),
     completeInSession: jest.fn().mockResolvedValue(createdOrder),
     findOrCreateByPhone: jest.fn().mockResolvedValue({ _id: new Types.ObjectId() }),
@@ -97,11 +100,14 @@ function buildService(opts: {
     auditRecord: jest.fn().mockResolvedValue(undefined),
   };
 
+  const orderFind = jest.fn().mockReturnValue({
+    sort: jest.fn().mockReturnValue({ limit: jest.fn().mockResolvedValue(opts.salesRows ?? []) }),
+  });
   const orderModel = {
     findOne: mocks.orderFindOne,
     create: mocks.orderCreate,
     findById: mocks.orderFindById,
-    find: jest.fn(),
+    find: orderFind,
   };
   const productModel = {
     find: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(opts.products) }),
@@ -109,8 +115,18 @@ function buildService(opts: {
   const leanChain = {
     select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }),
   };
-  const staffModel = { findById: jest.fn().mockReturnValue(leanChain) };
-  const customerModel = { findById: jest.fn().mockReturnValue(leanChain) };
+  const listLeanChain = {
+    select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue([]) }),
+  };
+  const staffModel = {
+    findById: jest.fn().mockReturnValue(leanChain),
+    find: jest.fn().mockReturnValue(listLeanChain),
+  };
+  const customerModel = {
+    findById: jest.fn().mockReturnValue(leanChain),
+    find: jest.fn().mockReturnValue(listLeanChain),
+  };
+  mocks.orderFind = orderFind;
 
   const service = new PosService(
     orderModel as never,
@@ -283,5 +299,66 @@ describe('PosService.createSale', () => {
     expect(sale.orderNo).toBe('LNY-FIRST');
     expect(mocks.orderCreate).not.toHaveBeenCalled();
     expect(mocks.recordOfflinePayment).not.toHaveBeenCalled();
+  });
+});
+
+describe('PosService.listSales (authorization)', () => {
+  function managerPrincipal(overrides: Partial<AuthPrincipal> = {}): AuthPrincipal {
+    return {
+      sub: STAFF_ID,
+      realm: 'staff',
+      roles: ['BRANCH_MANAGER'],
+      permissions: ['pos:sell', 'order:read', 'order:transition'],
+      branchScope: [BRANCH_ID],
+      sessionId: 's1',
+      ...overrides,
+    } as AuthPrincipal;
+  }
+
+  function filterFor(mocks: Mocks): Record<string, unknown> {
+    return mocks.orderFind.mock.calls[0][0] as Record<string, unknown>;
+  }
+
+  it('always filters to counter fulfilment and a single day window', async () => {
+    const { service, mocks } = buildService({});
+    await service.listSales(managerPrincipal(), { limit: 50 } as never);
+    const filter = filterFor(mocks);
+    expect(filter['fulfillment.type']).toBe('counter');
+    expect(filter.createdAt).toEqual(
+      expect.objectContaining({ $gte: expect.any(Date), $lt: expect.any(Date) }),
+    );
+  });
+
+  it('restricts a cashier (no order:transition) to their own sales', async () => {
+    const { service, mocks } = buildService({});
+    // `principal` is a CASHIER with pos:sell/catalog:read/order:read (no order:transition).
+    await service.listSales(principal, { limit: 50 } as never);
+    expect(filterFor(mocks)['counterSale.cashierStaffId']).toBeDefined();
+  });
+
+  it('does not self-restrict a manager by default', async () => {
+    const { service, mocks } = buildService({});
+    await service.listSales(managerPrincipal(), { limit: 50 } as never);
+    expect(filterFor(mocks)['counterSale.cashierStaffId']).toBeUndefined();
+  });
+
+  it('honours an explicit mine=true for a manager, but not mine=false', async () => {
+    const yes = buildService({});
+    await yes.service.listSales(managerPrincipal(), { mine: 'true', limit: 50 } as never);
+    expect(filterFor(yes.mocks)['counterSale.cashierStaffId']).toBeDefined();
+
+    const no = buildService({});
+    await no.service.listSales(managerPrincipal(), { mine: 'false', limit: 50 } as never);
+    expect(filterFor(no.mocks)['counterSale.cashierStaffId']).toBeUndefined();
+  });
+
+  it('rejects a branch outside the caller scope', async () => {
+    const { service } = buildService({});
+    await expect(
+      service.listSales(managerPrincipal(), {
+        branchId: new Types.ObjectId().toString(),
+        limit: 50,
+      } as never),
+    ).rejects.toMatchObject({ code: ErrorCode.BRANCH_SCOPE_VIOLATION });
   });
 });

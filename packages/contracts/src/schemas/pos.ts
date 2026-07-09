@@ -9,6 +9,28 @@ import { PaymentChannel } from '../enums';
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
 const phone = z.string().regex(/^\+[1-9]\d{6,14}$/, 'phone must be E.164, e.g. +2348012345678');
 
+/** A real yyyy-mm-dd calendar date (rejects e.g. 2026-99-99, not just the wrong shape). */
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    );
+  }, 'date must be a valid yyyy-mm-dd date');
+
+/** Query-string boolean values. Interpret truthiness at the call site: only "true"/"1". */
+const queryBool = z.enum(['true', 'false', '1', '0', '']);
+
+/** Whether a query-string boolean value means true. */
+export function isQueryTrue(value?: string): boolean {
+  return value === 'true' || value === '1';
+}
+
 /** Payment methods a cashier can record at the counter. */
 export const POS_PAYMENT_CHANNELS = [
   PaymentChannel.CASH,
@@ -55,12 +77,9 @@ export type PosCreateSaleInput = z.infer<typeof PosCreateSaleSchema>;
 export const PosSalesQuerySchema = z.object({
   branchId: objectId.optional(),
   /** ISO date (yyyy-mm-dd); defaults to today on the server. */
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
+  date: isoDate.optional(),
   /** Only the requesting cashier's sales (forced server-side for cashiers). */
-  mine: z.coerce.boolean().optional(),
+  mine: queryBool.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export type PosSalesQuery = z.infer<typeof PosSalesQuerySchema>;

@@ -12,6 +12,7 @@ import {
   PosSalesQuery,
   ProductStatus,
   RegulatoryClass,
+  isQueryTrue,
 } from '@lanyard/contracts';
 
 import { Order, OrderDocument } from '../../order/infrastructure/order.schema';
@@ -27,6 +28,21 @@ import { AuditService } from '../../../core/platform/audit.service';
 import { TransactionService } from '../../../core/platform/transaction.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { AuthPrincipal } from '../../../core/auth/principal';
+
+/** Distinct, defined ObjectIds — for a single batched `$in` lookup. */
+function uniqueIds(ids: Array<Types.ObjectId | undefined>): Types.ObjectId[] {
+  const seen = new Set<string>();
+  const out: Types.ObjectId[] = [];
+  for (const id of ids) {
+    if (!id) continue;
+    const key = id.toString();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(id);
+    }
+  }
+  return out;
+}
 
 /**
  * Point-of-sale counter sales. A sale is a REAL order (fulfillment type "counter")
@@ -56,7 +72,7 @@ export class PosService {
     const existing = await this.orderModel.findOne({
       'counterSale.idempotencyKey': input.idempotencyKey,
     });
-    if (existing) return this.toDto(existing, principal);
+    if (existing) return this.hydrateOne(existing, principal);
 
     // ── validate products ──
     const productIds = input.items.map((i) => i.productId);
@@ -240,13 +256,13 @@ export class PosService {
         const winner = await this.orderModel.findOne({
           'counterSale.idempotencyKey': input.idempotencyKey,
         });
-        if (winner) return this.toDto(winner, principal);
+        if (winner) return this.hydrateOne(winner, principal);
       }
       throw err;
     }
 
     const fresh = await this.orderModel.findById(order._id);
-    return this.toDto(fresh ?? order, principal);
+    return this.hydrateOne(fresh ?? order, principal);
   }
 
   /** Counter sales for the sales panel. Cashiers see their own; managers the branch. */
@@ -272,24 +288,40 @@ export class PosService {
 
     // Cashiers (no order:transition permission) only ever see their own sales.
     const restrictedToSelf = !principal.permissions.includes('order:transition');
-    if (restrictedToSelf || query.mine) {
+    if (restrictedToSelf || isQueryTrue(query.mine)) {
       filter['counterSale.cashierStaffId'] = new Types.ObjectId(principal.sub);
     }
 
     const rows = await this.orderModel.find(filter).sort({ createdAt: -1 }).limit(query.limit);
-    const data = await Promise.all(rows.map((o) => this.toDto(o, principal)));
+
+    // Batch-fetch cashier + customer records once (avoids N+1 over the result set).
+    const cashierIds = uniqueIds(rows.map((o) => o.counterSale?.cashierStaffId));
+    const customerIds = uniqueIds(rows.map((o) => o.customerId));
+    const [cashiers, customers] = await Promise.all([
+      cashierIds.length
+        ? this.staffModel
+            .find({ _id: { $in: cashierIds } })
+            .select('firstName lastName')
+            .lean()
+        : [],
+      customerIds.length
+        ? this.customerModel
+            .find({ _id: { $in: customerIds } })
+            .select('firstName lastName phone isWalkIn')
+            .lean()
+        : [],
+    ]);
+    const cashierById = new Map(cashiers.map((c) => [c._id.toString(), c]));
+    const customerById = new Map(customers.map((c) => [c._id.toString(), c]));
+
+    const data = rows.map((o) => this.toDto(o, principal, { cashierById, customerById }));
     return { data };
   }
 
   /* ── helpers ── */
 
-  private startOfToday(): Date {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return now;
-  }
-
-  private async toDto(order: OrderDocument, principal: AuthPrincipal): Promise<PosSaleDto> {
+  /** Fetch the cashier + customer for a single order, then map it to a DTO. */
+  private async hydrateOne(order: OrderDocument, principal: AuthPrincipal): Promise<PosSaleDto> {
     const cashierId = order.counterSale?.cashierStaffId?.toString() ?? principal.sub;
     const [cashier, customer] = await Promise.all([
       this.staffModel.findById(cashierId).select('firstName lastName').lean(),
@@ -298,6 +330,32 @@ export class PosService {
         .select('firstName lastName phone isWalkIn')
         .lean(),
     ]);
+    return this.toDto(order, principal, {
+      cashierById: new Map(cashier ? [[cashierId, cashier]] : []),
+      customerById: new Map(customer ? [[order.customerId.toString(), customer]] : []),
+    });
+  }
+
+  private startOfToday(): Date {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }
+
+  private toDto(
+    order: OrderDocument,
+    principal: AuthPrincipal,
+    lookups: {
+      cashierById: Map<string, { firstName?: string; lastName?: string }>;
+      customerById: Map<
+        string,
+        { firstName?: string; lastName?: string; phone?: string; isWalkIn?: boolean }
+      >;
+    },
+  ): PosSaleDto {
+    const cashierId = order.counterSale?.cashierStaffId?.toString() ?? principal.sub;
+    const cashier = lookups.cashierById.get(cashierId);
+    const customer = lookups.customerById.get(order.customerId.toString());
 
     return {
       orderId: order._id.toString(),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BranchSummaryDto,
   Paginated,
@@ -49,10 +49,12 @@ function Receipt({
   sale,
   branchName,
   onNewSale,
+  onBack,
 }: {
   sale: PosSaleDto;
   branchName?: string;
-  onNewSale: () => void;
+  onNewSale?: () => void;
+  onBack?: () => void;
 }) {
   return (
     <div className="mx-auto max-w-xl">
@@ -132,7 +134,12 @@ function Receipt({
         <Button variant="secondary" onClick={() => window.print()}>
           Print receipt
         </Button>
-        <Button onClick={onNewSale}>New sale</Button>
+        {onBack ? (
+          <Button variant="secondary" onClick={onBack}>
+            Back to till
+          </Button>
+        ) : null}
+        {onNewSale ? <Button onClick={onNewSale}>New sale</Button> : null}
       </div>
     </div>
   );
@@ -150,6 +157,8 @@ export default function PosPage() {
   const [rxNote, setRxNote] = useState('');
   const [error, setError] = useState<string>();
   const [completedSale, setCompletedSale] = useState<PosSaleDto | null>(null);
+  // A receipt opened from the history table — dismiss it without touching the live cart.
+  const [viewingPastSale, setViewingPastSale] = useState(false);
   const idempotencyKey = useRef<string>('');
 
   const branchesQ = useQuery({
@@ -166,12 +175,20 @@ export default function PosPage() {
     if (!branchId && branches[0]?.id) setBranchId(branches[0].id);
   }, [branchId, branches]);
 
+  // Debounce the search so we don't refetch on every keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const productsQ = useQuery({
-    queryKey: ['pos-products', branchId, search],
+    queryKey: ['pos-products', branchId, debouncedSearch],
     enabled: Boolean(branchId),
+    placeholderData: keepPreviousData, // keep results visible while the next search loads
     queryFn: async () => {
       const params = new URLSearchParams({ branchId, limit: '30' });
-      if (search.trim()) params.set('q', search.trim());
+      if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim());
       const res = await fetch(`/api/catalog/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<ProductListItemDto>;
@@ -200,14 +217,15 @@ export default function PosPage() {
 
   function addToCart(product: ProductListItemDto) {
     if (isControlled(product) || product.price == null || product.inStock === false) return;
+    // Mint one idempotency key per physical sale (kept out of the state updater so it
+    // stays pure under Strict Mode double-invocation).
+    if (!idempotencyKey.current) idempotencyKey.current = crypto.randomUUID();
     setCart((current) => {
       const next = new Map(current);
       const existing = next.get(product.id);
       const available = product.available ?? 0;
       const quantity = Math.min((existing?.quantity ?? 0) + 1, Math.max(available, 1));
       next.set(product.id, { product, quantity });
-      // Mint one idempotency key per physical sale (first item added).
-      if (current.size === 0) idempotencyKey.current = crypto.randomUUID();
       return next;
     });
   }
@@ -264,6 +282,7 @@ export default function PosPage() {
       return body as PosSaleDto;
     },
     onSuccess: async (sale) => {
+      setViewingPastSale(false);
       setCompletedSale(sale);
       setError(undefined);
       await queryClient.invalidateQueries({ queryKey: ['pos-sales', branchId] });
@@ -288,12 +307,28 @@ export default function PosPage() {
 
   const branchName = branches.find((b) => b.id === branchId)?.name;
 
-  // Post-sale: show the receipt in place of the till.
+  // Show a receipt: after a fresh sale (start a new sale next), or when reopened from
+  // history (dismiss back to the in-progress till without clearing it).
   if (completedSale) {
     return (
       <div>
-        <PageHeader title="Sale recorded" subtitle="Hand the customer their receipt" />
-        <Receipt sale={completedSale} branchName={branchName} onNewSale={resetSale} />
+        <PageHeader
+          title={viewingPastSale ? 'Receipt' : 'Sale recorded'}
+          subtitle={viewingPastSale ? 'A past counter sale' : 'Hand the customer their receipt'}
+        />
+        <Receipt
+          sale={completedSale}
+          branchName={branchName}
+          onNewSale={viewingPastSale ? undefined : resetSale}
+          onBack={
+            viewingPastSale
+              ? () => {
+                  setCompletedSale(null);
+                  setViewingPastSale(false);
+                }
+              : undefined
+          }
+        />
       </div>
     );
   }
@@ -585,7 +620,13 @@ export default function PosPage() {
                       {formatKobo(sale.totals.totalKobo)}
                     </Td>
                     <Td right>
-                      <Button variant="secondary" onClick={() => setCompletedSale(sale)}>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setViewingPastSale(true);
+                          setCompletedSale(sale);
+                        }}
+                      >
                         Receipt
                       </Button>
                     </Td>

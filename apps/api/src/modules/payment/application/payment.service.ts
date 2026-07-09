@@ -262,38 +262,50 @@ export class PaymentService {
     if (!order) throw new DomainError(ErrorCode.NOT_FOUND, 'Order not found');
 
     const ourRef = `POS-${order.orderNo}`;
-    const [intent] = await this.intentModel.create(
-      [
-        {
-          orderId: order._id,
-          provider: PaymentProvider.OFFLINE,
-          ourRef,
-          amountKobo: order.totals.totalKobo,
-          currency: order.totals.currency,
-          status: PaymentIntentStatus.SUCCEEDED,
-          idempotencyKey: ourRef,
-        },
-      ],
-      { session },
-    );
+    // Replay-safe: reuse an existing intent (retry of the same sale) rather than
+    // colliding on the unique `ourRef`. The txn/markPaid steps below are themselves
+    // idempotent (unique providerEventId; markPaid no-ops once PAID).
+    const existing = await this.intentModel.findOne({ ourRef }).session(session);
+    const intent =
+      existing ??
+      (
+        await this.intentModel.create(
+          [
+            {
+              orderId: order._id,
+              provider: PaymentProvider.OFFLINE,
+              ourRef,
+              amountKobo: order.totals.totalKobo,
+              currency: order.totals.currency,
+              status: PaymentIntentStatus.SUCCEEDED,
+              idempotencyKey: ourRef,
+            },
+          ],
+          { session },
+        )
+      )[0];
 
-    await this.txnModel.create(
-      [
-        {
-          intentId: intent._id,
-          orderId: order._id,
-          provider: PaymentProvider.OFFLINE,
-          providerEventId: `pos:${ourRef}`,
-          type: PaymentTxnType.CHARGE,
-          status: 'success',
-          amountKobo: order.totals.totalKobo,
-          currency: order.totals.currency,
-          channel,
-          rawProviderPayload: { pos: true, cashierStaffId },
-        },
-      ],
-      { session },
-    );
+    const eventId = `pos:${ourRef}`;
+    const dup = await this.txnModel.exists({ providerEventId: eventId }).session(session);
+    if (!dup) {
+      await this.txnModel.create(
+        [
+          {
+            intentId: intent._id,
+            orderId: order._id,
+            provider: PaymentProvider.OFFLINE,
+            providerEventId: eventId,
+            type: PaymentTxnType.CHARGE,
+            status: 'success',
+            amountKobo: order.totals.totalKobo,
+            currency: order.totals.currency,
+            channel,
+            rawProviderPayload: { pos: true, cashierStaffId },
+          },
+        ],
+        { session },
+      );
+    }
 
     await this.orders.markPaid(orderId, { intentId: intent._id.toString() }, session);
 
