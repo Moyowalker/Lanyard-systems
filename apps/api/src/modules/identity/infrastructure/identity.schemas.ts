@@ -61,6 +61,10 @@ export class Customer {
   @Prop({ type: String, enum: AccountStatus, default: AccountStatus.ACTIVE, index: true })
   status: AccountStatus;
 
+  /** System placeholder for anonymous POS counter sales — never notified or marketed to. */
+  @Prop({ type: Boolean, default: false })
+  isWalkIn?: boolean;
+
   @Prop({ type: Date })
   lastLoginAt?: Date;
 

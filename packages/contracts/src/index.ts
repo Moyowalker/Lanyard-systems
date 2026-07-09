@@ -15,6 +15,7 @@ export * from './schemas/prescription';
 export * from './schemas/cart';
 export * from './schemas/order';
 export * from './schemas/payment';
+export * from './schemas/pos';
 export * from './schemas/audit';
 export * from './schemas/content';
 export * from './schemas/reports';

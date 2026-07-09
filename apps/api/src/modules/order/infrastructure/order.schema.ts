@@ -5,6 +5,7 @@ import {
   FulfillmentType,
   OrderPaymentStatus,
   OrderStatus,
+  PaymentChannel,
   ProductForm,
   RoleKey,
 } from '@lanyard/contracts';
@@ -102,6 +103,28 @@ export class OrderCancellation {
 }
 export const OrderCancellationSchema = SchemaFactory.createForClass(OrderCancellation);
 
+/**
+ * Present only on counter (POS) sales — the over-the-counter compliance record:
+ * who rang the sale up, how it was paid, and for prescription-only items the
+ * "prescription sighted" note a regulator can query.
+ */
+@Schema({ _id: false })
+export class OrderCounterSale {
+  @Prop({ type: Types.ObjectId, ref: 'StaffUser', required: true })
+  cashierStaffId: Types.ObjectId;
+
+  @Prop({ type: String, enum: PaymentChannel, required: true })
+  paymentChannel: PaymentChannel;
+
+  @Prop({ type: String, trim: true, maxlength: 500 })
+  rxNote?: string;
+
+  /** Client-minted UUID; the sparse unique index below makes double-submits idempotent. */
+  @Prop({ type: String, required: true })
+  idempotencyKey: string;
+}
+export const OrderCounterSaleSchema = SchemaFactory.createForClass(OrderCounterSale);
+
 @Schema({ ...baseSchemaOptions, collection: 'orders' })
 export class Order {
   /** Human-friendly, unique reference, e.g. "LNY-24F3K9". */
@@ -149,6 +172,9 @@ export class Order {
 
   @Prop({ type: OrderCancellationSchema })
   cancellation?: OrderCancellation;
+
+  @Prop({ type: OrderCounterSaleSchema })
+  counterSale?: OrderCounterSale;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
@@ -157,3 +183,7 @@ OrderSchema.index({ customerId: 1, createdAt: -1 });
 OrderSchema.index({ branchId: 1, status: 1, createdAt: -1 }); // staff queues
 OrderSchema.index({ status: 1, 'payment.status': 1 }); // reconciliation sweeps
 OrderSchema.index({ requiresRxVerification: 1, status: 1 }); // pharmacist queue
+// POS double-submit safety: same idempotency key returns the same sale.
+OrderSchema.index({ 'counterSale.idempotencyKey': 1 }, { unique: true, sparse: true });
+// Cashier's "today's sales" view.
+OrderSchema.index({ 'counterSale.cashierStaffId': 1, createdAt: -1 }, { sparse: true });

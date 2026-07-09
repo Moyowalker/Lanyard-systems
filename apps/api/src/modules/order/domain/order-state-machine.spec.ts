@@ -27,9 +27,13 @@ describe('order state machine', () => {
 
   it('rejects illegal transitions', () => {
     expect(canTransition(OrderStatus.AWAITING_PAYMENT, OrderStatus.COMPLETED)).toBe(false);
-    expect(canTransition(OrderStatus.PAID, OrderStatus.COMPLETED)).toBe(false);
+    expect(canTransition(OrderStatus.CREATED, OrderStatus.PAID)).toBe(false);
     expect(canTransition(OrderStatus.AWAITING_RX_VERIFICATION, OrderStatus.PAID)).toBe(false);
     expect(canTransition(OrderStatus.REFUNDED, OrderStatus.PAID)).toBe(false);
+  });
+
+  it('allows a counter (POS) sale to complete straight from PAID', () => {
+    expect(canTransition(OrderStatus.PAID, OrderStatus.COMPLETED)).toBe(true);
   });
 
   it('treats terminal states as terminal', () => {
@@ -44,7 +48,7 @@ describe('order state machine', () => {
   it('assertTransition throws DomainError(CONFLICT) on an illegal move', () => {
     let err: unknown;
     try {
-      assertTransition(OrderStatus.PAID, OrderStatus.COMPLETED);
+      assertTransition(OrderStatus.AWAITING_PAYMENT, OrderStatus.COMPLETED);
     } catch (e) {
       err = e;
     }

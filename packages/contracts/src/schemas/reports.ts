@@ -9,8 +9,8 @@ export const ReportRangeSchema = z.object({
   to: z.coerce.date().optional(),
   /** Narrow to a single branch (must be within the caller's branch scope). */
   branchId: reportObjectId.optional(),
-  /** Narrow to pickup or delivery orders. */
-  fulfillmentType: z.enum(['pickup', 'delivery']).optional(),
+  /** Narrow to pickup, delivery, or counter (POS) orders. */
+  fulfillmentType: z.enum(['pickup', 'delivery', 'counter']).optional(),
 });
 export type ReportRangeQuery = z.infer<typeof ReportRangeSchema>;
 

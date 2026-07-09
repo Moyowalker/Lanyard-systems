@@ -20,6 +20,8 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
     OrderStatus.STOCK_HOLD,
     OrderStatus.CANCELLED,
     OrderStatus.REFUNDED,
+    // Counter (POS) sales complete immediately: paid at the till, goods handed over.
+    OrderStatus.COMPLETED,
   ],
   [OrderStatus.STOCK_HOLD]: [OrderStatus.FULFILLING, OrderStatus.CANCELLED, OrderStatus.REFUNDED],
   [OrderStatus.FULFILLING]: [
