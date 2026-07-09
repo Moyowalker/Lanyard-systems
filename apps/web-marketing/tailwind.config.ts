@@ -33,10 +33,12 @@ const config: Config = {
         },
         // Amber accent — reserved for the prescription (℞) lane.
         seal: {
+          50: '#fffbeb',
           100: '#fef3c7',
           200: '#fde68a',
           300: '#fcd34d',
           400: '#f59e0b',
+          700: '#b45309',
         },
       },
       fontFamily: {

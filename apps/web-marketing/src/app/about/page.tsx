@@ -40,19 +40,22 @@ export default function AboutPage() {
           </p>
         </article>
 
-        <article className="mesh-panel rounded-2xl p-7 text-white sm:p-8">
-          <div className="eyebrow text-brand-100">What you can count on</div>
-          <div className="mt-6 grid gap-4">
-            {[
-              ['Genuine medicines', 'NAFDAC-registered and dispensed by a licensed pharmacy.'],
-              ['A real pharmacist', 'Every prescription is checked before it is dispensed.'],
-              ['Fast and flexible', 'Delivery to your door or free pickup, with live tracking.'],
-            ].map(([title, body]) => (
-              <div key={title} className="rounded-xl bg-white/10 p-5">
-                <div className="text-lg font-semibold">{title}</div>
-                <p className="mt-1.5 text-sm leading-7 text-white/80">{body}</p>
-              </div>
-            ))}
+        <article className="relative overflow-hidden rounded-[28px] bg-[linear-gradient(150deg,#062f2d,#0f3b39_55%,#0d9488)] p-7 text-white shadow-lift sm:p-8">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_88%_18%,rgba(245,158,11,0.2),transparent_30%)]" />
+          <div className="relative">
+            <div className="eyebrow text-brand-100">What you can count on</div>
+            <div className="mt-6 grid gap-4">
+              {[
+                ['Genuine medicines', 'NAFDAC-registered and dispensed by a licensed pharmacy.'],
+                ['A real pharmacist', 'Every prescription is checked before it is dispensed.'],
+                ['Fast and flexible', 'Delivery to your door or free pickup, with live tracking.'],
+              ].map(([title, body]) => (
+                <div key={title} className="rounded-xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+                  <div className="text-lg font-semibold">{title}</div>
+                  <p className="mt-1.5 text-sm leading-7 text-white/80">{body}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </article>
       </section>
@@ -66,7 +69,7 @@ export default function AboutPage() {
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {principles.map((principle) => (
-            <article key={principle.title} className="surface-card p-6">
+            <article key={principle.title} className="surface-card hover-lift p-6">
               <h3 className="text-base font-semibold text-ink-900">{principle.title}</h3>
               <p className="mt-3 text-sm leading-7 text-ink-900/70">{principle.body}</p>
             </article>
@@ -74,16 +77,18 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="surface-card flex flex-col gap-5 p-8 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="eyebrow">Ready when you are</div>
-          <h2 className="mt-2 text-2xl font-semibold text-ink-900">
-            Get your medicines the easy way.
-          </h2>
+      <section className="relative overflow-hidden rounded-[28px] border border-brand-100 bg-[linear-gradient(150deg,#f0fdfa,#ffffff_45%,#fffbeb)] p-8 shadow-card">
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="eyebrow">Ready when you are</div>
+            <h2 className="mt-2 text-2xl font-semibold text-ink-900">
+              Get your medicines the easy way.
+            </h2>
+          </div>
+          <StoreLink source="about-next-step" className="cta-primary">
+            Start shopping
+          </StoreLink>
         </div>
-        <StoreLink source="about-next-step" className="cta-primary">
-          Start shopping
-        </StoreLink>
       </section>
     </div>
   );

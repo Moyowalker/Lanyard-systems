@@ -32,8 +32,21 @@ export default function ServicesPage() {
 
         <div className="grid gap-5 lg:grid-cols-3">
           {serviceTracks.map((service, index) => (
-            <article key={service.title} className="surface-card p-7">
-              <div className="pill bg-brand-50 text-brand-800">0{index + 1}</div>
+            <article
+              key={service.title}
+              className={`hover-lift rounded-2xl border p-7 shadow-card ${
+                index === 0
+                  ? 'border-brand-100 bg-gradient-to-b from-brand-50/80 to-white'
+                  : index === 2
+                    ? 'border-seal-200 bg-gradient-to-b from-seal-50/80 to-white'
+                    : 'border-paper-200 bg-white'
+              }`}
+            >
+              <div
+                className={`pill ${index === 2 ? 'bg-seal-100 text-ink-900' : 'bg-brand-50 text-brand-800'}`}
+              >
+                0{index + 1}
+              </div>
               <h2 className="mt-5 text-xl font-semibold text-ink-900">{service.title}</h2>
               <p className="mt-3 text-sm leading-7 text-ink-900/75">{service.body}</p>
               <ul className="mt-5 space-y-2.5 text-sm text-ink-900/80">
@@ -50,15 +63,18 @@ export default function ServicesPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-        <article className="mesh-panel rounded-2xl p-8 text-white">
-          <div className="eyebrow text-brand-100">Always handled with care</div>
-          <h2 className="mt-3 text-3xl font-semibold">
-            Genuine medicine, checked before it reaches you.
-          </h2>
-          <p className="mt-4 text-sm leading-7 text-white/80">
-            Every order is grounded in real branch stock, and every prescription is reviewed by a
-            licensed pharmacist before it is dispensed — so you can order with confidence.
-          </p>
+        <article className="relative overflow-hidden rounded-[28px] bg-[linear-gradient(150deg,#062f2d,#0f3b39_55%,#0d9488)] p-8 text-white shadow-lift">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_88%_18%,rgba(245,158,11,0.2),transparent_30%)]" />
+          <div className="relative">
+            <div className="eyebrow text-brand-100">Always handled with care</div>
+            <h2 className="mt-3 text-3xl font-semibold">
+              Genuine medicine, checked before it reaches you.
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-white/80">
+              Every order is grounded in real branch stock, and every prescription is reviewed by a
+              licensed pharmacist before it is dispensed — so you can order with confidence.
+            </p>
+          </div>
         </article>
 
         <article className="surface-card p-8">
@@ -72,7 +88,7 @@ export default function ServicesPage() {
             ].map((item) => (
               <div
                 key={item}
-                className="rounded-xl border border-paper-200 bg-paper-50 px-4 py-3.5 text-sm font-medium text-ink-900"
+                className="hover-lift rounded-xl border border-paper-200 bg-paper-50 px-4 py-3.5 text-sm font-medium text-ink-900"
               >
                 {item}
               </div>

@@ -25,7 +25,7 @@ export default function ContactPage() {
 
       <section className="grid gap-5 lg:grid-cols-3">
         {contactChannels.map((channel) => (
-          <article key={channel.title} className="surface-card p-6">
+          <article key={channel.title} className="surface-card hover-lift p-6">
             <div className="eyebrow">{channel.title}</div>
             <h2 className="mt-3 text-xl font-semibold text-ink-900">{channel.detail}</h2>
             <p className="mt-3 text-sm leading-7 text-ink-900/70">{channel.note}</p>
@@ -34,13 +34,16 @@ export default function ContactPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <article className="mesh-panel rounded-2xl p-8 text-white">
-          <div className="eyebrow text-brand-100">Talk to a real person</div>
-          <h2 className="mt-3 text-3xl font-semibold">Care that answers, clearly.</h2>
-          <p className="mt-4 text-sm leading-7 text-white/80">
-            Our team helps with the things that matter before you order: which branch to use,
-            whether you need a prescription, delivery times, and what happens next.
-          </p>
+        <article className="relative overflow-hidden rounded-[28px] bg-[linear-gradient(150deg,#062f2d,#0f3b39_55%,#0d9488)] p-8 text-white shadow-lift">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_88%_18%,rgba(245,158,11,0.2),transparent_30%)]" />
+          <div className="relative">
+            <div className="eyebrow text-brand-100">Talk to a real person</div>
+            <h2 className="mt-3 text-3xl font-semibold">Care that answers, clearly.</h2>
+            <p className="mt-4 text-sm leading-7 text-white/80">
+              Our team helps with the things that matter before you order: which branch to use,
+              whether you need a prescription, delivery times, and what happens next.
+            </p>
+          </div>
         </article>
 
         <ContactForm />
@@ -68,7 +71,7 @@ export default function ContactPage() {
           ].map((item) => (
             <div
               key={item}
-              className="rounded-xl border border-paper-200 bg-paper-50 px-4 py-3.5 text-sm font-medium text-ink-900"
+              className="hover-lift rounded-xl border border-paper-200 bg-paper-50 px-4 py-3.5 text-sm font-medium text-ink-900"
             >
               {item}
             </div>
