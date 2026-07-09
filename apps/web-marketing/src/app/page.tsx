@@ -16,7 +16,11 @@ const benefits = [
 ] as const;
 
 const steps = [
-  { n: '1', title: 'Search or upload', body: 'Find your medicine fast, or send your prescription in one step.' },
+  {
+    n: '1',
+    title: 'Search or upload',
+    body: 'Find your medicine fast, or send your prescription in one step.',
+  },
   {
     n: '2',
     title: 'Smart branch matching',
@@ -380,7 +384,9 @@ export default async function HomePage() {
 
                 {/* assistant response */}
                 <div className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-white/10 bg-white/10 px-4 py-3 text-sm backdrop-blur-sm">
-                  <span className="shimmer-text font-semibold">Found both at Ago Palace branch</span>
+                  <span className="shimmer-text font-semibold">
+                    Found both at Ago Palace branch
+                  </span>
                   <div className="mt-2 space-y-1.5">
                     <div className="flex items-center justify-between gap-6 rounded-lg bg-white/10 px-3 py-1.5 text-xs">
                       <span>Paracetamol 500mg</span>
@@ -396,12 +402,20 @@ export default async function HomePage() {
                 {/* status updates */}
                 <div className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-white/10 bg-white/10 px-4 py-3 text-sm backdrop-blur-sm">
                   <div className="flex items-center gap-2 text-xs font-semibold text-brand-200">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-4 w-4">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2.2}
+                      className="h-4 w-4"
+                    >
                       <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     Pharmacist approved your prescription
                   </div>
-                  <div className="mt-1.5 text-xs text-white/65">Rider is on the way · arriving ~45 min</div>
+                  <div className="mt-1.5 text-xs text-white/65">
+                    Rider is on the way · arriving ~45 min
+                  </div>
                 </div>
 
                 {/* typing indicator */}
@@ -459,7 +473,9 @@ export default async function HomePage() {
                 </div>
                 <div className="hover-lift rounded-2xl border border-seal-200 bg-gradient-to-br from-seal-50 to-white p-4">
                   <div className="text-2xl font-semibold text-ink-900">100%</div>
-                  <div className="mt-1 text-xs text-ink-900/60">prescriptions checked by a pharmacist</div>
+                  <div className="mt-1 text-xs text-ink-900/60">
+                    prescriptions checked by a pharmacist
+                  </div>
                 </div>
               </div>
             </div>

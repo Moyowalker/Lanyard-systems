@@ -45,7 +45,10 @@ export function SiteHeader() {
                 </Link>
               ))}
             </nav>
-            <StoreLink source="header-shop-mobile" className="cta-primary mt-3 w-full px-4 py-3 text-sm">
+            <StoreLink
+              source="header-shop-mobile"
+              className="cta-primary mt-3 w-full px-4 py-3 text-sm"
+            >
               Shop now
             </StoreLink>
           </div>
