@@ -28,8 +28,12 @@ export default function FaqPage() {
 
       <section className="grid gap-5 lg:grid-cols-2">
         {faqs.map((faq, index) => (
-          <article key={faq.question} className="surface-card p-7">
-            <div className="pill bg-brand-50 text-brand-800">Q0{index + 1}</div>
+          <article key={faq.question} className="surface-card hover-lift p-7">
+            <div
+              className={`pill ${index % 2 === 0 ? 'bg-brand-50 text-brand-800' : 'bg-seal-100 text-ink-900'}`}
+            >
+              Q0{index + 1}
+            </div>
             <h2 className="mt-5 text-xl font-semibold text-ink-900">{faq.question}</h2>
             <p className="mt-4 text-sm leading-7 text-ink-900/70">{faq.answer}</p>
           </article>
