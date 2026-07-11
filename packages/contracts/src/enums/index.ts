@@ -137,11 +137,11 @@ export enum FulfillmentType {
   COUNTER = 'counter',
 }
 
-/* ───────────────────────── Payments (Paystack at MVP) ───────────────────────── */
+/* ───────────────────────── Payments ───────────────────────── */
 
 export enum PaymentProvider {
   PAYSTACK = 'paystack',
-  FLUTTERWAVE = 'flutterwave', // adapter exists; not enabled at MVP launch
+  FLUTTERWAVE = 'flutterwave',
   /** Payment collected physically at the counter (cash / card terminal / transfer). */
   OFFLINE = 'offline',
 }

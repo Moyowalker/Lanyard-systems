@@ -58,8 +58,8 @@ Do not launch with mock or unverified provider behavior.
 - [ ] Enable automated backups.
 - [ ] Enable point-in-time recovery.
 - [ ] Run and document a restore drill.
-- [ ] Add Paystack credentials.
-- [ ] Configure the Paystack webhook URL.
+- [ ] Choose `PAYMENT_PROVIDER` (`paystack` or `flutterwave`) and add matching credentials.
+- [ ] Configure the selected provider webhook URL.
 - [ ] Add Sendchamp SMS credentials.
 - [ ] Add SMTP/email credentials.
 - [ ] Add S3-compatible storage credentials.
@@ -76,8 +76,8 @@ the live Render services match the file. Run the staging payment checklist in
 ### Minimum proof required
 
 - Render environment variables present, without exposing secret values.
-- Paystack webhook configured.
-- Test order paid through Paystack.
+- Selected provider webhook configured.
+- Test order paid through selected provider.
 - Webhook received and order marked paid.
 - Duplicate webhook handled safely.
 - MongoDB restore drill documented with date, owner, recovery time, and result.

@@ -16,9 +16,9 @@ import {
 } from '../../../database/schema.helpers';
 
 /* ════════════════════════════════════════════════════════════════════════
- * payment_intents — one per payment attempt against a provider (Paystack at
- * MVP). Idempotency-keyed. The intent tracks *our* attempt; truth about money
- * comes from verified webhooks recorded as payment_txns.
+ * payment_intents — one per payment attempt against a provider. Idempotency-keyed.
+ * The intent tracks *our* attempt; truth about money comes from verified webhooks
+ * recorded as payment_txns.
  * ════════════════════════════════════════════════════════════════════════ */
 
 export type PaymentIntentDocument = HydratedDocument<PaymentIntent>;

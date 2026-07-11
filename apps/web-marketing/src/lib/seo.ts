@@ -19,7 +19,7 @@ export function marketingWebsiteJsonLd() {
     name: 'Lanyard Pharmacy',
     url: SITE_URL,
     description:
-      'Public-facing pharmacy brand site for services, branch discovery, FAQs, and contact handoff into the customer store.',
+      'Order genuine medicines from Lanyard Pharmacy for delivery in Lagos or free pickup at your branch.',
     potentialAction: {
       '@type': 'SearchAction',
       target: `${STORE_URL}/search?q={search_term_string}`,

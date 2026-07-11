@@ -6,7 +6,7 @@ import { serviceTracks } from '@/lib/content';
 export const metadata: Metadata = {
   title: 'How it works',
   description:
-    'Delivery, free pickup, and easy prescriptions from a licensed pharmacy near you — see how ordering with Lanyard works.',
+    'See how to order genuine medicines from Lanyard Pharmacy for delivery, free pickup, or prescription support.',
 };
 
 export default function ServicesPage() {
@@ -15,19 +15,19 @@ export default function ServicesPage() {
       <section className="hero-shell p-8 sm:p-10 lg:p-12">
         <div className="eyebrow">How it works</div>
         <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-ink-900 sm:text-5xl">
-          Three easy ways to get your medicine.
+          Get your medicine without the stress.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-900/70">
-          Order for fast delivery, reserve for free pickup, or upload a prescription — all from a
-          licensed pharmacy near you, with a pharmacist on every prescription.
+          Order for delivery, reserve for pickup, or send your prescription for a licensed
+          pharmacist to check.
         </p>
       </section>
 
       <section>
         <SectionTitle
           eyebrow="What you can do"
-          title="Choose what suits you."
-          copy="Whether you are in a hurry or planning ahead, there is a simple way to get what you need."
+          title="Choose the option that works for you."
+          copy="Whether you need it now or later today, Lanyard keeps the steps simple."
         />
 
         <div className="grid gap-5 lg:grid-cols-3">
@@ -71,8 +71,8 @@ export default function ServicesPage() {
               Genuine medicine, checked before it reaches you.
             </h2>
             <p className="mt-4 text-sm leading-7 text-white/80">
-              Every order is grounded in real branch stock, and every prescription is reviewed by a
-              licensed pharmacist before it is dispensed — so you can order with confidence.
+              We show real branch stock and clear prices. If a medicine needs a prescription, a
+              licensed pharmacist checks it before we prepare the order.
             </p>
           </div>
         </article>
@@ -81,7 +81,7 @@ export default function ServicesPage() {
           <div className="eyebrow">What to expect</div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[
-              'Live tracking from order to handoff',
+              'Updates from order to delivery',
               'Secure payment by card, transfer, or USSD',
               'Switch to a branch near you anytime',
               'Real stock and pricing before you pay',
