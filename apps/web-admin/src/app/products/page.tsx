@@ -173,6 +173,7 @@ export default function ProductsPage() {
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkMessage, setBulkMessage] = useState<FormMessage>();
   const [bulkResult, setBulkResult] = useState<BulkMedicineImportResultDto | null>(null);
+  const [productSearch, setProductSearch] = useState('');
 
   const productsQ = useQuery({
     queryKey: ['admin-products'],
@@ -211,6 +212,16 @@ export default function ProductsPage() {
   const publishedCount = rows.filter((row) => row.status === ProductStatus.PUBLISHED).length;
   const draftCount = rows.filter((row) => row.status === ProductStatus.DRAFT).length;
   const prescriptionCount = rows.filter((row) => row.requiresPrescription).length;
+
+  const filteredRows = useMemo(() => {
+    const term = productSearch.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((row) =>
+      [row.name, row.genericName, row.brand, row.sku, row.slug, row.manufacturer]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(term)),
+    );
+  }, [productSearch, rows]);
 
   useEffect(() => {
     if (!bulkBranchId && branches[0]?.id) {
@@ -1104,64 +1115,109 @@ export default function ProductsPage() {
               />
             </Card>
           ) : (
-            <TableCard>
-              <thead className="border-b border-slate-100 bg-slate-50/60">
-                <tr>
-                  <Th>Product</Th>
-                  <Th>SKU</Th>
-                  <Th>Categories</Th>
-                  <Th>Class</Th>
-                  <Th>Prescription</Th>
-                  <Th>Status</Th>
-                  <Th>Slug</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => {
-                  const rowCategories = (row.categoryIds ?? [])
-                    .map((id) => categories.find((category) => category.id === id)?.name)
-                    .filter(Boolean)
-                    .join(', ');
-                  const active = productForm.id === row.id;
-
-                  return (
-                    <tr
-                      key={row.id}
-                      className={cn(
-                        'cursor-pointer transition-colors hover:bg-slate-50/60',
-                        active && 'bg-brand-50/60',
-                      )}
-                      onClick={() => {
-                        setProductForm(toProductForm(row));
-                        setProductMessage(undefined);
-                      }}
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-3">
+                <div className="relative w-full max-w-md">
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
                     >
-                      <Td>
-                        <div className="font-semibold text-slate-900">{row.name}</div>
-                        <div className="text-xs text-slate-500">
-                          {[row.genericName, row.brand, row.strength].filter(Boolean).join(' · ') ||
-                            'No secondary descriptors'}
-                        </div>
-                      </Td>
-                      <Td className="font-mono text-xs text-slate-500">{row.sku || '—'}</Td>
-                      <Td className="text-slate-500">{rowCategories || 'Unassigned'}</Td>
-                      <Td>{humanizeToken(row.regulatoryClass)}</Td>
-                      <Td>
-                        <Badge tone={row.requiresPrescription ? 'warn' : 'info'}>
-                          {row.requiresPrescription ? 'Required' : 'Not required'}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        <Badge tone={productStatusTone(row.status)}>
-                          {humanizeToken(row.status)}
-                        </Badge>
-                      </Td>
-                      <Td className="text-slate-500">/{row.slug}</Td>
+                      <circle cx="11" cy="11" r="8" />
+                      <path d="m21 21-4.3-4.3" />
+                    </svg>
+                  </span>
+                  <input
+                    type="search"
+                    value={productSearch}
+                    onChange={(event) => setProductSearch(event.target.value)}
+                    placeholder="Search by name, generic, brand, SKU, or slug"
+                    aria-label="Search products"
+                    className={cn(inputClass, 'mt-0 pl-9')}
+                  />
+                </div>
+                <span className="text-xs text-slate-500">
+                  {filteredRows.length} of {rows.length} products
+                </span>
+              </div>
+              {filteredRows.length === 0 ? (
+                <Card>
+                  <EmptyState
+                    title="No products match your search"
+                    description="Try a different name, generic name, brand, SKU, or slug."
+                    icon={IconCatalog}
+                  />
+                </Card>
+              ) : (
+                <TableCard>
+                  <thead className="border-b border-slate-100 bg-slate-50/60">
+                    <tr>
+                      <Th>Product</Th>
+                      <Th>SKU</Th>
+                      <Th>Categories</Th>
+                      <Th>Class</Th>
+                      <Th>Prescription</Th>
+                      <Th>Status</Th>
+                      <Th>Slug</Th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </TableCard>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredRows.map((row) => {
+                      const rowCategories = (row.categoryIds ?? [])
+                        .map((id) => categories.find((category) => category.id === id)?.name)
+                        .filter(Boolean)
+                        .join(', ');
+                      const active = productForm.id === row.id;
+
+                      return (
+                        <tr
+                          key={row.id}
+                          className={cn(
+                            'cursor-pointer transition-colors hover:bg-slate-50/60',
+                            active && 'bg-brand-50/60',
+                          )}
+                          onClick={() => {
+                            setProductForm(toProductForm(row));
+                            setProductMessage(undefined);
+                          }}
+                        >
+                          <Td>
+                            <div className="font-semibold text-slate-900">{row.name}</div>
+                            <div className="text-xs text-slate-500">
+                              {[row.genericName, row.brand, row.strength]
+                                .filter(Boolean)
+                                .join(' · ') || 'No secondary descriptors'}
+                            </div>
+                          </Td>
+                          <Td className="font-mono text-xs text-slate-500">{row.sku || '—'}</Td>
+                          <Td className="text-slate-500">{rowCategories || 'Unassigned'}</Td>
+                          <Td>{humanizeToken(row.regulatoryClass)}</Td>
+                          <Td>
+                            <Badge tone={row.requiresPrescription ? 'warn' : 'info'}>
+                              {row.requiresPrescription ? 'Required' : 'Not required'}
+                            </Badge>
+                          </Td>
+                          <Td>
+                            <Badge tone={productStatusTone(row.status)}>
+                              {humanizeToken(row.status)}
+                            </Badge>
+                          </Td>
+                          <Td className="text-slate-500">/{row.slug}</Td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </TableCard>
+              )}
+            </>
           )}
         </>
       )}
