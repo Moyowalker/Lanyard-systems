@@ -22,7 +22,7 @@ import { Category, Product, ProductDocument } from '../infrastructure/catalog.sc
 import { PricingService, PriceEntry } from '../../pricing/application/pricing.service';
 import { InventoryService } from '../../inventory/application/inventory.service';
 import { DomainError } from '../../../core/errors/domain-error';
-import { cursorFilter, paginate } from '../../../core/pagination/cursor';
+import { cursorFilter, cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
 import { StorageService } from '../../../core/storage/storage.service';
 
 export interface UploadedProductImage {
@@ -135,10 +135,7 @@ export class CatalogService {
         isControlled: input.regulatoryClass === RegulatoryClass.CONTROLLED,
       });
     } catch (err) {
-      if (this.isDuplicateKey(err)) {
-        throw new DomainError(ErrorCode.CONFLICT, `Product slug "${slug}" already exists`);
-      }
-      throw err;
+      throw this.duplicateProductError(err) ?? err;
     }
   }
 
@@ -151,7 +148,14 @@ export class CatalogService {
         input.regulatoryClass === RegulatoryClass.CONTROLLED;
       update.isControlled = input.regulatoryClass === RegulatoryClass.CONTROLLED;
     }
-    const product = await this.productModel.findByIdAndUpdate(id, { $set: update }, { new: true });
+    let product: ProductDocument | null;
+    try {
+      product = await this.productModel.findByIdAndUpdate(id, { $set: update }, { new: true });
+    } catch (err) {
+      // A colliding slug/sku violates a unique index (error 11000). Surface it as
+      // a 409 with a clear message instead of leaking a 500 Internal Server Error.
+      throw this.duplicateProductError(err) ?? err;
+    }
     if (!product) throw new DomainError(ErrorCode.NOT_FOUND, 'Product not found');
     return product;
   }
@@ -227,11 +231,14 @@ export class CatalogService {
   async listProductsAdmin(
     query: ProductListQuery,
   ): Promise<Paginated<{ id: string } & Record<string, unknown>>> {
-    const filter: FilterQuery<Product> = { ...cursorFilter(query.cursor) };
+    // Newest-first so freshly created products surface at the top of the admin
+    // catalog (and stay within the page limit) instead of being buried after
+    // older rows. Pair the descending sort with the matching cursor helper.
+    const filter: FilterQuery<Product> = { ...cursorFilterDesc(query.cursor) };
     if (query.q) filter.$text = { $search: query.q };
     const rows = await this.productModel
       .find(filter)
-      .sort({ _id: 1 })
+      .sort({ _id: -1 })
       .limit(query.limit + 1)
       .lean();
     const mapped = await Promise.all(
@@ -331,5 +338,22 @@ export class CatalogService {
 
   private isDuplicateKey(err: unknown): boolean {
     return typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000;
+  }
+
+  /**
+   * Translate a MongoDB duplicate-key error (11000) on the product collection into
+   * a 409 CONFLICT that names the offending field (slug or sku). Returns undefined
+   * when the error is unrelated, so callers can rethrow the original.
+   */
+  private duplicateProductError(err: unknown): DomainError | undefined {
+    if (!this.isDuplicateKey(err)) return undefined;
+    const keyValue = (err as { keyValue?: Record<string, unknown> }).keyValue ?? {};
+    if ('sku' in keyValue) {
+      return new DomainError(ErrorCode.CONFLICT, `Product SKU "${keyValue.sku}" already exists`);
+    }
+    if ('slug' in keyValue) {
+      return new DomainError(ErrorCode.CONFLICT, `Product slug "${keyValue.slug}" already exists`);
+    }
+    return new DomainError(ErrorCode.CONFLICT, 'Product already exists');
   }
 }
