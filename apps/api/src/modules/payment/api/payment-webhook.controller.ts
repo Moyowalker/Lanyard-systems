@@ -47,6 +47,20 @@ export class PaymentWebhookController {
     }
   }
 
+  @Public()
+  @Post('webhooks/flutterwave')
+  @HttpCode(200)
+  async flutterwave(@Req() req: RawBodyRequest<Request>) {
+    const signature = req.headers['verif-hash'] as string | undefined;
+    const raw = req.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}));
+    try {
+      return await this.payments.handleWebhook(signature, raw);
+    } catch (err) {
+      this.logger.warn(`Webhook rejected: ${(err as Error).message}`);
+      return { status: 'rejected' };
+    }
+  }
+
   /** Dev/test only: simulate a successful charge (disabled in production). */
   @Public()
   @Post('payments/dev/confirm/:intentId')

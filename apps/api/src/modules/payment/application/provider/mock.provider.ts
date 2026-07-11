@@ -11,19 +11,18 @@ import {
 } from './payment-provider.interface';
 
 /**
- * Dev/test provider used when no Paystack secret is configured. `initialize` returns a
+ * Dev/test provider used when no selected-provider secret is configured. `initialize` returns a
  * local reference without any external call; settlement is driven in dev via the
  * `/payments/dev/confirm/:intentId` endpoint, which exercises the SAME settlement path
- * as the real webhook. Never selected when PAYSTACK_SECRET_KEY is set.
+ * as the real webhook. Never selected when the selected provider is fully configured.
  */
 export class MockPaymentProvider implements PaymentProviderPort {
-  readonly key = PaymentProvider.PAYSTACK;
   private readonly logger = new Logger(MockPaymentProvider.name);
 
+  constructor(readonly key = PaymentProvider.PAYSTACK) {}
+
   initialize(params: PaymentInitParams): Promise<PaymentInitResult> {
-    this.logger.warn(
-      `MOCK payment initialize for ${params.reference} (no Paystack key configured)`,
-    );
+    this.logger.warn(`MOCK payment initialize for ${params.reference} (no provider configured)`);
     return Promise.resolve({
       providerRef: `mock_${params.reference}`,
       authorizationUrl: `https://mock-checkout.local/pay/${params.reference}`,

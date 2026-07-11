@@ -14,7 +14,7 @@ export function SiteFooter() {
           </Link>
           <p className="mt-4 max-w-md text-sm leading-7 text-white/70">
             Genuine medicines from a licensed pharmacy near you — delivered fast across Lagos, or
-            ready for free pickup. Every prescription checked by a pharmacist.
+            ready for free pickup. Prescriptions are checked by a licensed pharmacist.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <StoreLink source="footer-shop" className="cta-primary px-5 py-3 text-sm">
@@ -63,7 +63,7 @@ export function SiteFooter() {
 
       <div className="border-t border-white/10">
         <div className="mx-auto max-w-7xl px-4 py-5 text-xs text-white/50 sm:px-6 lg:px-8">
-          © {new Date().getFullYear()} Lanyard Pharmacy. Genuine medicines, dispensed with care in
+          © {new Date().getFullYear()} Lanyard Pharmacy. Genuine medicines, prepared with care in
           Nigeria.
         </div>
       </div>

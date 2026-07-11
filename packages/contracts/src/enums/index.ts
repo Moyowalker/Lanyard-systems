@@ -134,11 +134,11 @@ export enum FulfillmentType {
   DELIVERY = 'delivery',
 }
 
-/* ───────────────────────── Payments (Paystack at MVP) ───────────────────────── */
+/* ───────────────────────── Payments ───────────────────────── */
 
 export enum PaymentProvider {
   PAYSTACK = 'paystack',
-  FLUTTERWAVE = 'flutterwave', // adapter exists; not enabled at MVP launch
+  FLUTTERWAVE = 'flutterwave',
 }
 
 /** Status of a single payment attempt/intent with a provider. */

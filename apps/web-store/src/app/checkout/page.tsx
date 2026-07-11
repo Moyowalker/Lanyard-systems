@@ -263,7 +263,7 @@ export default function CheckoutPage() {
       const intent = (await payRes.json()) as PaymentInitDto & { error?: { message: string } };
       if (!payRes.ok) throw new Error(intent.error?.message ?? 'Could not start payment');
 
-      // 5. Dev mock has no hosted page — settle directly; real Paystack → redirect.
+      // 5. Dev mock has no hosted page; real providers redirect to hosted checkout.
       if (intent.authorizationUrl.includes('mock-checkout.local')) {
         setStep('Confirming payment…');
         await fetch(`/api/payments/dev-confirm/${intent.intentId}`, { method: 'POST' });

@@ -240,8 +240,8 @@ Goal: the deployed environment is no longer a public dev build.
 1. Set `NODE_ENV=production` on `lanyard-api` and `lanyard-api-worker`.
 2. Provision MongoDB Atlas (replica set) with automated backups + PITR enabled; set
    `MONGODB_URI`; run one restore drill and record RPO/RTO.
-3. Add Paystack live, Sendchamp, and SMTP secrets; confirm the real Paystack provider is selected
-   and the dev-confirm route 404s.
+3. Add live payment-provider, Sendchamp, and SMTP secrets; confirm the real payment provider is
+   selected and the dev-confirm route 404s.
 4. Smoke test: OTP no longer returned in responses; a real test charge settles via webhook only.
    **Exit criteria:** no auth bypass, no free-payment path, data is recoverable.
 

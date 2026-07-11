@@ -16,16 +16,20 @@ const benefits = [
 ] as const;
 
 const steps = [
-  { n: '1', title: 'Search or upload', body: 'Find your medicine fast, or send your prescription in one step.' },
+  {
+    n: '1',
+    title: 'Search or upload',
+    body: 'Find your medicine or send your prescription in a few taps.',
+  },
   {
     n: '2',
-    title: 'Smart branch matching',
-    body: 'We route you toward the branch with the stock, speed, and handoff that fits your order.',
+    title: 'Pick a nearby branch',
+    body: 'We show branches with stock, clear prices, and delivery or pickup options.',
   },
   {
     n: '3',
     title: 'Delivery or pickup',
-    body: 'Get it delivered quickly, or collect from your branch when it is ready.',
+    body: 'Get your medicine delivered, or pick it up when your branch has it ready.',
   },
 ] as const;
 
@@ -124,13 +128,14 @@ export default async function HomePage() {
 
       {/* Hero */}
       <section className="grid items-start gap-5 lg:grid-cols-[1.02fr_0.98fr] lg:gap-8">
-        <div className="order-2 lg:order-1 rise-in">
+        <div className="order-1 lg:order-1 rise-in">
           <div className="eyebrow">Lagos&apos; trusted online pharmacy</div>
           <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-[-0.01em] text-ink-900 sm:text-5xl">
             Shop <span className="text-gradient">genuine medicine</span> fast.
           </h1>
           <p className="mt-4 max-w-lg text-base leading-7 text-ink-900/70 sm:text-lg sm:leading-8">
-            Delivery or pickup from a licensed pharmacy, with pharmacist review where needed.
+            Order from a licensed Lanyard branch. Choose delivery, free pickup, or send your
+            prescription for a pharmacist to check.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <StoreLink source="home-hero-shop" className="cta-primary">
@@ -154,7 +159,7 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <div className="order-1 relative overflow-hidden rounded-2xl border border-paper-200 bg-[#eefcf8] p-3 shadow-lift sm:p-5 lg:order-2 lg:min-h-[460px] rise-in">
+        <div className="order-2 relative overflow-hidden rounded-2xl border border-paper-200 bg-[#eefcf8] p-3 shadow-lift sm:p-5 lg:order-2 lg:min-h-[460px] rise-in">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(13,148,136,0.16),transparent_38%),radial-gradient(circle_at_78%_16%,rgba(0,105,217,0.14),transparent_26%),radial-gradient(circle_at_20%_90%,rgba(20,184,166,0.18),transparent_30%)]" />
 
           <div className="relative flex h-full flex-col gap-3.5 sm:gap-4">
@@ -222,7 +227,7 @@ export default async function HomePage() {
                   </div>
                   <div className="mt-3 text-3xl font-semibold leading-none">98%</div>
                   <div className="mt-1 text-xs leading-5 text-white/65">
-                    common essentials available for same-day handoff.
+                    common essentials available for same-day delivery or pickup.
                   </div>
                 </div>
 
@@ -247,10 +252,11 @@ export default async function HomePage() {
           <div>
             <div className="eyebrow">Start with the drugs</div>
             <h2 className="mt-2 text-2xl font-semibold leading-tight text-ink-900 sm:text-3xl">
-              Start with common medicines.
+              Find what you need quickly.
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-900/70 sm:text-base sm:leading-7">
-              Mobile visitors see shopping cues first, then continue into the full catalogue.
+              We put medicines and everyday categories up front, so you can start shopping without
+              digging around.
             </p>
           </div>
           <StoreLink source="home-featured-shop" className="cta-secondary">
@@ -354,10 +360,10 @@ export default async function HomePage() {
           eyebrow="How it works"
           title={
             <>
-              Watch your order <span className="text-gradient">handle itself</span>.
+              See what happens after you <span className="text-gradient">place an order</span>.
             </>
           }
-          copy="From search to your door — guided at every step."
+          copy="Simple steps, clear updates, and pharmacist checks where they matter."
         />
         <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
           {/* Smart assistant simulation */}
@@ -367,7 +373,7 @@ export default async function HomePage() {
               <div className="flex items-center justify-between gap-3">
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-brand-100">
                   <span className="pulse-ring h-2 w-2 rounded-full bg-brand-300" />
-                  Lanyard care assistant
+                  Lanyard order help
                 </div>
                 <span className="text-[11px] font-medium text-white/50">live demo</span>
               </div>
@@ -375,12 +381,14 @@ export default async function HomePage() {
               <div className="mt-5 space-y-3">
                 {/* customer message */}
                 <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-brand-500/90 px-4 py-2.5 text-sm shadow-sm">
-                  I need Paracetamol and my blood pressure refill 💊
+                  I need Paracetamol and my blood pressure refill.
                 </div>
 
                 {/* assistant response */}
                 <div className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-white/10 bg-white/10 px-4 py-3 text-sm backdrop-blur-sm">
-                  <span className="shimmer-text font-semibold">Found both at Ago Palace branch</span>
+                  <span className="shimmer-text font-semibold">
+                    Both are available at Ago Palace
+                  </span>
                   <div className="mt-2 space-y-1.5">
                     <div className="flex items-center justify-between gap-6 rounded-lg bg-white/10 px-3 py-1.5 text-xs">
                       <span>Paracetamol 500mg</span>
@@ -388,7 +396,7 @@ export default async function HomePage() {
                     </div>
                     <div className="flex items-center justify-between gap-6 rounded-lg bg-white/10 px-3 py-1.5 text-xs">
                       <span>Amlodipine 5mg</span>
-                      <span className="font-semibold text-seal-300">Needs ℞ review</span>
+                      <span className="font-semibold text-seal-300">Prescription check</span>
                     </div>
                   </div>
                 </div>
@@ -396,12 +404,20 @@ export default async function HomePage() {
                 {/* status updates */}
                 <div className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-white/10 bg-white/10 px-4 py-3 text-sm backdrop-blur-sm">
                   <div className="flex items-center gap-2 text-xs font-semibold text-brand-200">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-4 w-4">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2.2}
+                      className="h-4 w-4"
+                    >
                       <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    Pharmacist approved your prescription
+                    Pharmacist has checked the prescription
                   </div>
-                  <div className="mt-1.5 text-xs text-white/65">Rider is on the way · arriving ~45 min</div>
+                  <div className="mt-1.5 text-xs text-white/65">
+                    Rider is on the way · arriving ~45 min
+                  </div>
                 </div>
 
                 {/* typing indicator */}
@@ -413,7 +429,7 @@ export default async function HomePage() {
               </div>
 
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <span className="text-xs text-white/60">This is how every order feels.</span>
+                <span className="text-xs text-white/60">Clear help from search to delivery.</span>
                 <StoreLink source="how-it-works-demo" className="cta-primary px-4 py-2 text-sm">
                   Try it for real
                 </StoreLink>
@@ -455,11 +471,15 @@ export default async function HomePage() {
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <div className="hover-lift rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50 to-white p-4">
                   <div className="text-2xl font-semibold text-brand-700">~60 min</div>
-                  <div className="mt-1 text-xs text-ink-900/60">average delivery across Lagos</div>
+                  <div className="mt-1 text-xs text-ink-900/60">
+                    delivery when your item is in stock
+                  </div>
                 </div>
                 <div className="hover-lift rounded-2xl border border-seal-200 bg-gradient-to-br from-seal-50 to-white p-4">
                   <div className="text-2xl font-semibold text-ink-900">100%</div>
-                  <div className="mt-1 text-xs text-ink-900/60">prescriptions checked by a pharmacist</div>
+                  <div className="mt-1 text-xs text-ink-900/60">
+                    prescriptions checked before preparation
+                  </div>
                 </div>
               </div>
             </div>
@@ -471,8 +491,8 @@ export default async function HomePage() {
       <section>
         <SectionTitle
           eyebrow="What you get"
-          title="Delivery, pickup, and prescriptions — handled properly."
-          copy="Real stock, safe prescriptions, faster checkout."
+          title="Delivery, pickup, and prescription support."
+          copy="Get the medicine you need, the way that works for you."
           action={
             <Link href="/services" className="cta-secondary">
               See how it works
@@ -511,7 +531,7 @@ export default async function HomePage() {
         <SectionTitle
           eyebrow="Why Lanyard"
           title="A pharmacy you can actually trust online."
-          copy="Genuine medicine, real pharmacists, fair prices, fast delivery."
+          copy="Genuine medicine, licensed pharmacists, clear prices, and fast delivery."
         />
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {principles.map((principle) => (

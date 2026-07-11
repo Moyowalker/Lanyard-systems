@@ -9,37 +9,37 @@ export const marketingNav = [
 ] as const;
 
 export const heroStats = [
-  { value: '~60 min', label: 'typical delivery time across Lagos when in stock' },
-  { value: '100%', label: 'NAFDAC-registered, genuine medicines' },
+  { value: '~60 min', label: 'delivery in Lagos when your item is in stock' },
+  { value: '100%', label: 'genuine, NAFDAC-registered medicines' },
   { value: 'Free', label: 'pickup at your nearest branch' },
 ] as const;
 
 export const serviceTracks = [
   {
     title: 'Delivery to your door',
-    body: 'Order what you need and have it brought to you — often within the hour across Lagos.',
+    body: 'Order from a nearby Lanyard branch and get your medicine brought to you, often within the hour.',
     bullets: [
-      'About 60 minutes when your branch has it in stock',
-      'Live tracking from order to your door',
+      'About 60 minutes when the item is in stock',
+      'Updates from order to delivery',
       'Pay by card, bank transfer, or USSD',
     ],
   },
   {
     title: 'Free branch pickup',
-    body: 'Reserve online and collect at the counter, with no queue and no surprises on price.',
+    body: 'Reserve online and collect from the branch that works best for you.',
     bullets: [
       'Ready shortly after you order',
-      'Switch to a branch near you anytime',
-      'See real stock before you leave home',
+      'Choose a branch near you',
+      'Check stock before you leave home',
     ],
   },
   {
     title: 'Prescriptions made easy',
-    body: 'Upload your prescription and a licensed pharmacist verifies it before anything is dispensed.',
+    body: 'Send your prescription online and our licensed pharmacist checks it before we prepare your medicine.',
     bullets: [
       'Secure upload at checkout',
       'Reviewed by a licensed pharmacist',
-      'Dispensed only once approved',
+      'Prepared only after approval',
     ],
   },
 ] as const;
@@ -47,19 +47,19 @@ export const serviceTracks = [
 export const principles = [
   {
     title: 'Genuine medicines, always',
-    body: 'Every product is NAFDAC-registered and dispensed by a licensed pharmacy. No fakes, no guesswork.',
+    body: 'Every medicine comes through a licensed pharmacy and is NAFDAC-registered. No fakes, no guesswork.',
   },
   {
-    title: 'A real pharmacist on every order',
-    body: 'Prescription medicines are reviewed by a licensed pharmacist before they are ever dispensed.',
+    title: 'A real pharmacist checks prescriptions',
+    body: 'If your medicine needs a prescription, a licensed pharmacist reviews it before we prepare your order.',
   },
   {
-    title: 'Fair, branch-accurate prices',
-    body: 'You see the real price and stock for your branch before you pay — no surprises at checkout.',
+    title: 'Clear prices before you pay',
+    body: 'You see the price and availability for your chosen branch before checkout.',
   },
   {
     title: 'Fast, wherever you are in Lagos',
-    body: 'Delivery to your door or free pickup, with live tracking from order to handoff.',
+    body: 'Choose delivery to your door or free pickup from a branch near you.',
   },
 ] as const;
 
@@ -67,7 +67,7 @@ export const faqs = [
   {
     question: 'Can I order prescription medicines online?',
     answer:
-      'Yes. Add them to your cart and upload your prescription at checkout — a licensed pharmacist verifies it before your order is dispensed.',
+      'Yes. Add the medicine to your cart and upload your prescription at checkout. A licensed pharmacist checks it before we prepare your order.',
   },
   {
     question: 'How fast is delivery?',
@@ -77,7 +77,7 @@ export const faqs = [
   {
     question: 'Are the medicines genuine?',
     answer:
-      'Yes. Every medicine is NAFDAC-registered and dispensed by a licensed pharmacy you can trust.',
+      'Yes. We only sell genuine, NAFDAC-registered medicines through licensed Lanyard pharmacy branches.',
   },
   {
     question: 'Can I pick up instead of having it delivered?',
@@ -99,17 +99,17 @@ export const contactChannels = [
   {
     title: 'Order & care support',
     detail: '+234 708 816 7402',
-    note: 'Order help, branch guidance, and prescription questions.',
+    note: 'Help with orders, branch pickup, delivery, and prescriptions.',
   },
   {
     title: 'General enquiries',
     detail: 'hello@lanyardpharmacy.com',
-    note: 'Brand, branch, and service questions.',
+    note: 'Questions about Lanyard branches and services.',
   },
   {
     title: 'Partnerships',
     detail: 'partnerships@lanyardpharmacy.com',
-    note: 'Employer health plans, branch expansion, and healthcare partnerships.',
+    note: 'For employer health plans, new locations, and healthcare partnerships.',
   },
 ] as const;
 

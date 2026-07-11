@@ -4,7 +4,8 @@ import { faqJsonLd } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'FAQ',
-  description: 'Common questions about prescriptions, branches, delivery, and how Lanyard works.',
+  description:
+    'Answers about Lanyard Pharmacy delivery, pickup, prescriptions, payment, and branch stock.',
 };
 
 export default function FaqPage() {
@@ -18,11 +19,10 @@ export default function FaqPage() {
       <section className="hero-shell p-8 sm:p-10 lg:p-12">
         <div className="eyebrow">Frequently asked questions</div>
         <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-ink-900 sm:text-5xl">
-          Questions? We&apos;ve got answers.
+          Before you order, here are the basics.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-900/70">
-          Prescriptions, delivery, pricing, and payment — the essentials, answered simply, before
-          you order.
+          Quick answers about prescriptions, delivery, pickup, prices, and payment.
         </p>
       </section>
 

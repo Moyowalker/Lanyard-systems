@@ -75,9 +75,12 @@ export const envSchema = z
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
 
-    // Payments (Paystack at MVP)
+    // Payments
+    PAYMENT_PROVIDER: z.enum(['paystack', 'flutterwave']).default('paystack'),
     PAYSTACK_SECRET_KEY: z.string().optional(),
     PAYSTACK_WEBHOOK_SECRET: z.string().optional(),
+    FLUTTERWAVE_SECRET_KEY: z.string().optional(),
+    FLUTTERWAVE_WEBHOOK_SECRET: z.string().optional(),
     ENABLE_DEV_PAYMENT_CONFIRM: z.coerce.boolean().default(false),
   })
   .superRefine((value, ctx) => {
@@ -131,19 +134,37 @@ export const envSchema = z
       });
     }
 
-    if (!value.PAYSTACK_SECRET_KEY) {
+    if (value.PAYMENT_PROVIDER === 'paystack' && !value.PAYSTACK_SECRET_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['PAYSTACK_SECRET_KEY'],
-        message: 'PAYSTACK_SECRET_KEY is required in production',
+        message: 'PAYSTACK_SECRET_KEY is required in production when PAYMENT_PROVIDER=paystack',
       });
     }
 
-    if (!value.PAYSTACK_WEBHOOK_SECRET) {
+    if (value.PAYMENT_PROVIDER === 'paystack' && !value.PAYSTACK_WEBHOOK_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['PAYSTACK_WEBHOOK_SECRET'],
-        message: 'PAYSTACK_WEBHOOK_SECRET is required in production',
+        message: 'PAYSTACK_WEBHOOK_SECRET is required in production when PAYMENT_PROVIDER=paystack',
+      });
+    }
+
+    if (value.PAYMENT_PROVIDER === 'flutterwave' && !value.FLUTTERWAVE_SECRET_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['FLUTTERWAVE_SECRET_KEY'],
+        message:
+          'FLUTTERWAVE_SECRET_KEY is required in production when PAYMENT_PROVIDER=flutterwave',
+      });
+    }
+
+    if (value.PAYMENT_PROVIDER === 'flutterwave' && !value.FLUTTERWAVE_WEBHOOK_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['FLUTTERWAVE_WEBHOOK_SECRET'],
+        message:
+          'FLUTTERWAVE_WEBHOOK_SECRET is required in production when PAYMENT_PROVIDER=flutterwave',
       });
     }
   });

@@ -80,9 +80,15 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
+      - key: PAYMENT_PROVIDER
+        value: paystack
       - key: PAYSTACK_SECRET_KEY
         sync: false
       - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+      - key: FLUTTERWAVE_SECRET_KEY
+        sync: false
+      - key: FLUTTERWAVE_WEBHOOK_SECRET
         sync: false
       - key: ENABLE_DEV_PAYMENT_CONFIRM
         value: 'false'
@@ -219,6 +225,11 @@ services:
           name: lanyard-api
           type: web
           envVarKey: SMTP_PASS
+      - key: PAYMENT_PROVIDER
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: PAYMENT_PROVIDER
       - key: PAYSTACK_SECRET_KEY
         fromService:
           name: lanyard-api
@@ -229,6 +240,16 @@ services:
           name: lanyard-api
           type: web
           envVarKey: PAYSTACK_WEBHOOK_SECRET
+      - key: FLUTTERWAVE_SECRET_KEY
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: FLUTTERWAVE_SECRET_KEY
+      - key: FLUTTERWAVE_WEBHOOK_SECRET
+        fromService:
+          name: lanyard-api
+          type: web
+          envVarKey: FLUTTERWAVE_WEBHOOK_SECRET
       - key: ENABLE_DEV_PAYMENT_CONFIRM
         fromService:
           name: lanyard-api

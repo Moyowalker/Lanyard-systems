@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: 'Lanyard Pharmacy', template: '%s · Lanyard Pharmacy' },
   description:
-    'A polished public-facing pharmacy brand site for branch discovery, services, FAQs, and a strong handoff into the customer store.',
+    'Order genuine, NAFDAC-registered medicines from Lanyard Pharmacy for delivery across Lagos or free branch pickup.',
   keywords: [
     'Lanyard Pharmacy',
     'online pharmacy Nigeria',
@@ -27,14 +27,14 @@ export const metadata: Metadata = {
     url: SITE_URL,
     title: 'Lanyard Pharmacy',
     description:
-      'Branch discovery, services, FAQs, contact, and a polished handoff into the Lanyard customer store.',
+      'Get genuine medicines from a licensed pharmacy near you, with delivery, pickup, and pharmacist-reviewed prescriptions.',
     siteName: 'Lanyard Pharmacy',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Lanyard Pharmacy',
     description:
-      'A polished public-facing pharmacy site with branch discovery, contact flow, and handoff into the customer store.',
+      'Order genuine medicines from Lanyard Pharmacy for delivery across Lagos or free pickup at your branch.',
   },
 };
 

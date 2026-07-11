@@ -6,7 +6,7 @@ import { contactChannels } from '@/lib/content';
 export const metadata: Metadata = {
   title: 'Contact',
   description:
-    'Reach Lanyard Pharmacy for order help, branch guidance, prescriptions, and partnership enquiries.',
+    'Contact Lanyard Pharmacy for help with orders, delivery, pickup, prescriptions, and partnerships.',
 };
 
 export default function ContactPage() {
@@ -15,11 +15,11 @@ export default function ContactPage() {
       <section className="hero-shell p-8 sm:p-10 lg:p-12">
         <div className="eyebrow">Contact</div>
         <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-ink-900 sm:text-5xl">
-          We&apos;re here to help.
+          Need help? Talk to us.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-8 text-ink-900/70">
-          Questions about an order, a branch, or a prescription? Reach a real person on the Lanyard
-          care team — we&apos;ll point you to the right branch and the next step.
+          Questions about an order, delivery, pickup, or a prescription? Our team will help you find
+          the next step.
         </p>
       </section>
 
@@ -38,10 +38,10 @@ export default function ContactPage() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_88%_18%,rgba(245,158,11,0.2),transparent_30%)]" />
           <div className="relative">
             <div className="eyebrow text-brand-100">Talk to a real person</div>
-            <h2 className="mt-3 text-3xl font-semibold">Care that answers, clearly.</h2>
+            <h2 className="mt-3 text-3xl font-semibold">We&apos;ll help you figure it out.</h2>
             <p className="mt-4 text-sm leading-7 text-white/80">
-              Our team helps with the things that matter before you order: which branch to use,
-              whether you need a prescription, delivery times, and what happens next.
+              Ask us which branch to use, whether a prescription is needed, or how delivery works in
+              your area.
             </p>
           </div>
         </article>
@@ -54,7 +54,7 @@ export default function ContactPage() {
           <div>
             <div className="eyebrow">Common questions</div>
             <h2 className="mt-3 text-2xl font-semibold text-ink-900">
-              Quick answers before you order.
+              Quick questions before you order?
             </h2>
           </div>
           <StoreLink source="contact-store-handoff" className="cta-secondary">
@@ -67,7 +67,7 @@ export default function ContactPage() {
             'Which branch is best for my order?',
             'Can I get this without a prescription?',
             'Do you deliver to my area?',
-            'What happens after I upload a prescription?',
+            'What happens after I send my prescription?',
           ].map((item) => (
             <div
               key={item}

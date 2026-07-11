@@ -6,7 +6,8 @@ import { branchListJsonLd } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Branches',
-  description: 'Discover Lanyard branch locations and available fulfillment services.',
+  description:
+    'Find a Lanyard Pharmacy branch near you for medicine delivery, pickup, and prescription support.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -22,38 +23,35 @@ export default async function BranchesPage() {
       />
 
       <section className="hero-shell p-8 sm:p-10 lg:p-12">
-        <div className="eyebrow">Branch guide</div>
+        <div className="eyebrow">Find a branch</div>
         <h1 className="mt-4 max-w-3xl font-display text-5xl leading-none text-ink-900 sm:text-6xl">
-          Make branch choice feel like part of the experience, not a hidden setting.
+          Choose the Lanyard branch closest to you.
         </h1>
         <p className="mt-6 max-w-3xl text-lg leading-8 text-ink-700/80">
-          Branches shape availability, pricing, pickup readiness, and delivery options. The public
-          site should surface that clearly before the customer enters the store flow.
+          Your branch helps us show the right stock, prices, pickup options, and delivery details
+          before you place an order.
         </p>
       </section>
 
       <section>
         <SectionTitle
           eyebrow="Live locations"
-          title="A sharper branch page gives the store a cleaner starting point."
-          copy="This page can be both a branch discovery surface and a conversion bridge into the commerce app."
+          title="Find medicine from a branch you can actually visit."
+          copy="Choose a branch, check what is available, then order for delivery or pickup."
         />
         <BranchGrid branches={branches} isLive={isLive} />
       </section>
 
       <section className="grid gap-5 md:grid-cols-3">
         {[
-          [
-            'Pickup',
-            'Perfect for customers who already know what they need and want branch-level certainty.',
-          ],
+          ['Pickup', 'Reserve online and collect from the branch when your order is ready.'],
           [
             'Delivery',
-            'Useful for customers who need convenience, especially once branch eligibility is clear.',
+            'Get your medicine delivered from a nearby branch when delivery is available.',
           ],
           [
             'Prescription support',
-            'The branch page should reassure customers that regulated medicines are handled through review, not shortcuts.',
+            'Prescription medicines are checked by a licensed pharmacist before they are prepared.',
           ],
         ].map(([title, body]) => (
           <article key={title} className="surface-card p-6">
