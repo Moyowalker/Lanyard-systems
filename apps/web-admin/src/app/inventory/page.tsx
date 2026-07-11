@@ -949,6 +949,17 @@ export default function InventoryPage() {
                           'cursor-pointer transition-colors hover:bg-slate-50/60',
                           open && 'bg-brand-50/40',
                         )}
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={open}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setExpandedProductId((current) =>
+                              current === row.productId ? null : row.productId,
+                            );
+                          }
+                        }}
                         onClick={() =>
                           setExpandedProductId((current) =>
                             current === row.productId ? null : row.productId,
@@ -1098,7 +1109,7 @@ export default function InventoryPage() {
                               </div>
 
                               {/* Recent movements for this product */}
-                              <div>
+                              <div onClick={(event) => event.stopPropagation()}>
                                 <div className="mb-2 text-sm font-semibold text-slate-900">
                                   Recent movements
                                 </div>

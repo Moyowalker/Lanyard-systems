@@ -117,6 +117,10 @@ export function useBranchPrices(branchId: string, products: PricingProduct[]) {
   async function saveRow(productId: string) {
     const draft = drafts[productId];
     setMessage(undefined);
+    if (!draft?.priceKobo.trim()) {
+      setMessage({ tone: 'danger', text: 'Enter a selling price before saving.' });
+      return;
+    }
     const parsed = UpsertPriceSchema.safeParse({
       productId,
       priceKobo: Number(draft?.priceKobo),

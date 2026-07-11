@@ -284,4 +284,38 @@ describe('InventoryService', () => {
 
     expect(audit.record).not.toHaveBeenCalled();
   });
+
+  it('still returns a committed adjustment when audit logging fails', async () => {
+    const snapshot = {
+      _id: new Types.ObjectId(),
+      branchId: new Types.ObjectId(branchId),
+      productId: new Types.ObjectId(productId),
+      onHand: 10,
+      reserved: 2,
+      reorderLevel: 3,
+      batches: [],
+    };
+
+    inventoryModel.findOne.mockReturnValueOnce(findOneLean(snapshot)).mockReturnValueOnce(
+      findOneLean({
+        ...snapshot,
+        onHand: 12,
+      }),
+    );
+    inventoryModel.updateOne.mockResolvedValue({ modifiedCount: 1 });
+    productModel.findById.mockReturnValue(
+      findOneLean({ _id: new Types.ObjectId(productId), name: 'Metformin' }),
+    );
+    audit.record.mockRejectedValueOnce(new Error('audit unavailable'));
+
+    const result = await service.adjust(branchId, actorId, {
+      productId,
+      quantityDelta: 2,
+      reason: 'Cycle count correction',
+    });
+
+    expect(result.onHand).toBe(12);
+    expect(movementModel.create).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalled();
+  });
 });

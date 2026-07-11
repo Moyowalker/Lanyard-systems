@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
 import * as XLSX from 'xlsx';
@@ -61,6 +61,8 @@ type MovementOptions = {
 /** Read-side inventory helpers + reservation logic (the order/payment phase). */
 @Injectable()
 export class InventoryService {
+  private readonly logger = new Logger(InventoryService.name);
+
   constructor(
     @InjectModel(InventoryItem.name) private readonly inventoryModel: Model<InventoryItem>,
     @InjectModel(StockMovement.name) private readonly movementModel: Model<StockMovement>,
@@ -532,23 +534,33 @@ export class InventoryService {
     before: Record<string, unknown>,
     after: Record<string, unknown>,
   ): Promise<void> {
-    await this.audit.record({
-      actorId,
-      actorType: ActorType.STAFF,
-      action:
-        input.movementType === StockMovementType.RECEIVE ? 'inventory.receive' : 'inventory.adjust',
-      targetType: 'inventory',
-      targetId: input.productId,
-      branchId,
-      metadata: {
-        quantityDelta: input.quantityDelta,
-        reason: input.reason,
-        batchNo: input.batchNo,
-        reorderLevel: input.reorderLevel,
-      },
-      before,
-      after,
-    });
+    try {
+      await this.audit.record({
+        actorId,
+        actorType: ActorType.STAFF,
+        action:
+          input.movementType === StockMovementType.RECEIVE
+            ? 'inventory.receive'
+            : 'inventory.adjust',
+        targetType: 'inventory',
+        targetId: input.productId,
+        branchId,
+        metadata: {
+          quantityDelta: input.quantityDelta,
+          reason: input.reason,
+          batchNo: input.batchNo,
+          reorderLevel: input.reorderLevel,
+        },
+        before,
+        after,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Inventory audit write failed: branch=${branchId} product=${input.productId} reason=${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   private applyBatchDelta(
