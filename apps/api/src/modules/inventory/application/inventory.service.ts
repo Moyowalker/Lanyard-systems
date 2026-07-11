@@ -3,17 +3,23 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
 import * as XLSX from 'xlsx';
 import {
+  ActorType,
   AdjustInventoryInput,
   BranchInventoryItemDto,
   ErrorCode,
   InventoryExportQuery,
+  Paginated,
   ReceiveInventoryInput,
+  StockMovementDto,
+  StockMovementQuery,
   StockMovementType,
 } from '@lanyard/contracts';
 
 import { InventoryItem, StockMovement } from '../infrastructure/inventory.schemas';
 import { Product } from '../../catalog/infrastructure/catalog.schemas';
 import { DomainError } from '../../../core/errors/domain-error';
+import { AuditService } from '../../../core/platform/audit.service';
+import { cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
 
 type InventorySnapshot = {
   _id: Types.ObjectId;
@@ -59,6 +65,7 @@ export class InventoryService {
     @InjectModel(InventoryItem.name) private readonly inventoryModel: Model<InventoryItem>,
     @InjectModel(StockMovement.name) private readonly movementModel: Model<StockMovement>,
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
+    private readonly audit: AuditService,
   ) {}
 
   async listBranchInventory(branchId: string): Promise<BranchInventoryItemDto[]> {
@@ -90,6 +97,58 @@ export class InventoryService {
         (left, right) =>
           new Date(left.nextExpiry!).getTime() - new Date(right.nextExpiry!).getTime(),
       );
+  }
+
+  /**
+   * Read the append-only stock-movement ledger for a branch, newest first, cursor
+   * paginated. Optional filters: product, movement type, and a createdAt date range.
+   */
+  async listMovements(
+    branchId: string,
+    query: StockMovementQuery,
+  ): Promise<Paginated<StockMovementDto>> {
+    const filter: Record<string, unknown> = {
+      branchId: new Types.ObjectId(branchId),
+      ...cursorFilterDesc(query.cursor),
+    };
+    if (query.productId) filter.productId = new Types.ObjectId(query.productId);
+    if (query.type) filter.type = query.type;
+    if (query.from || query.to) {
+      const createdAt: Record<string, Date> = {};
+      if (query.from) createdAt.$gte = query.from;
+      if (query.to) createdAt.$lte = query.to;
+      filter.createdAt = createdAt;
+    }
+
+    const rows = await this.movementModel
+      .find(filter)
+      .sort({ _id: -1 })
+      .limit(query.limit + 1)
+      .lean();
+
+    const productById = new Map(
+      (
+        await this.productModel
+          .find({ _id: { $in: rows.map((r) => r.productId) } })
+          .lean<ProductSnapshot[]>()
+      ).map((p) => [p._id.toString(), p]),
+    );
+
+    const mapped: StockMovementDto[] = rows.map((row) => ({
+      id: row._id.toString(),
+      productId: row.productId.toString(),
+      productName: productById.get(row.productId.toString())?.name ?? 'Unknown product',
+      type: row.type,
+      quantity: row.quantity,
+      refType: row.refType as StockMovementDto['refType'],
+      refId: row.refId?.toString(),
+      batchNo: row.batchNo,
+      actorId: row.actorId?.toString(),
+      reason: row.reason,
+      at: (row as { createdAt?: Date }).createdAt?.toISOString() ?? new Date().toISOString(),
+    }));
+
+    return paginate(mapped, query.limit);
   }
 
   /** Build a spreadsheet/CSV of branch stock, one row per batch (and per batchless item). */
@@ -383,6 +442,18 @@ export class InventoryService {
           batchNo: input.batchNo,
           refType: 'manual',
         });
+        await this.recordManualAudit(
+          branchId,
+          actorId,
+          input,
+          { onHand: 0, reserved: 0, reorderLevel: 0, batchCount: 0 },
+          {
+            onHand: input.quantityDelta,
+            reserved: 0,
+            reorderLevel: input.reorderLevel ?? 0,
+            batchCount: batches.length,
+          },
+        );
         return;
       }
 
@@ -423,6 +494,23 @@ export class InventoryService {
         batchNo: input.batchNo,
         refType: 'manual',
       });
+      await this.recordManualAudit(
+        branchId,
+        actorId,
+        input,
+        {
+          onHand: currentOnHand,
+          reserved: currentReserved,
+          reorderLevel: current.reorderLevel ?? 0,
+          batchCount: current.batches?.length ?? 0,
+        },
+        {
+          onHand: nextOnHand,
+          reserved: currentReserved,
+          reorderLevel: input.reorderLevel ?? current.reorderLevel ?? 0,
+          batchCount: nextBatches.length,
+        },
+      );
       return;
     }
 
@@ -430,6 +518,37 @@ export class InventoryService {
       ErrorCode.CONFLICT,
       'Inventory changed during update, retry the operation',
     );
+  }
+
+  /**
+   * Write a compliance audit entry for a manual stock action (receive/adjust) to the
+   * platform-wide audit log. Best-effort and non-transactional — mirrors the other
+   * manual-action call sites; the stock_movements ledger remains the source of truth.
+   */
+  private async recordManualAudit(
+    branchId: string,
+    actorId: string,
+    input: ManualInventoryMutation,
+    before: Record<string, unknown>,
+    after: Record<string, unknown>,
+  ): Promise<void> {
+    await this.audit.record({
+      actorId,
+      actorType: ActorType.STAFF,
+      action:
+        input.movementType === StockMovementType.RECEIVE ? 'inventory.receive' : 'inventory.adjust',
+      targetType: 'inventory',
+      targetId: input.productId,
+      branchId,
+      metadata: {
+        quantityDelta: input.quantityDelta,
+        reason: input.reason,
+        batchNo: input.batchNo,
+        reorderLevel: input.reorderLevel,
+      },
+      before,
+      after,
+    });
   }
 
   private applyBatchDelta(

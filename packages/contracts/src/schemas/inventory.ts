@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+import { StockMovementType } from '../enums';
+import { PaginationQuerySchema } from './common';
+
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
 
 const stockReason = z.string().trim().min(3).max(240);
@@ -78,3 +81,26 @@ export const InventoryExportQuerySchema = z.object({
   format: z.enum(['xlsx', 'csv']).default('xlsx'),
 });
 export type InventoryExportQuery = z.infer<typeof InventoryExportQuerySchema>;
+
+/** Read the append-only stock-movement ledger for a branch, newest first. */
+export const StockMovementQuerySchema = PaginationQuerySchema.extend({
+  productId: objectId.optional(),
+  type: z.nativeEnum(StockMovementType).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+export type StockMovementQuery = z.infer<typeof StockMovementQuerySchema>;
+
+export interface StockMovementDto {
+  id: string;
+  productId: string;
+  productName: string;
+  type: StockMovementType;
+  quantity: number;
+  refType?: 'order' | 'manual' | 'system';
+  refId?: string;
+  batchNo?: string;
+  actorId?: string;
+  reason?: string;
+  at: string;
+}
