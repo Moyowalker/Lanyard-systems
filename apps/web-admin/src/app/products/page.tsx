@@ -1139,7 +1139,7 @@ export default function ProductsPage() {
                     type="search"
                     value={productSearch}
                     onChange={(event) => setProductSearch(event.target.value)}
-                    placeholder="Search by name, generic, brand, SKU, or slug"
+                    placeholder="Search by name, generic, brand, SKU, slug, or manufacturer"
                     aria-label="Search products"
                     className={cn(inputClass, 'mt-0 pl-9')}
                   />
@@ -1152,7 +1152,7 @@ export default function ProductsPage() {
                 <Card>
                   <EmptyState
                     title="No products match your search"
-                    description="Try a different name, generic name, brand, SKU, or slug."
+                    description="Try a different name, generic name, brand, SKU, slug, or manufacturer."
                     icon={IconCatalog}
                   />
                 </Card>
