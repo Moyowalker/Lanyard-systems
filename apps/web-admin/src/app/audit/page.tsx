@@ -25,6 +25,7 @@ const ACTION_FILTERS: { key: string; label: string }[] = [
   { key: 'rx.', label: 'Prescriptions' },
   { key: 'phi.', label: 'PHI access' },
   { key: 'order.', label: 'Orders' },
+  { key: 'inventory.', label: 'Inventory' },
   { key: 'payment.', label: 'Payments' },
   { key: 'refund.', label: 'Refunds' },
   { key: 'auth.', label: 'Auth' },
@@ -44,6 +45,7 @@ function actionTone(action: string): Tone {
   if (action.startsWith('refund.')) return 'warn';
   if (action.startsWith('payment.')) return 'success';
   if (action.startsWith('order.')) return 'info';
+  if (action.startsWith('inventory.')) return 'success';
   if (action.startsWith('auth.') || action.startsWith('login')) return 'neutral';
   return 'neutral';
 }

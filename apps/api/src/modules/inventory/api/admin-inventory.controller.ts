@@ -18,6 +18,8 @@ import {
   InventoryExpiringQuerySchema,
   ReceiveInventoryInput,
   ReceiveInventorySchema,
+  StockMovementQuery,
+  StockMovementQuerySchema,
 } from '@lanyard/contracts';
 
 import {
@@ -59,6 +61,15 @@ export class AdminInventoryController {
     @Query(new ZodValidationPipe(InventoryExpiringQuerySchema)) query: InventoryExpiringQuery,
   ) {
     return { data: await this.inventory.listExpiring(branchId, query.days) };
+  }
+
+  @Get('movements')
+  @RequirePermissions('inventory:read')
+  async movements(
+    @Param('branchId') branchId: string,
+    @Query(new ZodValidationPipe(StockMovementQuerySchema)) query: StockMovementQuery,
+  ) {
+    return this.inventory.listMovements(branchId, query);
   }
 
   @Get('export')

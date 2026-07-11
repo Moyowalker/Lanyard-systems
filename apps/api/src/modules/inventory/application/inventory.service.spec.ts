@@ -27,6 +27,7 @@ describe('InventoryService', () => {
   };
   let movementModel: { create: jest.Mock };
   let productModel: { find: jest.Mock; findById: jest.Mock; exists: jest.Mock };
+  let audit: { record: jest.Mock };
   let service: InventoryService;
 
   beforeEach(() => {
@@ -43,10 +44,13 @@ describe('InventoryService', () => {
       exists: jest.fn().mockResolvedValue(true),
     };
 
+    audit = { record: jest.fn().mockResolvedValue(undefined) };
+
     service = new InventoryService(
       inventoryModel as never,
       movementModel as never,
       productModel as never,
+      audit as never,
     );
   });
 
@@ -148,6 +152,18 @@ describe('InventoryService', () => {
     expect(result.productName).toBe('Cefuroxime');
     expect(result.onHand).toBe(12);
     expect(result.isLowStock).toBe(false);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'inventory.receive',
+        actorType: 'staff',
+        actorId,
+        targetType: 'inventory',
+        targetId: productId,
+        branchId,
+        before: { onHand: 0, reserved: 0, reorderLevel: 0, batchCount: 0 },
+        after: expect.objectContaining({ onHand: 12, batchCount: 1 }),
+      }),
+    );
   });
 
   it('rejects an adjustment that would drop stock below reserved units', async () => {
@@ -231,5 +247,75 @@ describe('InventoryService', () => {
     );
     expect(result.productName).toBe('Metformin');
     expect(result.onHand).toBe(8);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'inventory.adjust',
+        actorType: 'staff',
+        actorId,
+        targetType: 'inventory',
+        targetId: productId,
+        branchId,
+        before: expect.objectContaining({ onHand: 10, reserved: 2 }),
+        after: expect.objectContaining({ onHand: 8 }),
+      }),
+    );
+  });
+
+  it('does not write an audit entry when an adjustment is rejected', async () => {
+    inventoryModel.findOne.mockReturnValue(
+      findOneLean({
+        _id: new Types.ObjectId(),
+        branchId: new Types.ObjectId(branchId),
+        productId: new Types.ObjectId(productId),
+        onHand: 8,
+        reserved: 6,
+        reorderLevel: 2,
+        batches: [],
+      }),
+    );
+
+    await expect(
+      service.adjust(branchId, actorId, {
+        productId,
+        quantityDelta: -3,
+        reason: 'Cycle count correction',
+      }),
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
+
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('still returns a committed adjustment when audit logging fails', async () => {
+    const snapshot = {
+      _id: new Types.ObjectId(),
+      branchId: new Types.ObjectId(branchId),
+      productId: new Types.ObjectId(productId),
+      onHand: 10,
+      reserved: 2,
+      reorderLevel: 3,
+      batches: [],
+    };
+
+    inventoryModel.findOne.mockReturnValueOnce(findOneLean(snapshot)).mockReturnValueOnce(
+      findOneLean({
+        ...snapshot,
+        onHand: 12,
+      }),
+    );
+    inventoryModel.updateOne.mockResolvedValue({ modifiedCount: 1 });
+    productModel.findById.mockReturnValue(
+      findOneLean({ _id: new Types.ObjectId(productId), name: 'Metformin' }),
+    );
+    audit.record.mockRejectedValueOnce(new Error('audit unavailable'));
+
+    const result = await service.adjust(branchId, actorId, {
+      productId,
+      quantityDelta: 2,
+      reason: 'Cycle count correction',
+    });
+
+    expect(result.onHand).toBe(12);
+    expect(movementModel.create).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalled();
   });
 });
