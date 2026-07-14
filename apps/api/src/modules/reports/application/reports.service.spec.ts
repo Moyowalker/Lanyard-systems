@@ -152,9 +152,9 @@ describe('buildConsumption', () => {
       ['a', { name: 'A' }],
       ['b', { name: 'B' }],
     ]);
-    const prices = new Map<string, number | undefined>([
-      ['a', 1000],
-      ['b', 500],
+    const prices = new Map([
+      ['a', { priceKobo: 1000, costKobo: 600 }],
+      ['b', { priceKobo: 500 }],
     ]);
 
     const report = buildConsumption(agg, products, prices, from, to);
@@ -162,5 +162,42 @@ describe('buildConsumption', () => {
     expect(report.rows[0].productId).toBe('b'); // 12 units outranks 5
     expect(report.totalUnits).toBe(17);
     expect(report.totalValueKobo).toBe(5 * 1000 + 12 * 500); // 11000
+  });
+
+  it('computes cost value and margin only where a cost price exists', () => {
+    const agg = [
+      { productId: 'a', unitsDispensed: 5, movements: 2 },
+      { productId: 'b', unitsDispensed: 12, movements: 4 },
+    ];
+    const products = new Map([
+      ['a', { name: 'A' }],
+      ['b', { name: 'B' }],
+    ]);
+    const prices = new Map([
+      ['a', { priceKobo: 1000, costKobo: 600 }],
+      ['b', { priceKobo: 500 }], // no cost on file
+    ]);
+
+    const report = buildConsumption(agg, products, prices, from, to);
+    const rowA = report.rows.find((r) => r.productId === 'a')!;
+    const rowB = report.rows.find((r) => r.productId === 'b')!;
+
+    expect(rowA.costKobo).toBe(600);
+    expect(rowA.valueAtCostKobo).toBe(3000); // 5 × 600
+    expect(rowA.marginKobo).toBe(2000); // 5000 − 3000
+    expect(rowB.costKobo).toBeUndefined();
+    expect(rowB.valueAtCostKobo).toBeUndefined();
+    expect(rowB.marginKobo).toBeUndefined(); // no fake 100% margin
+    expect(report.totalValueAtCostKobo).toBe(3000);
+    expect(report.totalMarginKobo).toBe(2000);
+  });
+
+  it('carries the payment-channel breakdown through', () => {
+    const report = buildConsumption([], new Map(), new Map(), from, to, [
+      { channel: 'cash', totalKobo: 90000, orders: 3 },
+      { channel: 'hmo', totalKobo: 50000, orders: 1 },
+    ]);
+    expect(report.paymentBreakdown).toHaveLength(2);
+    expect(report.paymentBreakdown[0].channel).toBe('cash');
   });
 });

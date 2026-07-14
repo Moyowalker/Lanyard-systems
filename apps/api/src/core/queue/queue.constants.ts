@@ -4,6 +4,7 @@ import { NotificationChannel } from '@lanyard/contracts';
 export const PRESCRIPTION_AV_QUEUE = 'prescription-av';
 export const NOTIFICATION_QUEUE = 'notifications';
 export const PAYMENT_RECONCILE_QUEUE = 'payment-reconcile';
+export const EXPIRY_DIGEST_QUEUE = 'inventory-expiry-digest';
 
 export interface AvScanJobData {
   prescriptionId: string;

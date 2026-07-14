@@ -9,6 +9,8 @@ import {
   InventoryValuationQuery,
   InventoryValuationRow,
   OrderPaymentStatus,
+  OrderStatus,
+  PaymentChannelBreakdownRow,
   ReportRangeQuery,
   SalesSummaryDto,
   StockMovementType,
@@ -176,14 +178,21 @@ export function buildInventoryValuation(
 export function buildConsumption(
   agg: Array<{ productId: string; unitsDispensed: number; movements: number }>,
   productById: Map<string, ValuationProduct>,
-  priceByProduct: Map<string, number | undefined>,
+  priceByProduct: Map<string, PricePair>,
   from: Date,
   to: Date,
+  paymentBreakdown: PaymentChannelBreakdownRow[] = [],
 ): ConsumptionReportDto {
   const rows: ConsumptionRow[] = agg
     .map((a) => {
       const product = productById.get(a.productId);
-      const sellingKobo = priceByProduct.get(a.productId);
+      const price = priceByProduct.get(a.productId);
+      const sellingKobo = price?.priceKobo;
+      const costKobo = price?.costKobo;
+      const valueKobo = a.unitsDispensed * (sellingKobo ?? 0);
+      // Cost/margin stay absent (rendered "—") when the branch has no cost on file,
+      // rather than pretending a 100% margin with a fake 0 cost.
+      const valueAtCostKobo = costKobo != null ? a.unitsDispensed * costKobo : undefined;
       return {
         productId: a.productId,
         name: product?.name ?? 'Unknown product',
@@ -193,8 +202,11 @@ export function buildConsumption(
         form: product?.form,
         unitsDispensed: a.unitsDispensed,
         movements: a.movements,
+        costKobo,
         sellingKobo,
-        valueKobo: a.unitsDispensed * (sellingKobo ?? 0),
+        valueKobo,
+        valueAtCostKobo,
+        marginKobo: valueAtCostKobo != null ? valueKobo - valueAtCostKobo : undefined,
       };
     })
     .sort((a, b) => b.unitsDispensed - a.unitsDispensed);
@@ -204,7 +216,10 @@ export function buildConsumption(
     to: to.toISOString(),
     totalUnits: rows.reduce((sum, r) => sum + r.unitsDispensed, 0),
     totalValueKobo: rows.reduce((sum, r) => sum + r.valueKobo, 0),
+    totalValueAtCostKobo: rows.reduce((sum, r) => sum + (r.valueAtCostKobo ?? 0), 0),
+    totalMarginKobo: rows.reduce((sum, r) => sum + (r.marginKobo ?? 0), 0),
     rows,
+    paymentBreakdown,
   };
 }
 
@@ -309,14 +324,71 @@ export class ReportsService {
       unitsDispensed: a.unitsDispensed,
       movements: a.movements,
     }));
-    const productById = await this.loadProducts(rows.map((r) => r.productId));
-    const priceByProduct = await this.loadSellingByProduct(
-      branchScope,
-      range.branchId,
-      rows.map((r) => r.productId),
-    );
+    const [productById, priceByProduct, paymentBreakdown] = await Promise.all([
+      this.loadProducts(rows.map((r) => r.productId)),
+      this.loadPricesByProduct(
+        branchScope,
+        range.branchId,
+        rows.map((r) => r.productId),
+      ),
+      this.paymentBreakdown(branchScope, range.branchId, clampedFrom, to),
+    ]);
 
-    return buildConsumption(rows, productById, priceByProduct, clampedFrom, to);
+    return buildConsumption(rows, productById, priceByProduct, clampedFrom, to, paymentBreakdown);
+  }
+
+  /**
+   * Revenue in the window grouped by payment channel. Counter sales report their
+   * till channels (split payments count each entry); online orders bucket as 'online'.
+   */
+  private async paymentBreakdown(
+    branchScope: string[],
+    branchId: string | undefined,
+    from: Date,
+    to: Date,
+  ): Promise<PaymentChannelBreakdownRow[]> {
+    const orders = await this.orderModel
+      .find({
+        createdAt: { $gte: from, $lte: to },
+        status: { $in: [OrderStatus.COMPLETED, OrderStatus.REFUNDED] },
+        'payment.status': { $ne: OrderPaymentStatus.UNPAID },
+        ...this.branchFilter(branchScope, branchId),
+      })
+      .select('totals.totalKobo counterSale.paymentChannel counterSale.payments')
+      .lean<
+        Array<{
+          totals: { totalKobo: number };
+          counterSale?: {
+            paymentChannel?: string;
+            payments?: Array<{ channel: string; amountKobo: number }>;
+          };
+        }>
+      >();
+
+    const buckets = new Map<string, { totalKobo: number; orders: number }>();
+    const add = (channel: string, amountKobo: number, countOrder: boolean) => {
+      const bucket = buckets.get(channel) ?? { totalKobo: 0, orders: 0 };
+      bucket.totalKobo += amountKobo;
+      if (countOrder) bucket.orders += 1;
+      buckets.set(channel, bucket);
+    };
+
+    for (const order of orders) {
+      const counter = order.counterSale;
+      if (counter?.payments?.length) {
+        counter.payments.forEach((payment, index) =>
+          add(payment.channel, payment.amountKobo, index === 0),
+        );
+      } else if (counter?.paymentChannel) {
+        add(counter.paymentChannel, order.totals?.totalKobo ?? 0, true);
+      } else {
+        add('online', order.totals?.totalKobo ?? 0, true);
+      }
+    }
+
+    return [...buckets.entries()]
+      .map(([channel, bucket]) => ({ channel, ...bucket }))
+      .sort((a, b) => b.totalKobo - a.totalKobo);
   }
 
   /* ── shared helpers ── */
@@ -391,12 +463,12 @@ export class ReportsService {
     );
   }
 
-  /** Selling price per product (best-effort within scope) for consumption valuation. */
-  private async loadSellingByProduct(
+  /** Selling + cost price per product (best-effort within scope) for consumption valuation. */
+  private async loadPricesByProduct(
     branchScope: string[],
     branchId: string | undefined,
     productIds: string[],
-  ): Promise<Map<string, number | undefined>> {
+  ): Promise<Map<string, PricePair>> {
     const unique = [...new Set(productIds)];
     if (unique.length === 0) return new Map();
     const prices = await this.priceModel
@@ -404,10 +476,12 @@ export class ReportsService {
         ...this.branchFilter(branchScope, branchId),
         productId: { $in: unique.map((id) => new Types.ObjectId(id)) },
       })
-      .select('productId priceKobo')
-      .lean<Array<{ productId: Types.ObjectId; priceKobo?: number }>>();
-    const map = new Map<string, number | undefined>();
-    for (const p of prices) map.set(p.productId.toString(), p.priceKobo);
+      .select('productId priceKobo costKobo')
+      .lean<Array<{ productId: Types.ObjectId; priceKobo?: number; costKobo?: number }>>();
+    const map = new Map<string, PricePair>();
+    for (const p of prices) {
+      map.set(p.productId.toString(), { priceKobo: p.priceKobo, costKobo: p.costKobo });
+    }
     return map;
   }
 
@@ -471,8 +545,11 @@ export class ReportsService {
       Form: r.form ?? '',
       'Units dispensed': r.unitsDispensed,
       Movements: r.movements,
+      'Cost (NGN)': r.costKobo != null ? naira(r.costKobo) : '',
       'Selling (NGN)': naira(r.sellingKobo),
       'Consumption value (NGN)': naira(r.valueKobo),
+      'Value at cost (NGN)': r.valueAtCostKobo != null ? naira(r.valueAtCostKobo) : '',
+      'Margin (NGN)': r.marginKobo != null ? naira(r.marginKobo) : '',
     }));
     return toSpreadsheet(records, {
       sheetName: 'Consumption',

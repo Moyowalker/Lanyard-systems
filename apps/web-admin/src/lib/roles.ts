@@ -35,8 +35,11 @@ export type NavItem = {
   label: string;
   href: string;
   icon: IconKey;
-  /** Roles allowed to see this item; empty = all staff. */
-  roles?: RoleKey[];
+  /**
+   * Permission required to see this item; absent = all staff. Permission-driven so
+   * that editing a role's permissions (Roles page) directly controls module access.
+   */
+  permission?: string;
   /** Render but disable (roadmap item, no backend yet). */
   soon?: boolean;
 };
@@ -50,83 +53,27 @@ export const NAV: NavSection[] = [
   },
   {
     heading: 'Pharmacy',
-    items: [
-      {
-        label: 'Prescriptions',
-        href: '/prescriptions',
-        icon: 'rx',
-        roles: [RoleKey.PHARMACIST, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
-      },
-    ],
+    items: [{ label: 'Prescriptions', href: '/prescriptions', icon: 'rx', permission: 'rx:read' }],
   },
   {
     heading: 'Sales',
-    items: [
-      {
-        label: 'Point of Sale',
-        href: '/pos',
-        icon: 'cash',
-        roles: [
-          RoleKey.CASHIER,
-          RoleKey.PHARMACIST,
-          RoleKey.SUPPORT,
-          RoleKey.BRANCH_MANAGER,
-          RoleKey.ADMIN,
-          RoleKey.SUPER_ADMIN,
-        ],
-      },
-    ],
+    items: [{ label: 'Point of Sale', href: '/pos', icon: 'cash', permission: 'pos:sell' }],
   },
   {
     heading: 'Operations',
     items: [
-      {
-        label: 'Orders',
-        href: '/orders',
-        icon: 'orders',
-        roles: [
-          RoleKey.SUPPORT,
-          RoleKey.PHARMACIST,
-          RoleKey.BRANCH_MANAGER,
-          RoleKey.ADMIN,
-          RoleKey.SUPER_ADMIN,
-        ],
-      },
-      {
-        label: 'Deliveries',
-        href: '/deliveries',
-        icon: 'orders',
-        roles: [RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
-      },
-      {
-        label: 'Inventory',
-        href: '/inventory',
-        icon: 'inventory',
-        roles: [
-          RoleKey.INVENTORY_OFFICER,
-          RoleKey.BRANCH_MANAGER,
-          RoleKey.ADMIN,
-          RoleKey.SUPER_ADMIN,
-        ],
-      },
+      { label: 'Orders', href: '/orders', icon: 'orders', permission: 'order:read' },
+      { label: 'Deliveries', href: '/deliveries', icon: 'orders', permission: 'order:transition' },
+      { label: 'Inventory', href: '/inventory', icon: 'inventory', permission: 'inventory:read' },
     ],
   },
   {
     heading: 'Catalog',
     items: [
-      {
-        label: 'Products',
-        href: '/products',
-        icon: 'catalog',
-        roles: [RoleKey.INVENTORY_OFFICER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
-      },
-      // Pricing now lives as a tab inside Inventory (Operations → Inventory).
-      {
-        label: 'Branches',
-        href: '/branches',
-        icon: 'branch',
-        roles: [RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
-      },
+      { label: 'Products', href: '/products', icon: 'catalog', permission: 'catalog:write' },
+      // Read-only selling-price lookup for counter staff (client request).
+      { label: 'Price list', href: '/prices', icon: 'pricing', permission: 'pricing:read' },
+      { label: 'Branches', href: '/branches', icon: 'branch', permission: 'branch:write' },
     ],
   },
   {
@@ -136,55 +83,30 @@ export const NAV: NavSection[] = [
         label: 'Payments & Refunds',
         href: '/finance',
         icon: 'finance',
-        roles: [RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
+        permission: 'refund:create',
       },
-      {
-        label: 'Reports',
-        href: '/reports',
-        icon: 'reports',
-        roles: [RoleKey.BRANCH_MANAGER, RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
-      },
+      { label: 'Reports', href: '/reports', icon: 'reports', permission: 'report:read' },
     ],
   },
   {
     heading: 'Administration',
     items: [
-      {
-        label: 'Leads',
-        href: '/leads',
-        icon: 'bell',
-        roles: [RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
-      },
-      {
-        label: 'Audit Log',
-        href: '/audit',
-        icon: 'audit',
-        roles: [RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
-      },
-      {
-        label: 'Staff & Access',
-        href: '/staff',
-        icon: 'staff',
-        roles: [RoleKey.ADMIN, RoleKey.SUPER_ADMIN],
-      },
-      {
-        label: 'Roles',
-        href: '/roles',
-        icon: 'shield',
-        roles: [RoleKey.SUPER_ADMIN],
-      },
+      { label: 'Leads', href: '/leads', icon: 'bell', permission: 'audit:read' },
+      { label: 'Audit Log', href: '/audit', icon: 'audit', permission: 'audit:read' },
+      { label: 'Staff & Access', href: '/staff', icon: 'staff', permission: 'staff:read' },
+      { label: 'Roles', href: '/roles', icon: 'shield', permission: 'role:read' },
     ],
   },
 ];
 
-function canSee(item: NavItem, roles: string[]): boolean {
-  if (!item.roles || item.roles.length === 0) return true;
-  return item.roles.some((r) => roles.includes(r));
+function canSee(item: NavItem, permissions: string[]): boolean {
+  if (!item.permission) return true;
+  return permissions.includes(item.permission);
 }
 
-/** Sections with items the given roles may see (empty sections dropped). */
-export function visibleNav(roles: string[]): NavSection[] {
-  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => canSee(i, roles)) })).filter(
+/** Sections with items the given permissions may see (empty sections dropped). */
+export function visibleNav(permissions: string[]): NavSection[] {
+  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => canSee(i, permissions)) })).filter(
     (s) => s.items.length > 0,
   );
 }
