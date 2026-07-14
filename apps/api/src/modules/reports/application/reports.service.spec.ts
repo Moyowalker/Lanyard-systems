@@ -192,6 +192,28 @@ describe('buildConsumption', () => {
     expect(report.totalMarginKobo).toBe(2000);
   });
 
+  it('uses each branch price when combining multi-branch consumption', () => {
+    const report = buildConsumption(
+      [
+        { productId: 'a', branchId: 'b1', unitsDispensed: 2, movements: 1 },
+        { productId: 'a', branchId: 'b2', unitsDispensed: 3, movements: 1 },
+      ],
+      new Map([['a', { name: 'A' }]]),
+      new Map([
+        ['b1:a', { priceKobo: 1000, costKobo: 600 }],
+        ['b2:a', { priceKobo: 2000, costKobo: 1200 }],
+      ]),
+      from,
+      to,
+    );
+
+    expect(report.rows).toHaveLength(1);
+    expect(report.rows[0].unitsDispensed).toBe(5);
+    expect(report.rows[0].valueKobo).toBe(8000);
+    expect(report.rows[0].valueAtCostKobo).toBe(4800);
+    expect(report.rows[0].marginKobo).toBe(3200);
+  });
+
   it('carries the payment-channel breakdown through', () => {
     const report = buildConsumption([], new Map(), new Map(), from, to, [
       { channel: 'cash', totalKobo: 90000, orders: 3 },
