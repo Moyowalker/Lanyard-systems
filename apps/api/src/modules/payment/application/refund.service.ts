@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import {
   ActorType,
   ErrorCode,
@@ -141,5 +141,57 @@ export class RefundService {
       status: refundStatus,
       reason: input.reason,
     };
+  }
+
+  /**
+   * Record a refund settled at the till (cash handed back / terminal reversal) — the
+   * counterpart of `recordOfflinePayment`. NO provider call: POS intents are OFFLINE,
+   * so the money moves physically at the counter. Immutable Refund + REFUND txn only;
+   * order-status and restock decisions stay with the caller (PosService.returnSale).
+   */
+  async recordOfflineRefund(
+    orderId: string,
+    amountKobo: number,
+    reason: string,
+    requestedByStaffId: string,
+    session: ClientSession,
+  ): Promise<{ refundId: string }> {
+    const intent = await this.intentModel
+      .findOne({ orderId: new Types.ObjectId(orderId), status: PaymentIntentStatus.SUCCEEDED })
+      .session(session);
+    if (!intent) throw new DomainError(ErrorCode.CONFLICT, 'No successful payment to refund');
+
+    const [refund] = await this.refundModel.create(
+      [
+        {
+          orderId: new Types.ObjectId(orderId),
+          intentId: intent._id,
+          amountKobo,
+          currency: intent.currency,
+          reason,
+          status: RefundStatus.DONE,
+          requestedByStaffId: new Types.ObjectId(requestedByStaffId),
+        },
+      ],
+      { session },
+    );
+
+    await this.txnModel.create(
+      [
+        {
+          intentId: intent._id,
+          orderId: new Types.ObjectId(orderId),
+          provider: intent.provider,
+          providerEventId: `refund_offline_${refund._id.toString()}`,
+          type: PaymentTxnType.REFUND,
+          status: 'done',
+          amountKobo,
+          currency: intent.currency,
+        },
+      ],
+      { session },
+    );
+
+    return { refundId: refund._id.toString() };
   }
 }

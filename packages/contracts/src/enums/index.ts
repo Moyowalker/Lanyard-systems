@@ -183,6 +183,8 @@ export enum PaymentChannel {
   CASH = 'cash',
   /** Physical card terminal at the counter (POS). */
   POS_TERMINAL = 'pos_terminal',
+  /** Health maintenance organisation billing (POS). */
+  HMO = 'hmo',
 }
 
 export enum PaymentTxnType {
@@ -205,6 +207,8 @@ export enum StockMovementType {
   RELEASE = 'release',
   DISPENSE = 'dispense',
   ADJUST = 'adjust',
+  /** Goods returned to stock after a POS sale return. */
+  RETURN = 'return',
 }
 
 /* ───────────────────────── Fulfillment / delivery ───────────────────────── */

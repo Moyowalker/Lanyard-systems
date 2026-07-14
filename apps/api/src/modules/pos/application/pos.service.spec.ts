@@ -42,7 +42,8 @@ function saleInput(productId: string, overrides: Partial<Record<string, unknown>
   return {
     branchId: BRANCH_ID,
     items: [{ productId, quantity: 2 }],
-    payment: { channel: PaymentChannel.CASH },
+    // 2 × 80000 kobo — must equal the post-discount total exactly.
+    payments: [{ channel: PaymentChannel.CASH, amountKobo: 160000 }],
     idempotencyKey: '3f9a4a9c-1111-4222-8333-444455556666',
     ...overrides,
   } as never;
@@ -136,6 +137,7 @@ function buildService(opts: {
     { listProductsForPos: jest.fn().mockResolvedValue({ data: [], meta: {} }) } as never,
     { genOrderNo: () => 'LNY-TEST01', completeInSession: mocks.completeInSession } as never,
     { recordOfflinePayment: mocks.recordOfflinePayment } as never,
+    { recordOfflineRefund: jest.fn().mockResolvedValue({ refundId: 'r1' }) } as never,
     { getAvailabilityMap: jest.fn().mockResolvedValue(opts.availability ?? new Map()) } as never,
     { getPriceMap: jest.fn().mockResolvedValue(opts.priceMap ?? new Map()) } as never,
     {
@@ -361,5 +363,250 @@ describe('PosService.listSales (authorization)', () => {
         limit: 50,
       } as never),
     ).rejects.toMatchObject({ code: ErrorCode.BRANCH_SCOPE_VIOLATION });
+  });
+});
+
+describe('PosService.createSale — discounts & split payments', () => {
+  it('applies a percentage discount server-side and validates the payment sum', async () => {
+    const product = makeProduct();
+    const { service, mocks } = buildService({ products: [product], ...pricedAndStocked(product) });
+
+    // subtotal 160000, 10% off → total 144000
+    await service.createSale(
+      principal,
+      saleInput(product._id.toString(), {
+        discount: { type: 'percent', value: 10 },
+        payments: [{ channel: PaymentChannel.CASH, amountKobo: 144000 }],
+      }),
+    );
+
+    const orderDoc = mocks.orderCreate.mock.calls[0][0][0];
+    expect(orderDoc.totals.discountKobo).toBe(16000);
+    expect(orderDoc.totals.totalKobo).toBe(144000);
+  });
+
+  it('caps a fixed discount at the subtotal', async () => {
+    const product = makeProduct();
+    const { service, mocks } = buildService({ products: [product], ...pricedAndStocked(product) });
+
+    await service.createSale(
+      principal,
+      saleInput(product._id.toString(), {
+        discount: { type: 'fixed', value: 999999999 },
+        payments: [{ channel: PaymentChannel.CASH, amountKobo: 0 }],
+      }),
+    );
+    // discount clamps to the 160000 subtotal → total 0... payments must sum to 0.
+    // amountKobo 0 fails zod positive() in the real pipe, but service-level math is the target here.
+    const orderDoc = mocks.orderCreate.mock.calls[0][0][0];
+    expect(orderDoc.totals.discountKobo).toBe(160000);
+    expect(orderDoc.totals.totalKobo).toBe(0);
+  });
+
+  it('rejects payments that do not sum to the post-discount total', async () => {
+    const product = makeProduct();
+    const { service, mocks } = buildService({ products: [product], ...pricedAndStocked(product) });
+
+    await expect(
+      service.createSale(
+        principal,
+        saleInput(product._id.toString(), {
+          payments: [
+            { channel: PaymentChannel.CASH, amountKobo: 100000 },
+            { channel: PaymentChannel.HMO, amountKobo: 50000 }, // 10000 short
+          ],
+        }),
+      ),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+    expect(mocks.orderCreate).not.toHaveBeenCalled();
+  });
+
+  it('records a split cash + HMO payment on the counter sale', async () => {
+    const product = makeProduct();
+    const { service, mocks } = buildService({ products: [product], ...pricedAndStocked(product) });
+
+    await service.createSale(
+      principal,
+      saleInput(product._id.toString(), {
+        payments: [
+          { channel: PaymentChannel.CASH, amountKobo: 100000 },
+          { channel: PaymentChannel.HMO, amountKobo: 60000 },
+        ],
+      }),
+    );
+
+    const orderDoc = mocks.orderCreate.mock.calls[0][0][0];
+    expect(orderDoc.counterSale.paymentChannel).toBe(PaymentChannel.CASH); // primary = first
+    expect(orderDoc.counterSale.payments).toEqual([
+      { channel: PaymentChannel.CASH, amountKobo: 100000 },
+      { channel: PaymentChannel.HMO, amountKobo: 60000 },
+    ]);
+    // One offline intent for the full amount under the primary channel.
+    expect(mocks.recordOfflinePayment).toHaveBeenCalledWith(
+      expect.any(String),
+      PaymentChannel.CASH,
+      STAFF_ID,
+      null,
+    );
+  });
+});
+
+describe('PosService.returnSale', () => {
+  const ORDER_ID = new Types.ObjectId();
+  const PRODUCT_ID = new Types.ObjectId();
+
+  function completedSale(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      _id: ORDER_ID,
+      orderNo: 'LNY-RET01',
+      branchId: new Types.ObjectId(BRANCH_ID),
+      customerId: new Types.ObjectId(),
+      status: OrderStatus.COMPLETED,
+      fulfillment: { type: 'counter' },
+      items: [
+        {
+          productId: PRODUCT_ID,
+          name: 'Paracetamol 500mg',
+          unitPriceKobo: 80000,
+          quantity: 2,
+          lineTotalKobo: 160000,
+          requiresPrescription: false,
+        },
+      ],
+      totals: { subtotalKobo: 160000, discountKobo: 16000, totalKobo: 144000, currency: 'NGN' },
+      payment: { paidAt: new Date() },
+      counterSale: {
+        cashierStaffId: new Types.ObjectId(STAFF_ID),
+        paymentChannel: PaymentChannel.CASH,
+        idempotencyKey: 'k',
+        returns: [],
+      },
+      createdAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  function buildReturnService(order: unknown) {
+    const recordOfflineRefund = jest.fn().mockResolvedValue({ refundId: 'r1' });
+    const returnStock = jest.fn().mockResolvedValue(undefined);
+    const releaseAndTransition = jest.fn().mockResolvedValue(undefined);
+    const updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    const auditRecord = jest.fn().mockResolvedValue(undefined);
+
+    const service = new PosService(
+      { findById: jest.fn().mockResolvedValue(order), updateOne } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { releaseAndTransition } as never,
+      {} as never,
+      { recordOfflineRefund } as never,
+      { returnStock } as never,
+      {} as never,
+      {} as never,
+      { record: auditRecord } as never,
+      {
+        run: jest.fn().mockImplementation(async (fn: (s: unknown) => Promise<unknown>) => fn(null)),
+      } as never,
+    );
+    return { service, recordOfflineRefund, returnStock, releaseAndTransition, updateOne };
+  }
+
+  const manager: AuthPrincipal = {
+    sub: STAFF_ID,
+    realm: 'staff',
+    roles: ['BRANCH_MANAGER'],
+    permissions: ['pos:sell', 'pos:refund'],
+    branchScope: [BRANCH_ID],
+    sessionId: 's1',
+  } as AuthPrincipal;
+
+  it('returns one unit with a discount-proportional refund and restocks it', async () => {
+    const { service, recordOfflineRefund, returnStock, releaseAndTransition } =
+      buildReturnService(completedSale());
+
+    const result = await service.returnSale(manager, ORDER_ID.toString(), {
+      items: [{ productId: PRODUCT_ID.toString(), quantity: 1 }],
+      reason: 'Wrong strength dispensed',
+    });
+
+    // 80000 × (1 − 16000/160000) = 72000
+    expect(result.refundKobo).toBe(72000);
+    expect(result.orderStatus).toBe(OrderStatus.COMPLETED); // partial → stays completed
+    expect(recordOfflineRefund).toHaveBeenCalledWith(
+      ORDER_ID.toString(),
+      72000,
+      'Wrong strength dispensed',
+      STAFF_ID,
+      null,
+    );
+    expect(returnStock).toHaveBeenCalledWith(
+      BRANCH_ID,
+      PRODUCT_ID.toString(),
+      1,
+      STAFF_ID,
+      ORDER_ID.toString(),
+      'Wrong strength dispensed',
+      null,
+    );
+    expect(releaseAndTransition).not.toHaveBeenCalled();
+  });
+
+  it('moves the order to REFUNDED on a full return and clamps the final refund', async () => {
+    const { service, recordOfflineRefund, releaseAndTransition } =
+      buildReturnService(completedSale());
+
+    const result = await service.returnSale(manager, ORDER_ID.toString(), {
+      reason: 'Customer returned everything',
+    });
+
+    // Full return: refund = whole paid total (clamped, rounding-safe).
+    expect(result.refundKobo).toBe(144000);
+    expect(result.orderStatus).toBe(OrderStatus.REFUNDED);
+    expect(recordOfflineRefund).toHaveBeenCalledWith(
+      ORDER_ID.toString(),
+      144000,
+      'Customer returned everything',
+      STAFF_ID,
+      null,
+    );
+    expect(releaseAndTransition).toHaveBeenCalled();
+  });
+
+  it('rejects returning more than was sold (cumulative)', async () => {
+    const { service } = buildReturnService(
+      completedSale({
+        counterSale: {
+          cashierStaffId: new Types.ObjectId(STAFF_ID),
+          paymentChannel: PaymentChannel.CASH,
+          idempotencyKey: 'k',
+          returns: [
+            {
+              byStaffId: new Types.ObjectId(STAFF_ID),
+              reason: 'first return',
+              items: [{ productId: PRODUCT_ID, quantity: 2 }],
+              refundKobo: 144000,
+              at: new Date(),
+            },
+          ],
+        },
+      }),
+    );
+
+    await expect(
+      service.returnSale(manager, ORDER_ID.toString(), {
+        items: [{ productId: PRODUCT_ID.toString(), quantity: 1 }],
+        reason: 'over-return attempt',
+      }),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+  });
+
+  it('rejects returns on non-completed sales', async () => {
+    const { service } = buildReturnService(completedSale({ status: OrderStatus.PAID }));
+
+    await expect(
+      service.returnSale(manager, ORDER_ID.toString(), { reason: 'too early' }),
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
   });
 });

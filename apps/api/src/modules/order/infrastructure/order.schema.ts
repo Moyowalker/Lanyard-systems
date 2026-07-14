@@ -110,16 +110,59 @@ export const OrderCancellationSchema = SchemaFactory.createForClass(OrderCancell
  * who rang the sale up, how it was paid, and for prescription-only items the
  * "prescription sighted" note a regulator can query.
  */
+/** One entry of a (possibly split) counter payment. */
+@Schema({ _id: false })
+export class CounterPaymentEntry {
+  @Prop({ type: String, enum: PaymentChannel, required: true })
+  channel: PaymentChannel;
+
+  @Prop(KOBO)
+  amountKobo: number;
+}
+export const CounterPaymentEntrySchema = SchemaFactory.createForClass(CounterPaymentEntry);
+
+/** One (partial or full) return against a counter sale — immutable audit record. */
+@Schema({ _id: false })
+export class CounterSaleReturn {
+  @Prop({ type: Types.ObjectId, ref: 'StaffUser', required: true })
+  byStaffId: Types.ObjectId;
+
+  @Prop({ type: String, trim: true, maxlength: 500, required: true })
+  reason: string;
+
+  @Prop({
+    type: [{ productId: { type: Types.ObjectId, required: true }, quantity: Number }],
+    default: [],
+  })
+  items: Array<{ productId: Types.ObjectId; quantity: number }>;
+
+  @Prop(KOBO)
+  refundKobo: number;
+
+  @Prop({ type: Date, default: () => new Date() })
+  at: Date;
+}
+export const CounterSaleReturnSchema = SchemaFactory.createForClass(CounterSaleReturn);
+
 @Schema({ _id: false })
 export class OrderCounterSale {
   @Prop({ type: Types.ObjectId, ref: 'StaffUser', required: true })
   cashierStaffId: Types.ObjectId;
 
+  /** Primary (first) channel — kept for receipts, reports, and pre-split records. */
   @Prop({ type: String, enum: PaymentChannel, required: true })
   paymentChannel: PaymentChannel;
 
+  /** Full split-payment breakdown (1–3 entries; absent on pre-split records). */
+  @Prop({ type: [CounterPaymentEntrySchema], default: undefined })
+  payments?: CounterPaymentEntry[];
+
   @Prop({ type: String, trim: true, maxlength: 500 })
   rxNote?: string;
+
+  /** Returns applied against this sale (partial or full). */
+  @Prop({ type: [CounterSaleReturnSchema], default: undefined })
+  returns?: CounterSaleReturn[];
 
   /** Client-minted UUID; the sparse unique index below makes double-submits idempotent. */
   @Prop({ type: String, required: true })

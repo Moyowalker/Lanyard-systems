@@ -84,6 +84,23 @@ export class CatalogService {
    * exposed on the public catalog routes.
    */
   async listProductsForPos(query: ProductListQuery): Promise<Paginated<ProductListItemDto>> {
+    // Scanner path: exact barcode/SKU match, bypassing text search entirely.
+    if (query.barcode) {
+      const code = query.barcode.trim();
+      const rows = await this.productModel
+        .find({
+          status: ProductStatus.PUBLISHED,
+          $or: [{ barcode: code }, { sku: code.toUpperCase() }],
+        })
+        .limit(2)
+        .lean();
+      const items = await this.decorate(rows, query.branchId, true);
+      return {
+        data: query.branchId ? items.filter((i) => i.price) : items,
+        meta: { nextCursor: null },
+      };
+    }
+
     const filter: FilterQuery<Product> = {
       status: ProductStatus.PUBLISHED,
       ...cursorFilter(query.cursor),
@@ -311,6 +328,7 @@ export class CatalogService {
           id,
           slug: r.slug as string,
           sku: r.sku as string | undefined,
+          barcode: r.barcode as string | undefined,
           name: r.name as string,
           genericName: r.genericName as string | undefined,
           brand: r.brand as string | undefined,
@@ -384,6 +402,12 @@ export class CatalogService {
     const keyValue = (err as { keyValue?: Record<string, unknown> }).keyValue ?? {};
     if ('sku' in keyValue) {
       return new DomainError(ErrorCode.CONFLICT, `Product SKU "${keyValue.sku}" already exists`);
+    }
+    if ('barcode' in keyValue) {
+      return new DomainError(
+        ErrorCode.CONFLICT,
+        `Product barcode "${keyValue.barcode}" already exists`,
+      );
     }
     if ('slug' in keyValue) {
       return new DomainError(ErrorCode.CONFLICT, `Product slug "${keyValue.slug}" already exists`);

@@ -49,7 +49,8 @@ import { PAYMENT_RECONCILE_QUEUE } from '../../core/queue/queue.constants';
       },
     },
   ],
-  // PaymentService is exported for the POS module (offline counter payments).
-  exports: [PaymentService],
+  // PaymentService + RefundService are exported for the POS module (offline counter
+  // payments and till returns).
+  exports: [PaymentService, RefundService],
 })
 export class PaymentModule {}

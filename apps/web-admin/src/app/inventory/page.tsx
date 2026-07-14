@@ -105,6 +105,7 @@ const MOVEMENT_TONE: Record<StockMovementType, 'success' | 'warn' | 'danger' | '
     [StockMovementType.RESERVE]: 'warn',
     [StockMovementType.RELEASE]: 'neutral',
     [StockMovementType.DISPENSE]: 'danger',
+    [StockMovementType.RETURN]: 'success',
   };
 
 function short(id?: string): string {
