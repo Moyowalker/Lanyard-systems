@@ -104,6 +104,29 @@ export default function AdminOrderDetail({ params }: { params: Promise<{ id: str
         </div>
       </Panel>
 
+      {o.fulfillment.type === 'delivery' && (
+        <Panel title="Delivery details">
+          <div className="space-y-2 text-sm text-slate-700">
+            {o.fulfillment.address ? (
+              <p>
+                {['line1', 'line2', 'city', 'state']
+                  .map((key) => o.fulfillment.address?.[key])
+                  .filter((part): part is string => typeof part === 'string' && part.length > 0)
+                  .join(', ')}
+              </p>
+            ) : null}
+            {o.fulfillment.deliveryZoneName ? (
+              <p className="text-slate-500">Zone: {o.fulfillment.deliveryZoneName}</p>
+            ) : null}
+            {o.fulfillment.deliveryNote ? (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+                <span className="font-semibold">Customer note:</span> {o.fulfillment.deliveryNote}
+              </p>
+            ) : null}
+          </div>
+        </Panel>
+      )}
+
       <Panel title="Actions">
         <div className="flex flex-wrap gap-2">
           {actions.map((to) => (

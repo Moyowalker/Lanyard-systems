@@ -38,6 +38,7 @@ export default function CheckoutPage() {
 
   const [fulfillment, setFulfillment] = useState<Fulfillment>('pickup');
   const [deliveryZoneName, setDeliveryZoneName] = useState('');
+  const [deliveryNote, setDeliveryNote] = useState('');
   const [selectedAddress, setSelectedAddress] = useState('manual');
   const [address, setAddress] = useState<CheckoutAddress>({ line1: '', city: '', state: '' });
   const [files, setFiles] = useState<FileList | null>(null);
@@ -239,6 +240,8 @@ export default function CheckoutPage() {
           fulfillment: {
             type: fulfillment,
             deliveryZoneName: fulfillment === 'delivery' ? deliveryZoneName : undefined,
+            deliveryNote:
+              fulfillment === 'delivery' && deliveryNote.trim() ? deliveryNote.trim() : undefined,
             address: fulfillment === 'delivery' ? { ...address, country: 'NG' } : undefined,
           },
           prescriptionIds,
@@ -488,6 +491,20 @@ export default function CheckoutPage() {
                     }}
                     placeholder="e.g. Lagos"
                     className="input-field"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="delivery-note" className="field-label">
+                    Delivery instructions (optional)
+                  </label>
+                  <textarea
+                    id="delivery-note"
+                    value={deliveryNote}
+                    onChange={(e) => setDeliveryNote(e.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    placeholder="e.g. Call on arrival, gate code 2345, leave with the security desk"
+                    className="input-field min-h-20"
                   />
                 </div>
               </div>

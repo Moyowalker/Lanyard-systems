@@ -43,8 +43,14 @@ type BranchRow = {
   };
   contact?: { phone?: string; email?: string };
   license?: { pcnPremisesNo?: string; superintendentStaffId?: string };
-  fulfillment?: { pickup?: boolean; delivery?: boolean };
+  fulfillment?: {
+    pickup?: boolean;
+    delivery?: boolean;
+    deliveryZones?: Array<{ name: string; feeKobo: number; etaMins?: number; radiusKm?: number }>;
+  };
 };
+
+type ZoneFormRow = { name: string; feeNaira: string; etaMins: string };
 
 type BranchFormState = {
   id?: string;
@@ -64,6 +70,7 @@ type BranchFormState = {
   superintendentStaffId: string;
   pickup: boolean;
   delivery: boolean;
+  deliveryZones: ZoneFormRow[];
 };
 
 type FormMessage = { tone: 'success' | 'danger'; text: string };
@@ -94,6 +101,7 @@ const EMPTY_BRANCH_FORM: BranchFormState = {
   superintendentStaffId: '',
   pickup: true,
   delivery: false,
+  deliveryZones: [],
 };
 
 const inputClass =
@@ -153,6 +161,11 @@ function toBranchForm(branch: BranchRow): BranchFormState {
     superintendentStaffId: branch.license?.superintendentStaffId ?? '',
     pickup: branch.fulfillment?.pickup ?? true,
     delivery: branch.fulfillment?.delivery ?? false,
+    deliveryZones: (branch.fulfillment?.deliveryZones ?? []).map((zone) => ({
+      name: zone.name,
+      feeNaira: String(zone.feeKobo / 100),
+      etaMins: zone.etaMins != null ? String(zone.etaMins) : '',
+    })),
   };
 }
 
@@ -234,6 +247,21 @@ export default function BranchesPage() {
     event.preventDefault();
     setMessage(undefined);
 
+    const zones = form.deliveryZones
+      .filter((zone) => zone.name.trim())
+      .map((zone) => ({
+        name: zone.name.trim(),
+        feeKobo: Math.round(Number(zone.feeNaira || 0) * 100),
+        etaMins: zone.etaMins ? Number(zone.etaMins) : undefined,
+      }));
+    if (form.delivery && zones.length === 0) {
+      setMessage({
+        tone: 'danger',
+        text: 'Add at least one delivery zone (with its fee) when delivery is enabled.',
+      });
+      return;
+    }
+
     const basePayload = {
       name: form.name,
       status: form.status,
@@ -255,7 +283,7 @@ export default function BranchesPage() {
       fulfillment: {
         pickup: form.pickup,
         delivery: form.delivery,
-        deliveryZones: [],
+        deliveryZones: zones,
       },
     };
 
@@ -661,6 +689,127 @@ export default function BranchesPage() {
                     Delivery enabled
                   </label>
                 </div>
+
+                {form.delivery ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Delivery zones</div>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Each zone sets its own delivery fee — customers pick a zone at checkout.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            deliveryZones: [
+                              ...current.deliveryZones,
+                              { name: '', feeNaira: '', etaMins: '' },
+                            ],
+                          }))
+                        }
+                      >
+                        Add zone
+                      </Button>
+                    </div>
+
+                    {form.deliveryZones.length === 0 ? (
+                      <p className="mt-3 text-sm text-slate-500">
+                        No zones yet — add one so delivery orders can be priced.
+                      </p>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {form.deliveryZones.map((zone, index) => (
+                          <div
+                            key={index}
+                            className="grid gap-2 sm:grid-cols-[1.4fr_1fr_0.8fr_auto] sm:items-end"
+                          >
+                            <div>
+                              <label className={labelClass} htmlFor={`zone-name-${index}`}>
+                                Zone name
+                              </label>
+                              <input
+                                id={`zone-name-${index}`}
+                                value={zone.name}
+                                onChange={(event) =>
+                                  setForm((current) => ({
+                                    ...current,
+                                    deliveryZones: current.deliveryZones.map((z, i) =>
+                                      i === index ? { ...z, name: event.target.value } : z,
+                                    ),
+                                  }))
+                                }
+                                className={inputClass}
+                                placeholder="e.g. Ago Palace"
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass} htmlFor={`zone-fee-${index}`}>
+                                Fee (₦)
+                              </label>
+                              <input
+                                id={`zone-fee-${index}`}
+                                type="number"
+                                min="0"
+                                step="50"
+                                value={zone.feeNaira}
+                                onChange={(event) =>
+                                  setForm((current) => ({
+                                    ...current,
+                                    deliveryZones: current.deliveryZones.map((z, i) =>
+                                      i === index ? { ...z, feeNaira: event.target.value } : z,
+                                    ),
+                                  }))
+                                }
+                                className={inputClass}
+                                placeholder="e.g. 1500"
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass} htmlFor={`zone-eta-${index}`}>
+                                ETA (min)
+                              </label>
+                              <input
+                                id={`zone-eta-${index}`}
+                                type="number"
+                                min="0"
+                                step="5"
+                                value={zone.etaMins}
+                                onChange={(event) =>
+                                  setForm((current) => ({
+                                    ...current,
+                                    deliveryZones: current.deliveryZones.map((z, i) =>
+                                      i === index ? { ...z, etaMins: event.target.value } : z,
+                                    ),
+                                  }))
+                                }
+                                className={inputClass}
+                                placeholder="60"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setForm((current) => ({
+                                  ...current,
+                                  deliveryZones: current.deliveryZones.filter(
+                                    (_, i) => i !== index,
+                                  ),
+                                }))
+                              }
+                              className="mb-0.5 rounded-lg px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
 
                 {selectedBranch ? (
                   <p className="text-xs text-slate-500">

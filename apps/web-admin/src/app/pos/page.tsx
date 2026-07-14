@@ -189,7 +189,8 @@ export default function PosPage() {
     queryFn: async () => {
       const params = new URLSearchParams({ branchId, limit: '30' });
       if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim());
-      const res = await fetch(`/api/catalog/products?${params.toString()}`);
+      // Staff lookup: includes products hidden from the storefront but sellable at the till.
+      const res = await fetch(`/api/admin/pos/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<ProductListItemDto>;
     },

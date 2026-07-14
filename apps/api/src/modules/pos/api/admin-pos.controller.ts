@@ -5,6 +5,8 @@ import {
   PosCreateSaleSchema,
   PosSalesQuery,
   PosSalesQuerySchema,
+  ProductListQuery,
+  ProductListQuerySchema,
 } from '@lanyard/contracts';
 
 import {
@@ -36,6 +38,16 @@ export class AdminPosController {
     @Body(new ZodValidationPipe(PosCreateSaleSchema)) dto: PosCreateSaleInput,
   ) {
     return this.pos.createSale(user, dto);
+  }
+
+  /** Till product lookup — includes storefront-hidden products (scope checked in service). */
+  @Get('products')
+  @RequirePermissions('pos:sell')
+  listProducts(
+    @CurrentUser() user: AuthPrincipal,
+    @Query(new ZodValidationPipe(ProductListQuerySchema)) query: ProductListQuery,
+  ) {
+    return this.pos.listProducts(user, query);
   }
 
   /** Today's counter sales (branch-scope enforced in the service; cashiers see their own). */

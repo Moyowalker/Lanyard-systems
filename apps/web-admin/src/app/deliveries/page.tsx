@@ -149,6 +149,11 @@ function DeliveryCard({ item, onChanged }: { item: DeliveryBoardItemDto; onChang
               {delivery.rider.phone ? ` · ${delivery.rider.phone}` : ''}
             </div>
           )}
+          {item.deliveryNote && (
+            <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <span className="font-semibold">Customer note:</span> {item.deliveryNote}
+            </div>
+          )}
         </div>
         <div className="text-right">
           <div className="text-lg font-bold text-slate-900">{formatKobo(item.totalKobo)}</div>

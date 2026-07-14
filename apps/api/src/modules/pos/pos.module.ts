@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { CatalogModule } from '../catalog/catalog.module';
 import { OrderModule } from '../order/order.module';
 import { PaymentModule } from '../payment/payment.module';
 import { InventoryModule } from '../inventory/inventory.module';
@@ -14,7 +15,14 @@ import { AdminPosController } from './api/admin-pos.controller';
  * reports as online orders. Models come from the global ModelsModule.
  */
 @Module({
-  imports: [OrderModule, PaymentModule, InventoryModule, PricingModule, IdentityModule],
+  imports: [
+    CatalogModule,
+    OrderModule,
+    PaymentModule,
+    InventoryModule,
+    PricingModule,
+    IdentityModule,
+  ],
   controllers: [AdminPosController],
   providers: [PosService],
 })

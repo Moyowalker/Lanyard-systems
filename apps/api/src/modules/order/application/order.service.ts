@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model, Types } from 'mongoose';
+import { ClientSession, Error as MongooseError, Model, Types } from 'mongoose';
 import { randomBytes } from 'node:crypto';
 import {
   ActorType,
@@ -122,7 +122,7 @@ export class OrderService {
     const orderNo = this.genOrderNo();
     const now = new Date();
 
-    const created = await this.tx.run(async (session) => {
+    const created = await this.runCreateTransaction(async (session) => {
       const [order] = await this.orderModel.create(
         [
           {
@@ -135,6 +135,7 @@ export class OrderService {
               address: dto.fulfillment.address,
               feeKobo: deliveryKobo,
               deliveryZoneName,
+              deliveryNote: dto.fulfillment.deliveryNote,
               etaMins,
             },
             items: res.lines.map((l) => ({
@@ -614,6 +615,31 @@ export class OrderService {
     return `LNY-${randomBytes(4).toString('hex').toUpperCase()}`;
   }
 
+  /**
+   * Run the order-creation transaction, translating Mongoose validation/cast errors
+   * (e.g. a saved address whose contactPhone fails the strict E.164 match on the
+   * embedded Address schema) into 400 VALIDATION_FAILED instead of a raw 500.
+   */
+  private async runCreateTransaction<T>(fn: (session: ClientSession) => Promise<T>): Promise<T> {
+    try {
+      return await this.tx.run(fn);
+    } catch (err) {
+      if (err instanceof MongooseError.ValidationError) {
+        throw new DomainError(
+          ErrorCode.VALIDATION_FAILED,
+          'Order details failed validation',
+          Object.entries(err.errors).map(([field, e]) => ({ field, issue: e.message })),
+        );
+      }
+      if (err instanceof MongooseError.CastError) {
+        throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Order details failed validation', [
+          { field: err.path, issue: 'invalid value' },
+        ]);
+      }
+      throw err;
+    }
+  }
+
   private selectDeliveryZone(
     zones?: Array<{ name: string; feeKobo: number; etaMins?: number }>,
     requestedName?: string,
@@ -634,6 +660,7 @@ export class OrderService {
         type: o.fulfillment.type,
         address: o.fulfillment.address as Record<string, unknown> | undefined,
         deliveryZoneName: o.fulfillment.deliveryZoneName,
+        deliveryNote: o.fulfillment.deliveryNote,
         etaMins: o.fulfillment.etaMins,
       },
       items: o.items.map((i) => ({

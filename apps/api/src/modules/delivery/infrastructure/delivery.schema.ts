@@ -41,6 +41,10 @@ export class Delivery {
   @Prop({ type: AddressSchema, required: true })
   address: Address;
 
+  /** Customer's delivery instructions, copied from the order at dispatch. */
+  @Prop({ type: String, trim: true, maxlength: 500 })
+  deliveryNote?: string;
+
   @Prop({ type: RiderInfoSchema })
   riderInfo?: RiderInfo;
 

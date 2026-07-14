@@ -64,6 +64,8 @@ export class OrderFulfillment {
 
   @Prop(OPTIONAL_KOBO) feeKobo?: number;
   @Prop({ type: String, trim: true }) deliveryZoneName?: string;
+  /** Customer's delivery instructions captured at checkout. */
+  @Prop({ type: String, trim: true, maxlength: 500 }) deliveryNote?: string;
   @Prop({ type: Number, min: 0 }) etaMins?: number;
 }
 export const OrderFulfillmentSchema = SchemaFactory.createForClass(OrderFulfillment);

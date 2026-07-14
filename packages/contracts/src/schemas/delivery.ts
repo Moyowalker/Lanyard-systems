@@ -38,6 +38,8 @@ export interface DeliveryDto {
   orderId: string;
   status: DeliveryStatus;
   rider?: DeliveryRiderDto;
+  /** Customer's delivery instructions captured at checkout. */
+  deliveryNote?: string;
   feeKobo: number;
   dispatchedAt?: string;
   deliveredAt?: string;
@@ -52,6 +54,8 @@ export interface DeliveryBoardItemDto {
   deliveryFeeKobo: number;
   etaMins?: number;
   address?: { line1: string; city: string; state: string };
+  /** Customer's delivery instructions captured at checkout. */
+  deliveryNote?: string;
   createdAt: string;
   delivery?: DeliveryDto;
 }

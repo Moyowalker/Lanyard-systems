@@ -78,6 +78,35 @@ export class CatalogService {
     return paginate(visible, query.limit);
   }
 
+  /**
+   * Staff POS product lookup: published + priced products at a branch, INCLUDING those
+   * hidden from the storefront (`isAvailable: false`). Served behind `pos:sell` — never
+   * exposed on the public catalog routes.
+   */
+  async listProductsForPos(query: ProductListQuery): Promise<Paginated<ProductListItemDto>> {
+    const filter: FilterQuery<Product> = {
+      status: ProductStatus.PUBLISHED,
+      ...cursorFilter(query.cursor),
+    };
+    if (query.q) filter.$text = { $search: query.q };
+
+    let rows = await this.productModel
+      .find(filter)
+      .sort({ _id: 1 })
+      .limit(query.limit + 1)
+      .lean();
+    if (rows.length === 0 && query.q) {
+      rows = await this.productModel
+        .find({ status: ProductStatus.PUBLISHED, ...this.substringFilter(query.q) })
+        .limit(query.limit + 1)
+        .lean();
+    }
+
+    const items = await this.decorate(rows, query.branchId, true);
+    const visible = query.branchId ? items.filter((i) => i.price) : items;
+    return paginate(visible, query.limit);
+  }
+
   async getProduct(slug: string, query: ProductDetailQuery): Promise<ProductDetailDto> {
     const product = await this.productModel
       .findOne({ slug, status: ProductStatus.PUBLISHED })
@@ -253,10 +282,15 @@ export class CatalogService {
 
   /* ── helpers ── */
 
-  /** Merge global product rows with per-branch price + availability (when branchId given). */
+  /**
+   * Merge global product rows with per-branch price + availability (when branchId given).
+   * `includeHidden` attaches the price even when `isAvailable` is false — used by the
+   * staff POS lookup, since that flag only controls STOREFRONT visibility.
+   */
   private async decorate(
     rows: Array<Record<string, unknown> & { _id: Types.ObjectId }>,
     branchId?: string,
+    includeHidden = false,
   ): Promise<ProductListItemDto[]> {
     let priceMap = new Map<string, PriceEntry>();
     let availMap = new Map<string, number>();
@@ -289,7 +323,7 @@ export class CatalogService {
           images: await this.signedImages((r.images as string[]) ?? []),
         };
         if (branchId) {
-          if (price && price.isAvailable) {
+          if (price && (price.isAvailable || includeHidden)) {
             base.price = {
               priceKobo: price.priceKobo,
               compareAtKobo: price.compareAtKobo,
