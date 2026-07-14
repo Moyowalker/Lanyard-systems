@@ -87,6 +87,7 @@ export class DeliveryService {
         deliveryFeeKobo: o.totals.deliveryKobo ?? o.fulfillment?.feeKobo ?? 0,
         etaMins: o.fulfillment?.etaMins,
         address: addr ? { line1: addr.line1, city: addr.city, state: addr.state } : undefined,
+        deliveryNote: o.fulfillment?.deliveryNote,
         createdAt: (o as unknown as { createdAt: Date }).createdAt.toISOString(),
         delivery: delivery ? this.toDto(delivery) : undefined,
       };
@@ -139,6 +140,7 @@ export class DeliveryService {
           landmark: addr.landmark,
           contactPhone: addr.contactPhone,
         },
+        deliveryNote: order.fulfillment.deliveryNote,
         feeKobo: order.totals.deliveryKobo ?? order.fulfillment.feeKobo ?? 0,
         trackingEvents: [],
       });
@@ -230,6 +232,7 @@ export class DeliveryService {
       rider: d.riderInfo
         ? { name: d.riderInfo.name, phone: d.riderInfo.phone, vehicle: d.riderInfo.vehicle }
         : undefined,
+      deliveryNote: d.deliveryNote,
       feeKobo: d.feeKobo,
       dispatchedAt: d.dispatchedAt?.toISOString(),
       deliveredAt: d.deliveredAt?.toISOString(),

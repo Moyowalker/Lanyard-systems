@@ -112,6 +112,9 @@ const inputClass =
   'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
 const labelClass = 'text-xs font-semibold uppercase tracking-wide text-slate-500';
 
+/** Dosage forms sorted alphabetically for the dropdown (enum order is storage order). */
+const PRODUCT_FORM_OPTIONS = Object.values(ProductForm).sort((a, b) => a.localeCompare(b));
+
 function humanizeToken(value?: string): string {
   if (!value) return 'Unknown';
   return value
@@ -725,7 +728,7 @@ export default function ProductsPage() {
                       }
                       className={inputClass}
                     >
-                      {Object.values(ProductForm).map((value) => (
+                      {PRODUCT_FORM_OPTIONS.map((value) => (
                         <option key={value} value={value}>
                           {humanizeToken(value)}
                         </option>

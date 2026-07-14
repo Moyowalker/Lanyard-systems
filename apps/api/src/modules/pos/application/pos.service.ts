@@ -7,9 +7,12 @@ import {
   ErrorCode,
   FulfillmentType,
   OrderStatus,
+  Paginated,
   PosCreateSaleInput,
   PosSaleDto,
   PosSalesQuery,
+  ProductListItemDto,
+  ProductListQuery,
   ProductStatus,
   RegulatoryClass,
   isQueryTrue,
@@ -19,6 +22,7 @@ import { Order, OrderDocument } from '../../order/infrastructure/order.schema';
 import { Product } from '../../catalog/infrastructure/catalog.schemas';
 import { StaffUser } from '../../identity/infrastructure/identity.schemas';
 import { Customer } from '../../identity/infrastructure/identity.schemas';
+import { CatalogService } from '../../catalog/application/catalog.service';
 import { OrderService, Actor } from '../../order/application/order.service';
 import { PaymentService } from '../../payment/application/payment.service';
 import { InventoryService } from '../../inventory/application/inventory.service';
@@ -58,6 +62,7 @@ export class PosService {
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
     @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
     @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
+    private readonly catalog: CatalogService,
     private readonly orders: OrderService,
     private readonly payments: PaymentService,
     private readonly inventory: InventoryService,
@@ -66,6 +71,24 @@ export class PosService {
     private readonly audit: AuditService,
     private readonly tx: TransactionService,
   ) {}
+
+  /**
+   * Staff product lookup for the till — includes products hidden from the storefront
+   * (`isAvailable: false`), since that flag is storefront-only visibility.
+   */
+  async listProducts(
+    principal: AuthPrincipal,
+    query: ProductListQuery,
+  ): Promise<Paginated<ProductListItemDto>> {
+    if (
+      query.branchId &&
+      !principal.branchScope.includes('ALL') &&
+      !principal.branchScope.includes(query.branchId)
+    ) {
+      throw new DomainError(ErrorCode.BRANCH_SCOPE_VIOLATION, 'Outside your branch scope');
+    }
+    return this.catalog.listProductsForPos(query);
+  }
 
   async createSale(principal: AuthPrincipal, input: PosCreateSaleInput): Promise<PosSaleDto> {
     // Idempotency: a retried submit returns the already-recorded sale.
@@ -116,11 +139,11 @@ export class PosService {
     }
 
     // ── price server-side from the branch price list ──
+    // NB: `isAvailable` is a STOREFRONT visibility toggle, not a sales block — the
+    // counter can sell any product that has a branch price (client feature: hide a
+    // medicine online but keep it sellable at the POS).
     const priceMap = await this.pricing.getPriceMap(input.branchId, productIds);
-    const unpriced = input.items.filter((i) => {
-      const price = priceMap.get(i.productId);
-      return !price || !price.isAvailable;
-    });
+    const unpriced = input.items.filter((i) => !priceMap.get(i.productId));
     if (unpriced.length > 0) {
       throw new DomainError(
         ErrorCode.VALIDATION_FAILED,

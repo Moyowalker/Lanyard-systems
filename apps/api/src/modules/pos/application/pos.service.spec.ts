@@ -133,6 +133,7 @@ function buildService(opts: {
     productModel as never,
     staffModel as never,
     customerModel as never,
+    { listProductsForPos: jest.fn().mockResolvedValue({ data: [], meta: {} }) } as never,
     { genOrderNo: () => 'LNY-TEST01', completeInSession: mocks.completeInSession } as never,
     { recordOfflinePayment: mocks.recordOfflinePayment } as never,
     { getAvailabilityMap: jest.fn().mockResolvedValue(opts.availability ?? new Map()) } as never,

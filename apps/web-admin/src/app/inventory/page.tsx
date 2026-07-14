@@ -932,7 +932,7 @@ export default function InventoryPage() {
                   <Th right>Reorder</Th>
                   <Th>Next expiry</Th>
                   <Th right>Price</Th>
-                  <Th>Sellable</Th>
+                  <Th>Storefront</Th>
                   <Th right>{''}</Th>
                 </tr>
               </thead>
@@ -1004,7 +1004,7 @@ export default function InventoryPage() {
                         </Td>
                         <Td>
                           <Badge tone={priceRow?.isAvailable ? 'success' : 'neutral'}>
-                            {priceRow?.isAvailable ? 'Sellable' : 'Hidden'}
+                            {priceRow?.isAvailable ? 'Visible' : 'Hidden'}
                           </Badge>
                         </Td>
                         <Td right>
@@ -1081,10 +1081,15 @@ export default function InventoryPage() {
                                       })
                                     }
                                   />
+                                  Visible on storefront
                                   <Badge tone={draft.isAvailable ? 'success' : 'neutral'}>
-                                    {draft.isAvailable ? 'Sellable' : 'Hidden'}
+                                    {draft.isAvailable ? 'Visible' : 'Hidden'}
                                   </Badge>
                                 </label>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Hidden products stay off the online store but can still be sold at
+                                  the POS counter.
+                                </p>
                                 <div className="mt-3">
                                   <InlineNotice message={prices.message} />
                                 </div>
