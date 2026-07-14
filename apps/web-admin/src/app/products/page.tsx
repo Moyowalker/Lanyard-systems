@@ -39,6 +39,7 @@ type AdminProductRow = {
   name: string;
   slug: string;
   sku?: string;
+  barcode?: string;
   genericName?: string;
   brand?: string;
   description?: string;
@@ -60,6 +61,7 @@ type ProductFormState = {
   name: string;
   slug: string;
   sku: string;
+  barcode: string;
   genericName: string;
   brand: string;
   description: string;
@@ -87,6 +89,7 @@ const EMPTY_PRODUCT_FORM: ProductFormState = {
   name: '',
   slug: '',
   sku: '',
+  barcode: '',
   genericName: '',
   brand: '',
   description: '',
@@ -151,6 +154,7 @@ function toProductForm(product: AdminProductRow): ProductFormState {
     name: product.name,
     slug: product.slug,
     sku: product.sku ?? '',
+    barcode: product.barcode ?? '',
     genericName: product.genericName ?? '',
     brand: product.brand ?? '',
     description: product.description ?? '',
@@ -220,7 +224,7 @@ export default function ProductsPage() {
     const term = productSearch.trim().toLowerCase();
     if (!term) return rows;
     return rows.filter((row) =>
-      [row.name, row.genericName, row.brand, row.sku, row.slug, row.manufacturer]
+      [row.name, row.genericName, row.brand, row.sku, row.barcode, row.slug, row.manufacturer]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(term)),
     );
@@ -403,6 +407,7 @@ export default function ProductsPage() {
       name: productForm.name,
       slug: productForm.slug || undefined,
       sku: productForm.sku || undefined,
+      barcode: productForm.barcode || undefined,
       genericName: productForm.genericName || undefined,
       brand: productForm.brand || undefined,
       description: productForm.description || undefined,
@@ -679,6 +684,20 @@ export default function ProductsPage() {
                       }
                       className={inputClass}
                       placeholder="Optional · e.g. PARA-500-10"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass} htmlFor="product-barcode">
+                      Barcode
+                    </label>
+                    <input
+                      id="product-barcode"
+                      value={productForm.barcode}
+                      onChange={(event) =>
+                        setProductForm((current) => ({ ...current, barcode: event.target.value }))
+                      }
+                      className={inputClass}
+                      placeholder="Optional · EAN/UPC for POS scanning"
                     />
                   </div>
                 </div>

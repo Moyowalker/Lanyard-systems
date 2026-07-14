@@ -9,6 +9,8 @@ import {
   OrderStatus,
   Paginated,
   PosCreateSaleInput,
+  PosReturnInput,
+  PosReturnResultDto,
   PosSaleDto,
   PosSalesQuery,
   ProductListItemDto,
@@ -25,6 +27,7 @@ import { Customer } from '../../identity/infrastructure/identity.schemas';
 import { CatalogService } from '../../catalog/application/catalog.service';
 import { OrderService, Actor } from '../../order/application/order.service';
 import { PaymentService } from '../../payment/application/payment.service';
+import { RefundService } from '../../payment/application/refund.service';
 import { InventoryService } from '../../inventory/application/inventory.service';
 import { PricingService } from '../../pricing/application/pricing.service';
 import { CustomerAuthService } from '../../identity/application/customer-auth.service';
@@ -65,6 +68,7 @@ export class PosService {
     private readonly catalog: CatalogService,
     private readonly orders: OrderService,
     private readonly payments: PaymentService,
+    private readonly refunds: RefundService,
     private readonly inventory: InventoryService,
     private readonly pricing: PricingService,
     private readonly customers: CustomerAuthService,
@@ -191,6 +195,28 @@ export class PosService {
     });
     const subtotalKobo = itemSnapshots.reduce((sum, s) => sum + s.lineTotalKobo, 0);
 
+    // ── discount (percent of subtotal or fixed kobo), capped at the subtotal ──
+    const discountKobo = input.discount
+      ? Math.min(
+          subtotalKobo,
+          input.discount.type === 'percent'
+            ? Math.round((subtotalKobo * input.discount.value) / 100)
+            : Math.round(input.discount.value),
+        )
+      : 0;
+    const totalKobo = subtotalKobo - discountKobo;
+
+    // ── split payments must sum to the post-discount total exactly ──
+    const paidKobo = input.payments.reduce((sum, p) => sum + p.amountKobo, 0);
+    if (paidKobo !== totalKobo) {
+      throw new DomainError(
+        ErrorCode.VALIDATION_FAILED,
+        `Payments must sum to the sale total (${totalKobo} kobo, got ${paidKobo})`,
+        [{ field: 'payments', issue: 'amounts do not match the total' }],
+      );
+    }
+    const primaryChannel = input.payments[0].channel;
+
     const actor: Actor = { id: principal.sub, role: principal.roles[0], type: ActorType.STAFF };
     const orderNo = this.orders.genOrderNo();
 
@@ -209,14 +235,15 @@ export class PosService {
               requiresRxVerification: false, // paper Rx sighted at the counter; rxNote is the record
               totals: {
                 subtotalKobo,
-                discountKobo: 0,
+                discountKobo,
                 deliveryKobo: 0,
-                totalKobo: subtotalKobo,
+                totalKobo,
                 currency: Currency.NGN,
               },
               counterSale: {
                 cashierStaffId: new Types.ObjectId(principal.sub),
-                paymentChannel: input.payment.channel,
+                paymentChannel: primaryChannel,
+                payments: input.payments,
                 rxNote: input.rxNote?.trim() || undefined,
                 idempotencyKey: input.idempotencyKey,
               },
@@ -225,10 +252,11 @@ export class PosService {
           { session },
         );
 
-        // Record the offline payment → marks PAID and reserves stock.
+        // Record the offline payment → marks PAID and reserves stock. One intent for
+        // the full amount under the primary channel; the split lives on counterSale.
         await this.payments.recordOfflinePayment(
           created._id.toString(),
-          input.payment.channel,
+          primaryChannel,
           principal.sub,
           session,
         );
@@ -262,8 +290,11 @@ export class PosService {
             branchId: input.branchId,
             metadata: {
               orderNo,
-              channel: input.payment.channel,
-              totalKobo: subtotalKobo,
+              channels: input.payments.map((p) => p.channel),
+              subtotalKobo,
+              discountKobo,
+              discount: input.discount,
+              totalKobo,
               items: itemSnapshots.length,
               rxNote: Boolean(input.rxNote),
             },
@@ -286,6 +317,173 @@ export class PosService {
 
     const fresh = await this.orderModel.findById(order._id);
     return this.hydrateOne(fresh ?? order, principal);
+  }
+
+  /**
+   * Return part or all of a completed counter sale: refund settled at the till
+   * (offline — no payment-provider call), goods booked back to stock with RETURN
+   * movements, and the order moved to REFUNDED once everything is returned.
+   * Refunds are proportional to any sale discount.
+   */
+  async returnSale(
+    principal: AuthPrincipal,
+    orderId: string,
+    input: PosReturnInput,
+  ): Promise<PosReturnResultDto> {
+    const order = await this.orderModel.findById(orderId);
+    if (!order) throw new DomainError(ErrorCode.NOT_FOUND, 'Sale not found');
+    if (order.fulfillment.type !== FulfillmentType.COUNTER) {
+      throw new DomainError(ErrorCode.CONFLICT, 'Only counter (POS) sales can be returned here');
+    }
+    if (
+      !principal.branchScope.includes('ALL') &&
+      !principal.branchScope.includes(order.branchId.toString())
+    ) {
+      throw new DomainError(ErrorCode.BRANCH_SCOPE_VIOLATION, 'Outside your branch scope');
+    }
+    if (order.status !== OrderStatus.COMPLETED) {
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        `Sale is ${order.status} — only completed sales can be returned`,
+      );
+    }
+
+    const soldByProduct = new Map(order.items.map((i) => [i.productId.toString(), i]));
+    const returned = this.returnedByProduct(order) ?? {};
+
+    // Requested lines; omitted items = everything still returnable.
+    const requested: Array<{ productId: string; quantity: number }> =
+      input.items ??
+      [...soldByProduct.entries()]
+        .map(([productId, item]) => ({
+          productId,
+          quantity: item.quantity - (returned[productId] ?? 0),
+        }))
+        .filter((line) => line.quantity > 0);
+
+    if (requested.length === 0) {
+      throw new DomainError(ErrorCode.CONFLICT, 'Nothing left to return on this sale');
+    }
+
+    const problems: Array<{ field: string; issue: string }> = [];
+    for (const line of requested) {
+      const sold = soldByProduct.get(line.productId);
+      if (!sold) {
+        problems.push({ field: line.productId, issue: 'not part of this sale' });
+        continue;
+      }
+      const remaining = sold.quantity - (returned[line.productId] ?? 0);
+      if (line.quantity > remaining) {
+        problems.push({ field: sold.name, issue: `only ${remaining} returnable` });
+      }
+    }
+    if (problems.length > 0) {
+      throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Invalid return quantities', problems);
+    }
+
+    // Refund proportional to the sale discount; clamp so cumulative refunds never
+    // exceed what was actually paid (rounding-safe on the final return).
+    const subtotal = order.totals.subtotalKobo || 1;
+    const discountFactor = 1 - (order.totals.discountKobo ?? 0) / subtotal;
+    const grossKobo = requested.reduce((sum, line) => {
+      const sold = soldByProduct.get(line.productId)!;
+      return sum + sold.unitPriceKobo * line.quantity;
+    }, 0);
+    const alreadyRefunded = (order.counterSale?.returns ?? []).reduce(
+      (sum, ret) => sum + (ret.refundKobo ?? 0),
+      0,
+    );
+    const refundKobo = Math.min(
+      Math.round(grossKobo * discountFactor),
+      order.totals.totalKobo - alreadyRefunded,
+    );
+
+    // Will this return exhaust the sale?
+    const isFullyReturned = [...soldByProduct.entries()].every(([productId, item]) => {
+      const req = requested.find((line) => line.productId === productId)?.quantity ?? 0;
+      return (returned[productId] ?? 0) + req >= item.quantity;
+    });
+
+    const actor: Actor = { id: principal.sub, role: principal.roles[0], type: ActorType.STAFF };
+    const branchId = order.branchId.toString();
+
+    await this.tx.run(async (session) => {
+      await this.refunds.recordOfflineRefund(
+        orderId,
+        refundKobo,
+        input.reason,
+        principal.sub,
+        session,
+      );
+
+      for (const line of requested) {
+        await this.inventory.returnStock(
+          branchId,
+          line.productId,
+          line.quantity,
+          principal.sub,
+          orderId,
+          input.reason,
+          session,
+        );
+      }
+
+      // Record the return on the sale itself (compliance trail + cumulative limits).
+      await this.orderModel.updateOne(
+        { _id: order._id },
+        {
+          $push: {
+            'counterSale.returns': {
+              byStaffId: new Types.ObjectId(principal.sub),
+              reason: input.reason,
+              items: requested.map((line) => ({
+                productId: new Types.ObjectId(line.productId),
+                quantity: line.quantity,
+              })),
+              refundKobo,
+              at: new Date(),
+            },
+          },
+        },
+        { session },
+      );
+
+      if (isFullyReturned) {
+        await this.orders.releaseAndTransition(
+          orderId,
+          OrderStatus.REFUNDED,
+          actor,
+          input.reason,
+          session,
+        );
+      }
+
+      await this.audit.record(
+        {
+          actorId: principal.sub,
+          actorType: ActorType.STAFF,
+          action: 'pos.return',
+          targetType: 'order',
+          targetId: orderId,
+          branchId,
+          metadata: {
+            orderNo: order.orderNo,
+            refundKobo,
+            reason: input.reason,
+            items: requested,
+            fullReturn: isFullyReturned,
+          },
+        },
+        session,
+      );
+    });
+
+    return {
+      orderId,
+      refundKobo,
+      orderStatus: isFullyReturned ? OrderStatus.REFUNDED : OrderStatus.COMPLETED,
+      restocked: requested,
+    };
   }
 
   /** Counter sales for the sales panel. Cashiers see their own; managers the branch. */
@@ -396,6 +594,7 @@ export class PosService {
       })),
       totals: {
         subtotalKobo: order.totals.subtotalKobo,
+        discountKobo: order.totals.discountKobo ?? 0,
         totalKobo: order.totals.totalKobo,
         currency: order.totals.currency,
       },
@@ -403,6 +602,15 @@ export class PosService {
         channel: order.counterSale?.paymentChannel ?? 'cash',
         paidAt: (order.payment.paidAt ?? new Date()).toISOString(),
       },
+      // Pre-split records fall back to a single full-amount entry.
+      payments: order.counterSale?.payments?.length
+        ? order.counterSale.payments.map((p) => ({ channel: p.channel, amountKobo: p.amountKobo }))
+        : [
+            {
+              channel: order.counterSale?.paymentChannel ?? 'cash',
+              amountKobo: order.totals.totalKobo,
+            },
+          ],
       cashier: {
         id: cashierId,
         name: cashier ? `${cashier.firstName} ${cashier.lastName}` : undefined,
@@ -416,9 +624,25 @@ export class PosService {
             }
           : undefined,
       rxNote: order.counterSale?.rxNote,
+      returnedByProduct: this.returnedByProduct(order),
+      orderStatus: order.status,
       createdAt:
         (order as unknown as { createdAt?: Date }).createdAt?.toISOString() ??
         new Date().toISOString(),
     };
+  }
+
+  /** Cumulative returned quantity per product across all returns on a sale. */
+  private returnedByProduct(order: OrderDocument): Record<string, number> | undefined {
+    const returns = order.counterSale?.returns;
+    if (!returns?.length) return undefined;
+    const map: Record<string, number> = {};
+    for (const ret of returns) {
+      for (const item of ret.items) {
+        const key = item.productId.toString();
+        map[key] = (map[key] ?? 0) + item.quantity;
+      }
+    }
+    return map;
   }
 }

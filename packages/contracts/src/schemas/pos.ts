@@ -36,7 +36,39 @@ export const POS_PAYMENT_CHANNELS = [
   PaymentChannel.CASH,
   PaymentChannel.POS_TERMINAL,
   PaymentChannel.BANK_TRANSFER,
+  PaymentChannel.HMO,
 ] as const;
+
+const posChannel = z.enum([
+  PaymentChannel.CASH,
+  PaymentChannel.POS_TERMINAL,
+  PaymentChannel.BANK_TRANSFER,
+  PaymentChannel.HMO,
+]);
+
+/** Till discount: a percentage of the subtotal or a fixed cash amount (kobo). */
+export const PosDiscountSchema = z
+  .object({
+    type: z.enum(['percent', 'fixed']),
+    value: z.number().positive(),
+  })
+  .superRefine((discount, ctx) => {
+    if (discount.type === 'percent' && discount.value > 100) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['value'],
+        message: 'percentage discount cannot exceed 100',
+      });
+    }
+    if (discount.type === 'fixed' && !Number.isInteger(discount.value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['value'],
+        message: 'fixed discount must be an integer kobo amount',
+      });
+    }
+  });
+export type PosDiscountInput = z.infer<typeof PosDiscountSchema>;
 
 export const PosCreateSaleSchema = z.object({
   branchId: objectId,
@@ -49,13 +81,21 @@ export const PosCreateSaleSchema = z.object({
     )
     .min(1)
     .max(100),
-  payment: z.object({
-    channel: z.enum([
-      PaymentChannel.CASH,
-      PaymentChannel.POS_TERMINAL,
-      PaymentChannel.BANK_TRANSFER,
-    ]),
-  }),
+  /**
+   * 1–3 payment entries (split payment). The server validates that amounts sum to the
+   * post-discount total exactly.
+   */
+  payments: z
+    .array(
+      z.object({
+        channel: posChannel,
+        amountKobo: z.number().int().positive(),
+      }),
+    )
+    .min(1)
+    .max(3),
+  /** Optional till discount applied to the subtotal. */
+  discount: PosDiscountSchema.optional(),
   /** Optional walk-in customer capture — links the sale to a customer account by phone. */
   customer: z
     .object({
@@ -100,10 +140,38 @@ export interface PosSaleDto {
   orderNo: string;
   branchId: string;
   items: PosSaleItemDto[];
-  totals: { subtotalKobo: number; totalKobo: number; currency: string };
+  totals: { subtotalKobo: number; discountKobo: number; totalKobo: number; currency: string };
+  /** Primary (first) payment channel — kept for receipts and older records. */
   payment: { channel: string; paidAt: string };
+  /** Full split-payment breakdown (single entry for old sales). */
+  payments: Array<{ channel: string; amountKobo: number }>;
   cashier: { id: string; name?: string };
   customer?: { id: string; name?: string; phone?: string };
   rxNote?: string;
+  /** Cumulative returned quantity per productId (absent when nothing returned). */
+  returnedByProduct?: Record<string, number>;
+  orderStatus?: string;
   createdAt: string;
+}
+
+/** Return part or all of a completed counter sale. Omitted `items` = full return. */
+export const PosReturnSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        productId: objectId,
+        quantity: z.number().int().min(1).max(999),
+      }),
+    )
+    .min(1)
+    .optional(),
+  reason: z.string().trim().min(3).max(500),
+});
+export type PosReturnInput = z.infer<typeof PosReturnSchema>;
+
+export interface PosReturnResultDto {
+  orderId: string;
+  refundKobo: number;
+  orderStatus: string;
+  restocked: Array<{ productId: string; quantity: number }>;
 }

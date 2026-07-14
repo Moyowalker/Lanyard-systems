@@ -12,6 +12,8 @@ export const ProductListQuerySchema = z.object({
   branchId: objectId.optional(),
   category: z.string().optional(), // category slug
   q: z.string().trim().min(1).optional(),
+  /** Exact barcode or SKU match (scanner lookup) — takes precedence over `q`. */
+  barcode: z.string().trim().min(1).max(64).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
 });
@@ -33,6 +35,7 @@ export const CreateProductSchema = z.object({
   name: z.string().trim().min(1).max(200),
   slug: z.string().trim().min(1).optional(), // derived from name when omitted
   sku: z.string().trim().min(1).max(64).optional(), // stock-keeping unit (distinct from slug)
+  barcode: z.string().trim().min(4).max(64).optional(), // EAN/UPC or custom shelf barcode
   genericName: z.string().trim().optional(),
   brand: z.string().trim().optional(),
   description: z.string().trim().optional(),
@@ -159,6 +162,7 @@ export interface ProductListItemDto {
   id: string;
   slug: string;
   sku?: string;
+  barcode?: string;
   name: string;
   genericName?: string;
   brand?: string;

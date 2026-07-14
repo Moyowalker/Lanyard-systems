@@ -46,6 +46,7 @@ const PERMISSIONS: Array<{
   { key: 'order:transition', description: 'Move orders through fulfillment', group: 'orders' },
   { key: 'order:cancel', description: 'Cancel orders', group: 'orders' },
   { key: 'pos:sell', description: 'Ring up counter (POS) sales', group: 'pos' },
+  { key: 'pos:refund', description: 'Return/refund counter (POS) sales', group: 'pos' },
   { key: 'refund:create', description: 'Issue refunds', group: 'payments' },
   { key: 'rx:read', description: 'View prescriptions', group: 'prescriptions' },
   {
@@ -78,7 +79,8 @@ const ROLES: Array<{ key: RoleKey; name: string; permissionKeys: string[] }> = [
   {
     key: RoleKey.SUPPORT,
     name: 'Support',
-    permissionKeys: ['order:read', 'customer:read', 'rx:read'],
+    // Support also covers the counter when needed (client request): POS + catalog lookup.
+    permissionKeys: ['order:read', 'customer:read', 'rx:read', 'pos:sell', 'catalog:read'],
   },
   {
     key: RoleKey.PHARMACIST,
@@ -90,6 +92,9 @@ const ROLES: Array<{ key: RoleKey; name: string; permissionKeys: string[] }> = [
       'order:read',
       'order:transition',
       'inventory:read',
+      // Pharmacists dispense and sell at the counter (client request).
+      'pos:sell',
+      'catalog:read',
     ],
   },
   {
@@ -127,6 +132,7 @@ const ROLES: Array<{ key: RoleKey; name: string; permissionKeys: string[] }> = [
       'order:transition',
       'order:cancel',
       'pos:sell',
+      'pos:refund',
       'refund:create',
       'customer:read',
       'report:read',

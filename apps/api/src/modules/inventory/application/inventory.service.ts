@@ -350,6 +350,35 @@ export class InventoryService {
     await this.movement(StockMovementType.RELEASE, branchId, productId, -qty, { orderId }, session);
   }
 
+  /**
+   * Book returned goods back onto the shelf (POS sale return). Increments `onHand`
+   * and appends a RETURN movement. Like `dispense`, this deliberately does not touch
+   * the batches array — batch quantities track receive/adjust only.
+   */
+  async returnStock(
+    branchId: string,
+    productId: string,
+    qty: number,
+    actorId: string,
+    orderId: string,
+    reason: string,
+    session?: ClientSession,
+  ): Promise<void> {
+    await this.inventoryModel.updateOne(
+      { branchId: new Types.ObjectId(branchId), productId: new Types.ObjectId(productId) },
+      { $inc: { onHand: qty } },
+      { session, upsert: true, setDefaultsOnInsert: true },
+    );
+    await this.movement(
+      StockMovementType.RETURN,
+      branchId,
+      productId,
+      qty,
+      { orderId, actorId, reason, refType: 'order' },
+      session,
+    );
+  }
+
   private async getBranchInventoryItem(
     branchId: string,
     productId: string,

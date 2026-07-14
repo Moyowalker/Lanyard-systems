@@ -53,6 +53,10 @@ export class Product {
   @Prop({ type: String, trim: true, uppercase: true })
   sku?: string;
 
+  /** EAN/UPC or custom shelf barcode — exact-match scanner lookup at the POS. */
+  @Prop({ type: String, trim: true })
+  barcode?: string;
+
   // NB: text search is provided by the single compound text index declared below.
   // MongoDB allows only ONE text index per collection, so these fields are not
   // individually marked `index: 'text'`.
@@ -122,6 +126,8 @@ export const ProductSchema = SchemaFactory.createForClass(Product);
 // `slug` uniqueness is declared inline on the @Prop above.
 // SKU is optional but unique when present (sparse) — existing rows without one are fine.
 ProductSchema.index({ sku: 1 }, { unique: true, sparse: true });
+// Barcode is optional but unique when present (sparse) — scanner exact-match lookup.
+ProductSchema.index({ barcode: 1 }, { unique: true, sparse: true });
 ProductSchema.index({ status: 1, categoryIds: 1 });
 ProductSchema.index({ requiresPrescription: 1, status: 1 });
 // Weighted text index for MVP search (graduate to Atlas Search later).

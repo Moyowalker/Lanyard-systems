@@ -3,12 +3,8 @@ import { ErrorCode, OrderStatus } from '@lanyard/contracts';
 import { ORDER_TRANSITIONS, assertTransition, canTransition } from './order-state-machine';
 import { DomainError } from '../../../core/errors/domain-error';
 
-const TERMINAL = [
-  OrderStatus.COMPLETED,
-  OrderStatus.CANCELLED,
-  OrderStatus.REFUNDED,
-  OrderStatus.RX_REJECTED,
-];
+// COMPLETED is no longer terminal: a completed POS sale can be fully returned/refunded.
+const TERMINAL = [OrderStatus.CANCELLED, OrderStatus.REFUNDED, OrderStatus.RX_REJECTED];
 
 describe('order state machine', () => {
   it('allows the Rx-gated happy path', () => {
@@ -38,6 +34,11 @@ describe('order state machine', () => {
 
   it('treats terminal states as terminal', () => {
     for (const s of TERMINAL) expect(ORDER_TRANSITIONS[s]).toEqual([]);
+  });
+
+  it('allows a full POS return to move a completed sale to REFUNDED', () => {
+    expect(canTransition(OrderStatus.COMPLETED, OrderStatus.REFUNDED)).toBe(true);
+    expect(canTransition(OrderStatus.COMPLETED, OrderStatus.PAID)).toBe(false);
   });
 
   it('can resolve STOCK_HOLD to fulfilling or unwind it', () => {

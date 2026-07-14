@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   PosCreateSaleInput,
   PosCreateSaleSchema,
+  PosReturnInput,
+  PosReturnSchema,
   PosSalesQuery,
   PosSalesQuerySchema,
   ProductListQuery,
@@ -38,6 +40,17 @@ export class AdminPosController {
     @Body(new ZodValidationPipe(PosCreateSaleSchema)) dto: PosCreateSaleInput,
   ) {
     return this.pos.createSale(user, dto);
+  }
+
+  /** Return part or all of a completed counter sale (branch scope checked in service). */
+  @Post('sales/:orderId/return')
+  @RequirePermissions('pos:refund')
+  returnSale(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('orderId') orderId: string,
+    @Body(new ZodValidationPipe(PosReturnSchema)) dto: PosReturnInput,
+  ) {
+    return this.pos.returnSale(user, orderId, dto);
   }
 
   /** Till product lookup — includes storefront-hidden products (scope checked in service). */
