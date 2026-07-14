@@ -79,8 +79,16 @@ const ROLES: Array<{ key: RoleKey; name: string; permissionKeys: string[] }> = [
   {
     key: RoleKey.SUPPORT,
     name: 'Support',
-    // Support also covers the counter when needed (client request): POS + catalog lookup.
-    permissionKeys: ['order:read', 'customer:read', 'rx:read', 'pos:sell', 'catalog:read'],
+    // Support also covers the counter when needed (client request): POS + catalog lookup
+    // + read-only price list.
+    permissionKeys: [
+      'order:read',
+      'customer:read',
+      'rx:read',
+      'pos:sell',
+      'catalog:read',
+      'pricing:read',
+    ],
   },
   {
     key: RoleKey.PHARMACIST,
@@ -95,13 +103,16 @@ const ROLES: Array<{ key: RoleKey; name: string; permissionKeys: string[] }> = [
       // Pharmacists dispense and sell at the counter (client request).
       'pos:sell',
       'catalog:read',
+      // Read-only price lookup (client request).
+      'pricing:read',
     ],
   },
   {
     key: RoleKey.CASHIER,
     name: 'Cashier',
-    // Counter sales only: ring up POS sales, look up the catalog, review own sales.
-    permissionKeys: ['pos:sell', 'catalog:read', 'order:read'],
+    // Counter sales: ring up POS sales, look up the catalog + read-only prices,
+    // review own sales.
+    permissionKeys: ['pos:sell', 'catalog:read', 'pricing:read', 'order:read'],
   },
   {
     key: RoleKey.INVENTORY_OFFICER,
@@ -141,7 +152,9 @@ const ROLES: Array<{ key: RoleKey; name: string; permissionKeys: string[] }> = [
   {
     key: RoleKey.ADMIN,
     name: 'Administrator',
-    permissionKeys: allKeys.filter((k) => k !== 'role:write'),
+    // Admins define who can access which modules (client request): full role editing.
+    // RoleAdminService still hard-blocks edits to the SUPER_ADMIN role itself.
+    permissionKeys: allKeys,
   },
   { key: RoleKey.SUPER_ADMIN, name: 'Super Admin', permissionKeys: allKeys },
 ];

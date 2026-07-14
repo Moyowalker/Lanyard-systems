@@ -2,7 +2,14 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import type { MeResponse, OrderDto, Paginated, PrescriptionDto } from '@lanyard/contracts';
+import type {
+  BranchInventoryItemDto,
+  BranchSummaryDto,
+  MeResponse,
+  OrderDto,
+  Paginated,
+  PrescriptionDto,
+} from '@lanyard/contracts';
 import { deriveMetrics } from '@/lib/metrics';
 import { personaFor, PERSONA_FOCUS, type Persona } from '@/lib/roles';
 import { formatKobo, label, statusTone, timeAgo } from '@/lib/format';
@@ -62,6 +69,37 @@ export default function Dashboard() {
     refetchInterval: 15000,
   });
 
+  // Expiring-stock alert (client request): drugs expiring ≤30 days across the
+  // caller's branches, gated on inventory:read.
+  const canSeeInventory = me.data?.permissions?.includes('inventory:read') ?? false;
+  const expiringQ = useQuery({
+    queryKey: ['dashboard-expiring'],
+    enabled: canSeeInventory,
+    refetchInterval: 60000,
+    queryFn: async () => {
+      const branchesRes = await fetch('/api/admin/branches?limit=100');
+      if (!branchesRes.ok) return null;
+      const branches = ((await branchesRes.json()) as Paginated<BranchSummaryDto>).data;
+      const perBranch = await Promise.all(
+        branches.map(async (branch) => {
+          const r = await fetch(`/api/admin/branches/${branch.id}/inventory/expiring?days=30`);
+          if (!r.ok) return { branch: branch.name, expired: 0, expiring: 0 };
+          const rows = ((await r.json()) as { data: BranchInventoryItemDto[] }).data;
+          const now = Date.now();
+          return {
+            branch: branch.name,
+            expired: rows.filter((row) => new Date(row.nextExpiry ?? 0).getTime() <= now).length,
+            expiring: rows.filter((row) => new Date(row.nextExpiry ?? 0).getTime() > now).length,
+          };
+        }),
+      );
+      return perBranch.filter((entry) => entry.expired + entry.expiring > 0);
+    },
+  });
+  const expiringAlerts = expiringQ.data ?? [];
+  const totalExpired = expiringAlerts.reduce((sum, entry) => sum + entry.expired, 0);
+  const totalExpiring = expiringAlerts.reduce((sum, entry) => sum + entry.expiring, 0);
+
   const persona: Persona = personaFor(me.data?.roles ?? []);
   const orders = ordersQ.data?.data ?? [];
   const m = deriveMetrics(orders);
@@ -98,6 +136,29 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {totalExpired + totalExpiring > 0 ? (
+        <Link
+          href="/inventory"
+          className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 transition hover:border-amber-300 hover:bg-amber-100/70"
+        >
+          <IconAlert width={20} height={20} className="shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-amber-900">
+              {totalExpired > 0 ? `${totalExpired} drug(s) EXPIRED` : null}
+              {totalExpired > 0 && totalExpiring > 0 ? ' · ' : null}
+              {totalExpiring > 0 ? `${totalExpiring} drug(s) expiring within 30 days` : null}
+            </div>
+            <div className="mt-0.5 truncate text-xs text-amber-800/80">
+              {expiringAlerts
+                .map((entry) => `${entry.branch}: ${entry.expired + entry.expiring} item(s)`)
+                .join(' · ')}{' '}
+              — review under Inventory
+            </div>
+          </div>
+          <IconChevronRight width={16} height={16} className="shrink-0 text-amber-500" />
+        </Link>
+      ) : null}
 
       {loading ? <KpiSkeleton /> : <KpiRow persona={persona} m={m} pendingRx={pendingRx} />}
 

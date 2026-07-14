@@ -96,7 +96,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const roles = me?.roles ?? [];
   const persona = personaFor(roles);
-  const sections = visibleNav(roles);
+  // Module visibility is permission-driven: whatever an admin grants a role on the
+  // Roles page decides which modules its members see (roles only pick the greeting).
+  const sections = visibleNav(me?.permissions ?? []);
   const branch = me?.branchScope?.[0];
   const branchLabel = !branch || branch === 'ALL' ? 'All branches' : branch;
 

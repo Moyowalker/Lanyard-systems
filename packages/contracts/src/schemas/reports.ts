@@ -87,8 +87,20 @@ export interface ConsumptionRow {
   form?: string;
   unitsDispensed: number;
   movements: number;
+  costKobo?: number;
   sellingKobo?: number;
   valueKobo: number;
+  /** unitsDispensed × costKobo — absent when the branch has no cost on file. */
+  valueAtCostKobo?: number;
+  /** valueKobo − valueAtCostKobo — absent when cost is unknown. */
+  marginKobo?: number;
+}
+
+/** Revenue grouped by how customers paid (cash/card/transfer/HMO at the till; 'online' otherwise). */
+export interface PaymentChannelBreakdownRow {
+  channel: string;
+  totalKobo: number;
+  orders: number;
 }
 
 export interface ConsumptionReportDto {
@@ -96,7 +108,10 @@ export interface ConsumptionReportDto {
   to: string;
   totalUnits: number;
   totalValueKobo: number;
+  totalValueAtCostKobo: number;
+  totalMarginKobo: number;
   rows: ConsumptionRow[];
+  paymentBreakdown: PaymentChannelBreakdownRow[];
 }
 
 /* ── Export ── */

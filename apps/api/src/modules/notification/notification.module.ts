@@ -16,6 +16,8 @@ import { NOTIFICATION_QUEUE } from '../../core/queue/queue.constants';
 @Module({
   imports: [BullModule.registerQueue({ name: NOTIFICATION_QUEUE })],
   providers: [NotificationService, EmailChannel, SmsChannel, NotificationProcessor],
-  exports: [NotificationService],
+  // EmailChannel is exported for staff-facing digests (e.g. the inventory expiry
+  // digest) that email a branch mailbox directly rather than a customer record.
+  exports: [NotificationService, EmailChannel],
 })
 export class NotificationModule {}
