@@ -30,6 +30,8 @@ import {
   InventoryItemSchema,
   StockMovement,
   StockMovementSchema,
+  StockInvoice,
+  StockInvoiceSchema,
 } from '../modules/inventory/infrastructure/inventory.schemas';
 import {
   Prescription,
@@ -91,6 +93,7 @@ const MODELS = [
   { name: PriceList.name, schema: PriceListSchema },
   { name: InventoryItem.name, schema: InventoryItemSchema },
   { name: StockMovement.name, schema: StockMovementSchema },
+  { name: StockInvoice.name, schema: StockInvoiceSchema },
   { name: Prescription.name, schema: PrescriptionSchema },
   { name: Cart.name, schema: CartSchema },
   { name: Order.name, schema: OrderSchema },

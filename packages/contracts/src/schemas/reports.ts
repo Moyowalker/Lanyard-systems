@@ -114,6 +114,71 @@ export interface ConsumptionReportDto {
   paymentBreakdown: PaymentChannelBreakdownRow[];
 }
 
+/* ── Low stock report (items at/below their reorder threshold, branch-scoped) ── */
+
+export interface LowStockRow {
+  productId: string;
+  productName: string;
+  genericName?: string;
+  brand?: string;
+  form?: string;
+  branchId: string;
+  branchName: string;
+  onHand: number;
+  reserved: number;
+  available: number;
+  reorderLevel: number;
+  status: 'out' | 'low';
+}
+
+export interface LowStockReportDto {
+  generatedAt: string;
+  totalItems: number;
+  outOfStock: number;
+  rows: LowStockRow[];
+}
+
+/* ── Expiring drugs report ──
+ * Horizon defaults to 9 months (270 days). Banding is computed server-side so the
+ * UI and exports agree: expired ≤ 0 days, red ≤ 180 days (6 months), yellow ≤ horizon. */
+
+export const ExpiringReportQuerySchema = z.object({
+  branchId: reportObjectId.optional(),
+  days: z.coerce.number().int().min(1).max(365).default(270),
+});
+export type ExpiringReportQuery = z.infer<typeof ExpiringReportQuerySchema>;
+
+export const LowStockQuerySchema = z.object({
+  branchId: reportObjectId.optional(),
+});
+export type LowStockQuery = z.infer<typeof LowStockQuerySchema>;
+
+export type ExpiryBand = 'expired' | 'red' | 'yellow';
+
+export interface ExpiringRow {
+  productId: string;
+  productName: string;
+  genericName?: string;
+  brand?: string;
+  form?: string;
+  branchId: string;
+  branchName: string;
+  onHand: number;
+  batchCount: number;
+  nextExpiry: string;
+  daysLeft: number;
+  band: ExpiryBand;
+}
+
+export interface ExpiringReportDto {
+  generatedAt: string;
+  horizonDays: number;
+  expired: number;
+  red: number;
+  yellow: number;
+  rows: ExpiringRow[];
+}
+
 /* ── Export ── */
 
 const reportFormat = z.enum(['xlsx', 'csv']).default('xlsx');
@@ -129,3 +194,9 @@ export type InventoryValuationExportQuery = z.infer<typeof InventoryValuationExp
 
 export const ConsumptionExportSchema = ReportRangeSchema.extend({ format: reportFormat });
 export type ConsumptionExportQuery = z.infer<typeof ConsumptionExportSchema>;
+
+export const LowStockExportSchema = LowStockQuerySchema.extend({ format: reportFormat });
+export type LowStockExportQuery = z.infer<typeof LowStockExportSchema>;
+
+export const ExpiringExportSchema = ExpiringReportQuerySchema.extend({ format: reportFormat });
+export type ExpiringExportQuery = z.infer<typeof ExpiringExportSchema>;

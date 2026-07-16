@@ -3,6 +3,8 @@ import {
   summarizeSales,
   buildInventoryValuation,
   buildConsumption,
+  buildLowStock,
+  buildExpiring,
   OrderForReport,
 } from './reports.service';
 
@@ -221,5 +223,107 @@ describe('buildConsumption', () => {
     ]);
     expect(report.paymentBreakdown).toHaveLength(2);
     expect(report.paymentBreakdown[0].channel).toBe('cash');
+  });
+});
+
+describe('buildLowStock', () => {
+  const products = new Map([
+    ['a', { name: 'Amoxicillin' }],
+    ['b', { name: 'Vitamin C' }],
+  ]);
+  const branches = new Map([['b1', 'Lanyard Pharmacy']]);
+
+  it('flags out-of-stock and at-threshold items only', () => {
+    const report = buildLowStock(
+      [
+        { productId: 'a', branchId: 'b1', onHand: 5, reserved: 5, reorderLevel: 2, batches: [] }, // available 0 → out
+        { productId: 'b', branchId: 'b1', onHand: 4, reserved: 0, reorderLevel: 4, batches: [] }, // available 4 ≤ 4 → low
+        { productId: 'b', branchId: 'b1', onHand: 50, reserved: 0, reorderLevel: 4, batches: [] }, // healthy
+      ],
+      products,
+      branches,
+    );
+
+    expect(report.totalItems).toBe(2);
+    expect(report.outOfStock).toBe(1);
+    expect(report.rows[0]).toMatchObject({
+      productName: 'Amoxicillin',
+      branchName: 'Lanyard Pharmacy',
+      available: 0,
+      status: 'out',
+    });
+    expect(report.rows[1].status).toBe('low');
+  });
+});
+
+describe('buildExpiring', () => {
+  const now = new Date('2026-07-16T00:00:00.000Z');
+  const products = new Map([['a', { name: 'Insulin' }]]);
+  const branches = new Map([['b1', 'Lanyard Pharmacy']]);
+  const day = 24 * 60 * 60 * 1000;
+
+  function item(expiryInDays: number, onHand = 10) {
+    return {
+      productId: 'a',
+      branchId: 'b1',
+      onHand,
+      reserved: 0,
+      reorderLevel: 0,
+      batches: [{ expiry: new Date(now.getTime() + expiryInDays * day) }],
+    };
+  }
+
+  it('bands rows: expired ≤ 0d, red ≤ 180d, yellow ≤ horizon', () => {
+    const report = buildExpiring(
+      [item(-5), item(30), item(180), item(181), item(269)],
+      products,
+      branches,
+      270,
+      now,
+    );
+
+    expect(report.rows.map((r) => r.band)).toEqual(['expired', 'red', 'red', 'yellow', 'yellow']);
+    expect(report.expired).toBe(1);
+    expect(report.red).toBe(2);
+    expect(report.yellow).toBe(2);
+  });
+
+  it('excludes rows beyond the horizon, without batches, or with no stock', () => {
+    const report = buildExpiring(
+      [
+        item(271),
+        item(30, 0),
+        { productId: 'a', branchId: 'b1', onHand: 9, reserved: 0, reorderLevel: 0, batches: [] },
+      ],
+      products,
+      branches,
+      270,
+      now,
+    );
+    expect(report.rows).toHaveLength(0);
+  });
+
+  it('uses the soonest batch expiry per item', () => {
+    const report = buildExpiring(
+      [
+        {
+          productId: 'a',
+          branchId: 'b1',
+          onHand: 4,
+          reserved: 0,
+          reorderLevel: 0,
+          batches: [
+            { expiry: new Date(now.getTime() + 250 * day) },
+            { expiry: new Date(now.getTime() + 10 * day) },
+          ],
+        },
+      ],
+      products,
+      branches,
+      270,
+      now,
+    );
+    expect(report.rows[0].daysLeft).toBe(10);
+    expect(report.rows[0].band).toBe('red');
   });
 });

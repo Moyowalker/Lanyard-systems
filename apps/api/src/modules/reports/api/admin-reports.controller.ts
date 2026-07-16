@@ -3,10 +3,18 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   ConsumptionExportQuery,
   ConsumptionExportSchema,
+  ExpiringExportQuery,
+  ExpiringExportSchema,
+  ExpiringReportQuery,
+  ExpiringReportQuerySchema,
   InventoryValuationExportQuery,
   InventoryValuationExportSchema,
   InventoryValuationQuery,
   InventoryValuationQuerySchema,
+  LowStockExportQuery,
+  LowStockExportSchema,
+  LowStockQuery,
+  LowStockQuerySchema,
   ReportRangeQuery,
   ReportRangeSchema,
   SalesExportQuery,
@@ -54,6 +62,44 @@ export class AdminReportsController {
     @Query(new ZodValidationPipe(ReportRangeSchema)) query: ReportRangeQuery,
   ) {
     return this.reports.consumption(user.branchScope, query);
+  }
+
+  @Get('low-stock')
+  @RequirePermissions('report:read')
+  lowStock(
+    @CurrentUser() user: AuthPrincipal,
+    @Query(new ZodValidationPipe(LowStockQuerySchema)) query: LowStockQuery,
+  ) {
+    return this.reports.lowStock(user.branchScope, query);
+  }
+
+  @Get('expiring')
+  @RequirePermissions('report:read')
+  expiring(
+    @CurrentUser() user: AuthPrincipal,
+    @Query(new ZodValidationPipe(ExpiringReportQuerySchema)) query: ExpiringReportQuery,
+  ) {
+    return this.reports.expiring(user.branchScope, query);
+  }
+
+  @Get('low-stock/export')
+  @RequirePermissions('report:read')
+  async lowStockExport(
+    @CurrentUser() user: AuthPrincipal,
+    @Query(new ZodValidationPipe(LowStockExportSchema)) query: LowStockExportQuery,
+  ): Promise<StreamableFile> {
+    const { format, ...rest } = query;
+    return this.toFile(await this.reports.exportLowStock(user.branchScope, rest, format));
+  }
+
+  @Get('expiring/export')
+  @RequirePermissions('report:read')
+  async expiringExport(
+    @CurrentUser() user: AuthPrincipal,
+    @Query(new ZodValidationPipe(ExpiringExportSchema)) query: ExpiringExportQuery,
+  ): Promise<StreamableFile> {
+    const { format, ...rest } = query;
+    return this.toFile(await this.reports.exportExpiring(user.branchScope, rest, format));
   }
 
   @Get('sales-summary/export')

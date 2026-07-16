@@ -10,13 +10,18 @@ import {
   InventoryExportQuery,
   Paginated,
   ReceiveInventoryInput,
+  ReceiveInvoiceInput,
+  StockInvoiceDto,
+  StockInvoiceQuery,
   StockMovementDto,
   StockMovementQuery,
   StockMovementType,
 } from '@lanyard/contracts';
 
-import { InventoryItem, StockMovement } from '../infrastructure/inventory.schemas';
+import { InventoryItem, StockInvoice, StockMovement } from '../infrastructure/inventory.schemas';
 import { Product } from '../../catalog/infrastructure/catalog.schemas';
+import { StaffUser } from '../../identity/infrastructure/identity.schemas';
+import { PricingService } from '../../pricing/application/pricing.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { AuditService } from '../../../core/platform/audit.service';
 import { cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
@@ -42,20 +47,27 @@ type ProductSnapshot = {
 
 type ManualInventoryMutation = {
   productId: string;
+  /** Product name for human-readable audit summaries. */
+  productName?: string;
   quantityDelta: number;
   reorderLevel?: number;
   batchNo?: string;
   expiry?: Date;
   reason: string;
   movementType: StockMovementType.RECEIVE | StockMovementType.ADJUST;
+  /** Link the movement to a stock invoice (GRN) instead of a bare manual entry. */
+  invoiceId?: string;
+  /** Invoice receiving writes ONE invoice-level audit entry instead of per-line ones. */
+  suppressAudit?: boolean;
 };
 
 type MovementOptions = {
   orderId?: string;
+  invoiceId?: string;
   actorId?: string;
   reason?: string;
   batchNo?: string;
-  refType?: 'order' | 'manual' | 'system';
+  refType?: 'order' | 'manual' | 'system' | 'invoice';
 };
 
 /** Read-side inventory helpers + reservation logic (the order/payment phase). */
@@ -66,7 +78,10 @@ export class InventoryService {
   constructor(
     @InjectModel(InventoryItem.name) private readonly inventoryModel: Model<InventoryItem>,
     @InjectModel(StockMovement.name) private readonly movementModel: Model<StockMovement>,
+    @InjectModel(StockInvoice.name) private readonly invoiceModel: Model<StockInvoice>,
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
+    @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
+    private readonly pricing: PricingService,
     private readonly audit: AuditService,
   ) {}
 
@@ -223,9 +238,10 @@ export class InventoryService {
     actorId: string,
     input: ReceiveInventoryInput,
   ): Promise<BranchInventoryItemDto> {
-    await this.assertProductExists(input.productId);
+    const productName = await this.requireProductName(input.productId);
     await this.applyManualMutation(branchId, actorId, {
       productId: input.productId,
+      productName,
       quantityDelta: input.quantity,
       reorderLevel: input.reorderLevel,
       batchNo: input.batchNo,
@@ -241,9 +257,10 @@ export class InventoryService {
     actorId: string,
     input: AdjustInventoryInput,
   ): Promise<BranchInventoryItemDto> {
-    await this.assertProductExists(input.productId);
+    const productName = await this.requireProductName(input.productId);
     await this.applyManualMutation(branchId, actorId, {
       productId: input.productId,
+      productName,
       quantityDelta: input.quantityDelta,
       reorderLevel: input.reorderLevel,
       batchNo: input.batchNo,
@@ -252,6 +269,221 @@ export class InventoryService {
       movementType: StockMovementType.ADJUST,
     });
     return this.getBranchInventoryItem(branchId, input.productId);
+  }
+
+  /**
+   * Receive stock against a supplier invoice (GRN): one entry = vendor + invoice
+   * number + supply date + multiple product lines. Every movement references the
+   * invoice, lines may set price/cost/storefront visibility at reception, and ONE
+   * invoice-level audit entry records the whole delivery in human terms.
+   *
+   * All lines are validated up-front; mutations then apply sequentially (the same
+   * non-transactional model as single receive — the ledger is the source of truth).
+   */
+  async receiveInvoice(
+    branchId: string,
+    actorId: string,
+    input: ReceiveInvoiceInput,
+  ): Promise<StockInvoiceDto> {
+    // ── validate everything before touching stock ──
+    const productIds = input.lines.map((line) => line.productId);
+    const products = await this.productModel
+      .find({ _id: { $in: productIds.map((id) => new Types.ObjectId(id)) } })
+      .select('name')
+      .lean<Array<{ _id: Types.ObjectId; name?: string }>>();
+    const nameById = new Map(products.map((p) => [p._id.toString(), p.name ?? 'Unknown product']));
+
+    const existingPrices = await this.pricing.getPriceMap(branchId, productIds);
+    const problems: Array<{ field: string; issue: string }> = [];
+    input.lines.forEach((line, index) => {
+      const name = nameById.get(line.productId);
+      if (!name) {
+        problems.push({ field: `lines[${index}]`, issue: 'Unknown product' });
+        return;
+      }
+      if (
+        line.visibleOnStorefront === true &&
+        line.priceKobo == null &&
+        !existingPrices.get(line.productId)
+      ) {
+        problems.push({
+          field: name,
+          issue: 'set a selling price to make this product visible on the storefront',
+        });
+      }
+    });
+    if (problems.length > 0) {
+      throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Invoice has invalid lines', problems);
+    }
+
+    // ── the GRN record itself (product names snapshotted for readability) ──
+    const [invoice] = await this.invoiceModel.create([
+      {
+        branchId: new Types.ObjectId(branchId),
+        vendorName: input.vendorName,
+        invoiceNo: input.invoiceNo,
+        invoiceDate: input.invoiceDate,
+        note: input.note,
+        receivedByStaffId: new Types.ObjectId(actorId),
+        lines: input.lines.map((line) => ({
+          productId: new Types.ObjectId(line.productId),
+          productName: nameById.get(line.productId)!,
+          quantity: line.quantity,
+          batchNo: line.batchNo,
+          expiry: line.expiry,
+          costKobo: line.costKobo,
+          priceKobo: line.priceKobo,
+          visibleOnStorefront: line.visibleOnStorefront,
+        })),
+      },
+    ]);
+    const invoiceId = invoice._id.toString();
+
+    // ── apply stock + optional price per line ──
+    for (const line of input.lines) {
+      await this.applyManualMutation(branchId, actorId, {
+        productId: line.productId,
+        productName: nameById.get(line.productId),
+        quantityDelta: line.quantity,
+        reorderLevel: line.reorderLevel,
+        batchNo: line.batchNo,
+        expiry: line.expiry,
+        reason: `Invoice ${input.invoiceNo} — ${input.vendorName}`,
+        movementType: StockMovementType.RECEIVE,
+        invoiceId,
+        suppressAudit: true,
+      });
+
+      if (
+        line.priceKobo != null ||
+        line.costKobo != null ||
+        line.visibleOnStorefront !== undefined
+      ) {
+        const existing = existingPrices.get(line.productId);
+        const priceKobo = line.priceKobo ?? existing?.priceKobo;
+        if (priceKobo != null) {
+          await this.pricing.upsertPrice(branchId, {
+            productId: line.productId,
+            priceKobo,
+            costKobo: line.costKobo ?? existing?.costKobo,
+            compareAtKobo: existing?.compareAtKobo,
+            isAvailable: line.visibleOnStorefront ?? existing?.isAvailable ?? true,
+          });
+        }
+      }
+    }
+
+    // ── one invoice-level audit entry, in human terms ──
+    const totalUnits = input.lines.reduce((sum, line) => sum + line.quantity, 0);
+    const supplied = input.invoiceDate.toISOString().slice(0, 10);
+    try {
+      await this.audit.record({
+        actorId,
+        actorType: ActorType.STAFF,
+        action: 'inventory.receive_invoice',
+        summary: `Invoice ${input.invoiceNo} from ${input.vendorName} (supplied ${supplied}) — ${input.lines.length} product(s), ${totalUnits} units received`,
+        targetType: 'stock_invoice',
+        targetId: invoiceId,
+        branchId,
+        metadata: {
+          vendorName: input.vendorName,
+          invoiceNo: input.invoiceNo,
+          invoiceDate: supplied,
+          totalUnits,
+          lines: input.lines.map((line) => ({
+            product: nameById.get(line.productId),
+            quantity: line.quantity,
+            batchNo: line.batchNo,
+            expiry: line.expiry?.toISOString().slice(0, 10),
+          })),
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Invoice audit write failed: branch=${branchId} invoice=${input.invoiceNo} reason=${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
+    return this.toInvoiceDto(invoice.toObject(), undefined);
+  }
+
+  /** Goods-received history for a branch, newest first, cursor-paginated. */
+  async listInvoices(
+    branchId: string,
+    query: StockInvoiceQuery,
+  ): Promise<Paginated<StockInvoiceDto>> {
+    const rows = await this.invoiceModel
+      .find({ branchId: new Types.ObjectId(branchId), ...cursorFilterDesc(query.cursor) })
+      .sort({ _id: -1 })
+      .limit(query.limit + 1)
+      .lean();
+
+    const staffIds = [...new Set(rows.map((row) => row.receivedByStaffId?.toString()))].filter(
+      (id): id is string => Boolean(id),
+    );
+    const staff = staffIds.length
+      ? await this.staffModel
+          .find({ _id: { $in: staffIds.map((id) => new Types.ObjectId(id)) } })
+          .select('firstName lastName')
+          .lean<Array<{ _id: Types.ObjectId; firstName?: string; lastName?: string }>>()
+      : [];
+    const staffById = new Map(
+      staff.map((s) => [s._id.toString(), [s.firstName, s.lastName].filter(Boolean).join(' ')]),
+    );
+
+    const mapped = rows.map((row) =>
+      this.toInvoiceDto(row, staffById.get(row.receivedByStaffId?.toString() ?? '')),
+    );
+    return paginate(mapped, query.limit);
+  }
+
+  private toInvoiceDto(
+    row: {
+      _id: Types.ObjectId;
+      branchId: Types.ObjectId;
+      vendorName: string;
+      invoiceNo: string;
+      invoiceDate: Date;
+      note?: string;
+      receivedByStaffId: Types.ObjectId;
+      lines: Array<{
+        productId: Types.ObjectId;
+        productName: string;
+        quantity: number;
+        batchNo?: string;
+        expiry?: Date;
+        costKobo?: number;
+        priceKobo?: number;
+        visibleOnStorefront?: boolean;
+      }>;
+      createdAt?: Date;
+    },
+    receivedByName?: string,
+  ): StockInvoiceDto {
+    return {
+      id: row._id.toString(),
+      branchId: row.branchId.toString(),
+      vendorName: row.vendorName,
+      invoiceNo: row.invoiceNo,
+      invoiceDate: row.invoiceDate.toISOString(),
+      note: row.note,
+      receivedById: row.receivedByStaffId.toString(),
+      receivedByName: receivedByName || undefined,
+      totalUnits: row.lines.reduce((sum, line) => sum + line.quantity, 0),
+      lines: row.lines.map((line) => ({
+        productId: line.productId.toString(),
+        productName: line.productName,
+        quantity: line.quantity,
+        batchNo: line.batchNo,
+        expiry: line.expiry?.toISOString(),
+        costKobo: line.costKobo,
+        priceKobo: line.priceKobo,
+        visibleOnStorefront: line.visibleOnStorefront,
+      })),
+      createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
+    };
   }
 
   /** Available units (onHand − reserved, floored at 0) per product at a branch. */
@@ -471,20 +703,23 @@ export class InventoryService {
           actorId,
           reason: input.reason,
           batchNo: input.batchNo,
-          refType: 'manual',
+          refType: input.invoiceId ? 'invoice' : 'manual',
+          invoiceId: input.invoiceId,
         });
-        await this.recordManualAudit(
-          branchId,
-          actorId,
-          input,
-          { onHand: 0, reserved: 0, reorderLevel: 0, batchCount: 0 },
-          {
-            onHand: input.quantityDelta,
-            reserved: 0,
-            reorderLevel: input.reorderLevel ?? 0,
-            batchCount: batches.length,
-          },
-        );
+        if (!input.suppressAudit) {
+          await this.recordManualAudit(
+            branchId,
+            actorId,
+            input,
+            { onHand: 0, reserved: 0, reorderLevel: 0, batchCount: 0 },
+            {
+              onHand: input.quantityDelta,
+              reserved: 0,
+              reorderLevel: input.reorderLevel ?? 0,
+              batchCount: batches.length,
+            },
+          );
+        }
         return;
       }
 
@@ -523,25 +758,28 @@ export class InventoryService {
         actorId,
         reason: input.reason,
         batchNo: input.batchNo,
-        refType: 'manual',
+        refType: input.invoiceId ? 'invoice' : 'manual',
+        invoiceId: input.invoiceId,
       });
-      await this.recordManualAudit(
-        branchId,
-        actorId,
-        input,
-        {
-          onHand: currentOnHand,
-          reserved: currentReserved,
-          reorderLevel: current.reorderLevel ?? 0,
-          batchCount: current.batches?.length ?? 0,
-        },
-        {
-          onHand: nextOnHand,
-          reserved: currentReserved,
-          reorderLevel: input.reorderLevel ?? current.reorderLevel ?? 0,
-          batchCount: nextBatches.length,
-        },
-      );
+      if (!input.suppressAudit) {
+        await this.recordManualAudit(
+          branchId,
+          actorId,
+          input,
+          {
+            onHand: currentOnHand,
+            reserved: currentReserved,
+            reorderLevel: current.reorderLevel ?? 0,
+            batchCount: current.batches?.length ?? 0,
+          },
+          {
+            onHand: nextOnHand,
+            reserved: currentReserved,
+            reorderLevel: input.reorderLevel ?? current.reorderLevel ?? 0,
+            batchCount: nextBatches.length,
+          },
+        );
+      }
       return;
     }
 
@@ -563,6 +801,14 @@ export class InventoryService {
     before: Record<string, unknown>,
     after: Record<string, unknown>,
   ): Promise<void> {
+    const productName = input.productName ?? 'product';
+    const batchSuffix = input.batchNo
+      ? ` (batch ${input.batchNo}${input.expiry ? `, exp ${input.expiry.toISOString().slice(0, 10)}` : ''})`
+      : '';
+    const summary =
+      input.movementType === StockMovementType.RECEIVE
+        ? `Received ${input.quantityDelta} × ${productName}${batchSuffix}`
+        : `Adjusted ${productName} by ${input.quantityDelta > 0 ? '+' : ''}${input.quantityDelta}${batchSuffix} — ${input.reason}`;
     try {
       await this.audit.record({
         actorId,
@@ -571,10 +817,12 @@ export class InventoryService {
           input.movementType === StockMovementType.RECEIVE
             ? 'inventory.receive'
             : 'inventory.adjust',
+        summary,
         targetType: 'inventory',
         targetId: input.productId,
         branchId,
         metadata: {
+          product: input.productName,
           quantityDelta: input.quantityDelta,
           reason: input.reason,
           batchNo: input.batchNo,
@@ -659,9 +907,14 @@ export class InventoryService {
     return Math.max(1, reorderLevel);
   }
 
-  private async assertProductExists(productId: string): Promise<void> {
-    const exists = await this.productModel.exists({ _id: new Types.ObjectId(productId) });
-    if (!exists) throw new DomainError(ErrorCode.NOT_FOUND, 'Product not found');
+  /** Load the product name (also asserts the product exists). */
+  private async requireProductName(productId: string): Promise<string> {
+    const product = await this.productModel
+      .findById(new Types.ObjectId(productId))
+      .select('name')
+      .lean<{ name?: string } | null>();
+    if (!product) throw new DomainError(ErrorCode.NOT_FOUND, 'Product not found');
+    return product.name ?? 'Unknown product';
   }
 
   private isDuplicateKey(err: unknown): boolean {
@@ -682,7 +935,11 @@ export class InventoryService {
       type,
       quantity,
       refType: options.refType ?? (options.orderId ? 'order' : 'system'),
-      refId: options.orderId ? new Types.ObjectId(options.orderId) : undefined,
+      refId: options.invoiceId
+        ? new Types.ObjectId(options.invoiceId)
+        : options.orderId
+          ? new Types.ObjectId(options.orderId)
+          : undefined,
       batchNo: options.batchNo,
       actorId: options.actorId ? new Types.ObjectId(options.actorId) : undefined,
       reason: options.reason,

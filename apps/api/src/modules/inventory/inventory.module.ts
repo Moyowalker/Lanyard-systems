@@ -5,12 +5,18 @@ import { AdminInventoryController } from './api/admin-inventory.controller';
 import { InventoryService } from './application/inventory.service';
 import { ExpiryDigestProcessor } from './jobs/expiry-digest.processor';
 import { NotificationModule } from '../notification/notification.module';
+import { PricingModule } from '../pricing/pricing.module';
 import { EXPIRY_DIGEST_QUEUE } from '../../core/queue/queue.constants';
 
 @Module({
   // NotificationModule is @Global but is imported explicitly here because the expiry
   // digest depends on its exported EmailChannel (not just NotificationService).
-  imports: [BullModule.registerQueue({ name: EXPIRY_DIGEST_QUEUE }), NotificationModule],
+  imports: [
+    BullModule.registerQueue({ name: EXPIRY_DIGEST_QUEUE }),
+    NotificationModule,
+    // Invoice receiving can set price/visibility per line at reception.
+    PricingModule,
+  ],
   controllers: [AdminInventoryController],
   providers: [InventoryService, ExpiryDigestProcessor],
   exports: [InventoryService],

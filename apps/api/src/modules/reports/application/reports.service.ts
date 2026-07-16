@@ -5,9 +5,16 @@ import {
   ALL_BRANCHES,
   ConsumptionReportDto,
   ConsumptionRow,
+  ExpiringReportDto,
+  ExpiringReportQuery,
+  ExpiringRow,
+  ExpiryBand,
   InventoryValuationDto,
   InventoryValuationQuery,
   InventoryValuationRow,
+  LowStockQuery,
+  LowStockReportDto,
+  LowStockRow,
   OrderPaymentStatus,
   PaymentChannelBreakdownRow,
   ReportRangeQuery,
@@ -15,6 +22,7 @@ import {
   StockMovementType,
 } from '@lanyard/contracts';
 
+import { Branch } from '../../branch/infrastructure/branch.schema';
 import { Order } from '../../order/infrastructure/order.schema';
 import { InventoryItem, StockMovement } from '../../inventory/infrastructure/inventory.schemas';
 import { Product } from '../../catalog/infrastructure/catalog.schemas';
@@ -266,6 +274,119 @@ export function buildConsumption(
   };
 }
 
+/** Same threshold as InventoryService: a row is low once available ≤ max(1, reorderLevel). */
+function lowStockThreshold(reorderLevel: number): number {
+  return Math.max(1, reorderLevel);
+}
+
+/** Minimal stock item both stock reports consume (no Mongoose). */
+export interface StockReportItem {
+  productId: string;
+  branchId: string;
+  onHand: number;
+  reserved: number;
+  reorderLevel: number;
+  batches: Array<{ expiry?: Date | string }>;
+}
+
+/** Pure low-stock report: items at/below their reorder threshold. Exported for tests. */
+export function buildLowStock(
+  items: StockReportItem[],
+  productById: Map<string, ValuationProduct>,
+  branchNameById: Map<string, string>,
+): LowStockReportDto {
+  const rows: LowStockRow[] = items
+    .map((item) => {
+      const available = Math.max(0, item.onHand - item.reserved);
+      return { item, available };
+    })
+    .filter(({ item, available }) => available <= lowStockThreshold(item.reorderLevel))
+    .map(({ item, available }) => {
+      const product = productById.get(item.productId);
+      return {
+        productId: item.productId,
+        productName: product?.name ?? 'Unknown product',
+        genericName: product?.genericName,
+        brand: product?.brand,
+        form: product?.form,
+        branchId: item.branchId,
+        branchName: branchNameById.get(item.branchId) ?? 'Unknown branch',
+        onHand: item.onHand,
+        reserved: item.reserved,
+        available,
+        reorderLevel: item.reorderLevel,
+        status: (available <= 0 ? 'out' : 'low') as LowStockRow['status'],
+      };
+    })
+    .sort((a, b) => a.available - b.available || a.productName.localeCompare(b.productName));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    totalItems: rows.length,
+    outOfStock: rows.filter((row) => row.status === 'out').length,
+    rows,
+  };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Red band: 6 months or less to expiry (client-confirmed banding). */
+const RED_BAND_DAYS = 180;
+
+/**
+ * Pure expiring-drugs report. Horizon defaults to 9 months; banding is the single
+ * source of truth shared by UI and exports: expired ≤ 0d, red ≤ 180d, yellow ≤ horizon.
+ * Exported for tests.
+ */
+export function buildExpiring(
+  items: StockReportItem[],
+  productById: Map<string, ValuationProduct>,
+  branchNameById: Map<string, string>,
+  horizonDays: number,
+  now = new Date(),
+): ExpiringReportDto {
+  const cutoff = now.getTime() + horizonDays * DAY_MS;
+
+  const rows: ExpiringRow[] = items
+    .map((item) => {
+      const soonest = item.batches
+        .map((batch) => (batch.expiry ? new Date(batch.expiry).getTime() : Number.NaN))
+        .filter((time) => Number.isFinite(time))
+        .sort((a, b) => a - b)[0];
+      return { item, soonest };
+    })
+    .filter(({ item, soonest }) => item.onHand > 0 && soonest !== undefined && soonest! <= cutoff)
+    .map(({ item, soonest }) => {
+      const product = productById.get(item.productId);
+      const daysLeft = Math.ceil((soonest! - now.getTime()) / DAY_MS);
+      const band: ExpiryBand =
+        daysLeft <= 0 ? 'expired' : daysLeft <= RED_BAND_DAYS ? 'red' : 'yellow';
+      return {
+        productId: item.productId,
+        productName: product?.name ?? 'Unknown product',
+        genericName: product?.genericName,
+        brand: product?.brand,
+        form: product?.form,
+        branchId: item.branchId,
+        branchName: branchNameById.get(item.branchId) ?? 'Unknown branch',
+        onHand: item.onHand,
+        batchCount: item.batches.length,
+        nextExpiry: new Date(soonest!).toISOString(),
+        daysLeft,
+        band,
+      };
+    })
+    .sort((a, b) => a.daysLeft - b.daysLeft || a.productName.localeCompare(b.productName));
+
+  return {
+    generatedAt: now.toISOString(),
+    horizonDays,
+    expired: rows.filter((row) => row.band === 'expired').length,
+    red: rows.filter((row) => row.band === 'red').length,
+    yellow: rows.filter((row) => row.band === 'yellow').length,
+    rows,
+  };
+}
+
 const DEFAULT_WINDOW_DAYS = 30;
 const MAX_WINDOW_DAYS = 366;
 
@@ -277,6 +398,7 @@ export class ReportsService {
     @InjectModel(StockMovement.name) private readonly movementModel: Model<StockMovement>,
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
     @InjectModel(PriceList.name) private readonly priceModel: Model<PriceList>,
+    @InjectModel(Branch.name) private readonly branchModel: Model<Branch>,
   ) {}
 
   async salesSummary(branchScope: string[], range: ReportRangeQuery): Promise<SalesSummaryDto> {
@@ -428,6 +550,119 @@ export class ReportsService {
     return [...buckets.entries()]
       .map(([channel, bucket]) => ({ channel, ...bucket }))
       .sort((a, b) => b.totalKobo - a.totalKobo);
+  }
+
+  /** Items at/below their reorder threshold across the caller's branch scope. */
+  async lowStock(branchScope: string[], query: LowStockQuery): Promise<LowStockReportDto> {
+    const items = await this.loadStockItems(branchScope, query.branchId);
+    const [productById, branchNameById] = await Promise.all([
+      this.loadProducts(items.map((item) => item.productId)),
+      this.loadBranchNames(items.map((item) => item.branchId)),
+    ]);
+    return buildLowStock(items, productById, branchNameById);
+  }
+
+  /** Drugs whose soonest batch expires within the horizon (default 9 months). */
+  async expiring(branchScope: string[], query: ExpiringReportQuery): Promise<ExpiringReportDto> {
+    const items = await this.loadStockItems(branchScope, query.branchId);
+    const [productById, branchNameById] = await Promise.all([
+      this.loadProducts(items.map((item) => item.productId)),
+      this.loadBranchNames(items.map((item) => item.branchId)),
+    ]);
+    return buildExpiring(items, productById, branchNameById, query.days);
+  }
+
+  async exportLowStock(
+    branchScope: string[],
+    query: LowStockQuery,
+    format: SpreadsheetFormat,
+  ): Promise<SpreadsheetFile> {
+    const report = await this.lowStock(branchScope, query);
+    const records = report.rows.map((r) => ({
+      Product: r.productName,
+      Generic: r.genericName ?? '',
+      Brand: r.brand ?? '',
+      Form: r.form ?? '',
+      Branch: r.branchName,
+      'On hand': r.onHand,
+      Reserved: r.reserved,
+      Available: r.available,
+      'Reorder level': r.reorderLevel,
+      Status: r.status === 'out' ? 'Out of stock' : 'Low stock',
+    }));
+    return toSpreadsheet(records, {
+      sheetName: 'Low stock',
+      filenameBase: 'low-stock',
+      format,
+    });
+  }
+
+  async exportExpiring(
+    branchScope: string[],
+    query: ExpiringReportQuery,
+    format: SpreadsheetFormat,
+  ): Promise<SpreadsheetFile> {
+    const report = await this.expiring(branchScope, query);
+    const records = report.rows.map((r) => ({
+      Product: r.productName,
+      Generic: r.genericName ?? '',
+      Brand: r.brand ?? '',
+      Form: r.form ?? '',
+      Branch: r.branchName,
+      'On hand': r.onHand,
+      Batches: r.batchCount,
+      'Next expiry': r.nextExpiry.slice(0, 10),
+      'Days left': r.daysLeft,
+      Band:
+        r.band === 'expired'
+          ? 'EXPIRED'
+          : r.band === 'red'
+            ? 'Red (≤6 months)'
+            : 'Yellow (6–9 months)',
+    }));
+    return toSpreadsheet(records, {
+      sheetName: 'Expiring drugs',
+      filenameBase: 'expiring-drugs',
+      format,
+    });
+  }
+
+  /** Stock rows (with batches) for the low-stock/expiring reports, branch-scoped. */
+  private async loadStockItems(
+    branchScope: string[],
+    branchId?: string,
+  ): Promise<StockReportItem[]> {
+    const rows = await this.inventoryModel
+      .find(this.branchFilter(branchScope, branchId))
+      .select('productId branchId onHand reserved reorderLevel batches')
+      .lean<
+        Array<{
+          productId: Types.ObjectId;
+          branchId: Types.ObjectId;
+          onHand?: number;
+          reserved?: number;
+          reorderLevel?: number;
+          batches?: Array<{ expiry?: Date }>;
+        }>
+      >();
+    return rows.map((row) => ({
+      productId: row.productId.toString(),
+      branchId: row.branchId.toString(),
+      onHand: row.onHand ?? 0,
+      reserved: row.reserved ?? 0,
+      reorderLevel: row.reorderLevel ?? 0,
+      batches: row.batches ?? [],
+    }));
+  }
+
+  private async loadBranchNames(branchIds: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(branchIds)];
+    if (unique.length === 0) return new Map();
+    const branches = await this.branchModel
+      .find({ _id: { $in: unique.map((id) => new Types.ObjectId(id)) } })
+      .select('name')
+      .lean<Array<{ _id: Types.ObjectId; name?: string }>>();
+    return new Map(branches.map((b) => [b._id.toString(), b.name ?? 'Unknown branch']));
   }
 
   /* ── shared helpers ── */
