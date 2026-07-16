@@ -21,13 +21,17 @@ import { IconCash, IconOrders, IconCheck, IconReports } from '@/components/icons
 import { Button } from '@/components/ui';
 import { InventoryValuationReport } from '@/components/reports/InventoryValuationReport';
 import { ConsumptionReport } from '@/components/reports/ConsumptionReport';
+import { LowStockReport } from '@/components/reports/LowStockReport';
+import { ExpiringDrugsReport } from '@/components/reports/ExpiringDrugsReport';
 
-type ReportTab = 'sales' | 'inventory' | 'consumption';
+type ReportTab = 'sales' | 'inventory' | 'consumption' | 'low-stock' | 'expiring';
 
 const TABS: { key: ReportTab; label: string }[] = [
   { key: 'sales', label: 'Sales' },
   { key: 'inventory', label: 'Inventory' },
   { key: 'consumption', label: 'Consumption' },
+  { key: 'low-stock', label: 'Low stock' },
+  { key: 'expiring', label: 'Expiring drugs' },
 ];
 
 const RANGES = [
@@ -139,6 +143,10 @@ export default function ReportsPage() {
         <InventoryValuationReport branches={branches} />
       ) : tab === 'consumption' ? (
         <ConsumptionReport branches={branches} />
+      ) : tab === 'low-stock' ? (
+        <LowStockReport branches={branches} />
+      ) : tab === 'expiring' ? (
+        <ExpiringDrugsReport branches={branches} />
       ) : (
         <>
           <div className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200/70 bg-white px-4 py-3">

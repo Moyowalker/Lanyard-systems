@@ -18,6 +18,10 @@ import {
   InventoryExpiringQuerySchema,
   ReceiveInventoryInput,
   ReceiveInventorySchema,
+  ReceiveInvoiceInput,
+  ReceiveInvoiceSchema,
+  StockInvoiceQuery,
+  StockInvoiceQuerySchema,
   StockMovementQuery,
   StockMovementQuerySchema,
 } from '@lanyard/contracts';
@@ -86,6 +90,27 @@ export class AdminInventoryController {
       type: contentType,
       disposition: `attachment; filename="${filename}"`,
     });
+  }
+
+  /** Receive stock against a supplier invoice (GRN): vendor + invoice no + date + lines. */
+  @Post('invoices')
+  @RequirePermissions('inventory:receive')
+  async receiveInvoice(
+    @Param('branchId') branchId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(ReceiveInvoiceSchema)) dto: ReceiveInvoiceInput,
+  ) {
+    return { data: await this.inventory.receiveInvoice(branchId, user.sub, dto) };
+  }
+
+  /** Goods-received history, newest first. */
+  @Get('invoices')
+  @RequirePermissions('inventory:read')
+  async listInvoices(
+    @Param('branchId') branchId: string,
+    @Query(new ZodValidationPipe(StockInvoiceQuerySchema)) query: StockInvoiceQuery,
+  ) {
+    return this.inventory.listInvoices(branchId, query);
   }
 
   @Post('receive')

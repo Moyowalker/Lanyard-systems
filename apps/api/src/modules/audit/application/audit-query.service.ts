@@ -63,6 +63,7 @@ export class AuditQueryService {
       actorId: d.actorId?.toString(),
       actorType: d.actorType,
       action: d.action,
+      summary: d.summary,
       targetType: d.targetType,
       targetId: d.targetId?.toString(),
       branchId: d.branchId?.toString(),

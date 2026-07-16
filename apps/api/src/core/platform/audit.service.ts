@@ -9,6 +9,8 @@ export interface AuditEntry {
   actorId?: string;
   actorType: ActorType;
   action: string; // e.g. "rx.verify", "order.transition", "phi.view"
+  /** Human-readable one-liner shown in the audit viewer, e.g. "Received 24 × Paracetamol". */
+  summary?: string;
   targetType?: string;
   targetId?: string;
   branchId?: string;
@@ -32,6 +34,7 @@ export class AuditService {
       actorId: entry.actorId ? new Types.ObjectId(entry.actorId) : undefined,
       actorType: entry.actorType,
       action: entry.action,
+      summary: entry.summary,
       targetType: entry.targetType,
       targetId: entry.targetId ? new Types.ObjectId(entry.targetId) : undefined,
       branchId: entry.branchId ? new Types.ObjectId(entry.branchId) : undefined,

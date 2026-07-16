@@ -11,7 +11,8 @@ function sortedLean<T>(value: T) {
 
 function findOneLean<T>(value: T) {
   const lean = jest.fn().mockResolvedValue(value);
-  return { lean };
+  // Support both `.lean()` and `.select(...).lean()` call shapes.
+  return { lean, select: jest.fn().mockReturnValue({ lean }) };
 }
 
 describe('InventoryService', () => {
@@ -40,7 +41,10 @@ describe('InventoryService', () => {
     movementModel = { create: jest.fn().mockResolvedValue(undefined) };
     productModel = {
       find: jest.fn(),
-      findById: jest.fn(),
+      // Default: product exists with a generic name (receive/adjust load it for audit summaries).
+      findById: jest
+        .fn()
+        .mockReturnValue(findOneLean({ _id: new Types.ObjectId(productId), name: 'Product' })),
       exists: jest.fn().mockResolvedValue(true),
     };
 
@@ -49,7 +53,10 @@ describe('InventoryService', () => {
     service = new InventoryService(
       inventoryModel as never,
       movementModel as never,
+      { create: jest.fn(), find: jest.fn() } as never,
       productModel as never,
+      { find: jest.fn() } as never,
+      { getPriceMap: jest.fn().mockResolvedValue(new Map()), upsertPrice: jest.fn() } as never,
       audit as never,
     );
   });
@@ -317,5 +324,163 @@ describe('InventoryService', () => {
     expect(result.onHand).toBe(12);
     expect(movementModel.create).toHaveBeenCalled();
     expect(audit.record).toHaveBeenCalled();
+  });
+});
+
+describe('InventoryService.receiveInvoice', () => {
+  const branchId = new Types.ObjectId().toString();
+  const actorId = new Types.ObjectId().toString();
+  const productA = new Types.ObjectId();
+  const productB = new Types.ObjectId();
+
+  function buildService(opts: { priceMap?: Map<string, unknown> } = {}) {
+    const invoiceId = new Types.ObjectId();
+    const invoiceCreate = jest.fn().mockResolvedValue([
+      {
+        _id: invoiceId,
+        toObject: () => ({
+          _id: invoiceId,
+          branchId: new Types.ObjectId(branchId),
+          vendorName: 'Emzor Distribution',
+          invoiceNo: 'INV-0231',
+          invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+          receivedByStaffId: new Types.ObjectId(actorId),
+          lines: [
+            {
+              productId: productA,
+              productName: 'Paracetamol 500mg',
+              quantity: 100,
+            },
+            { productId: productB, productName: 'Ibuprofen 400mg', quantity: 20 },
+          ],
+          createdAt: new Date(),
+        }),
+      },
+    ]);
+    const movementCreate = jest.fn().mockResolvedValue(undefined);
+    const auditRecord = jest.fn().mockResolvedValue(undefined);
+    const upsertPrice = jest.fn().mockResolvedValue(undefined);
+
+    const inventoryModel = {
+      // Every line hits the "create new row" branch of applyManualMutation.
+      findOne: jest.fn().mockReturnValue(findOneLean(null)),
+      create: jest.fn().mockResolvedValue(undefined),
+      updateOne: jest.fn(),
+      find: jest.fn(),
+    };
+    const productModel = {
+      find: jest.fn().mockReturnValue(
+        findOneLean([
+          { _id: productA, name: 'Paracetamol 500mg' },
+          { _id: productB, name: 'Ibuprofen 400mg' },
+        ]),
+      ),
+      findById: jest.fn(),
+      exists: jest.fn(),
+    };
+
+    const service = new InventoryService(
+      inventoryModel as never,
+      { create: movementCreate } as never,
+      { create: invoiceCreate, find: jest.fn() } as never,
+      productModel as never,
+      { find: jest.fn() } as never,
+      {
+        getPriceMap: jest.fn().mockResolvedValue(opts.priceMap ?? new Map()),
+        upsertPrice,
+      } as never,
+      { record: auditRecord } as never,
+    );
+    return { service, invoiceCreate, movementCreate, auditRecord, upsertPrice, invoiceId };
+  }
+
+  const baseInput = {
+    vendorName: 'Emzor Distribution',
+    invoiceNo: 'INV-0231',
+    invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+    lines: [
+      { productId: productA.toString(), quantity: 100, priceKobo: 50000, costKobo: 30000 },
+      { productId: productB.toString(), quantity: 20 },
+    ],
+  };
+
+  it('creates the invoice, applies every line with an invoice-linked movement, and audits once', async () => {
+    const { service, invoiceCreate, movementCreate, auditRecord, invoiceId } = buildService();
+
+    const result = await service.receiveInvoice(branchId, actorId, baseInput as never);
+
+    expect(invoiceCreate).toHaveBeenCalledTimes(1);
+    expect(movementCreate).toHaveBeenCalledTimes(2);
+    const movementDoc = movementCreate.mock.calls[0][0][0];
+    expect(movementDoc.refType).toBe('invoice');
+    expect(movementDoc.refId.toString()).toBe(invoiceId.toString());
+    expect(movementDoc.reason).toContain('INV-0231');
+
+    // ONE invoice-level audit entry with a human summary — not one per line.
+    expect(auditRecord).toHaveBeenCalledTimes(1);
+    const entry = auditRecord.mock.calls[0][0];
+    expect(entry.action).toBe('inventory.receive_invoice');
+    expect(entry.summary).toContain('INV-0231');
+    expect(entry.summary).toContain('Emzor Distribution');
+    expect(entry.summary).toContain('120 units');
+    expect(entry.metadata.vendorName).toBe('Emzor Distribution');
+    expect(entry.metadata.invoiceDate).toBe('2026-07-01');
+    expect(entry.metadata.lines[0].product).toBe('Paracetamol 500mg');
+
+    expect(result.vendorName).toBe('Emzor Distribution');
+    expect(result.totalUnits).toBe(120);
+  });
+
+  it('upserts price + storefront visibility for lines that set them', async () => {
+    const { service, upsertPrice } = buildService();
+
+    await service.receiveInvoice(branchId, actorId, {
+      ...baseInput,
+      lines: [
+        {
+          productId: productA.toString(),
+          quantity: 100,
+          priceKobo: 50000,
+          costKobo: 30000,
+          visibleOnStorefront: false,
+        },
+        { productId: productB.toString(), quantity: 20 },
+      ],
+    } as never);
+
+    expect(upsertPrice).toHaveBeenCalledTimes(1);
+    expect(upsertPrice).toHaveBeenCalledWith(branchId, {
+      productId: productA.toString(),
+      priceKobo: 50000,
+      costKobo: 30000,
+      compareAtKobo: undefined,
+      isAvailable: false,
+    });
+  });
+
+  it('rejects a line marked visible with no price (new or existing) before any mutation', async () => {
+    const { service, invoiceCreate, movementCreate } = buildService();
+
+    await expect(
+      service.receiveInvoice(branchId, actorId, {
+        ...baseInput,
+        lines: [{ productId: productB.toString(), quantity: 20, visibleOnStorefront: true }],
+      } as never),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+
+    expect(invoiceCreate).not.toHaveBeenCalled();
+    expect(movementCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown products before any mutation', async () => {
+    const { service, invoiceCreate } = buildService();
+
+    await expect(
+      service.receiveInvoice(branchId, actorId, {
+        ...baseInput,
+        lines: [{ productId: new Types.ObjectId().toString(), quantity: 5 }],
+      } as never),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+    expect(invoiceCreate).not.toHaveBeenCalled();
   });
 });
