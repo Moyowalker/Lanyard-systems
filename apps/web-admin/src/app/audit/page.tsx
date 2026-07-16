@@ -200,9 +200,12 @@ function AuditRow({
   open: boolean;
   onToggle: () => void;
 }) {
-  const target = entry.targetType
-    ? `${entry.targetType}${entry.targetId ? ` · ${entry.targetId.slice(-6)}` : ''}`
-    : '—';
+  // Prefer the human-readable summary; raw target ids stay in the expanded detail.
+  const target =
+    entry.summary ??
+    (entry.targetType
+      ? `${entry.targetType}${entry.targetId ? ` · ${entry.targetId.slice(-6)}` : ''}`
+      : '—');
 
   return (
     <>
@@ -225,7 +228,7 @@ function AuditRow({
             </span>
           )}
         </Td>
-        <Td className="text-slate-500">{target}</Td>
+        <Td className={entry.summary ? 'text-slate-700' : 'text-slate-500'}>{target}</Td>
         <Td right>
           <IconChevronRight
             width={16}
@@ -276,13 +279,76 @@ function AuditDetail({ entry }: { entry: AuditLogDto }) {
         )}
       </div>
       <div className="space-y-3">
-        {entry.metadata && <JsonBlock title="Metadata" data={entry.metadata} />}
+        {entry.metadata && <MetadataBlock data={entry.metadata} />}
         {entry.before && <JsonBlock title="Before" data={entry.before} />}
         {entry.after && <JsonBlock title="After" data={entry.after} />}
         {!entry.metadata && !entry.before && !entry.after && (
           <p className="text-xs text-slate-400">No additional payload recorded.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Turn a camelCase metadata key into a readable label ("invoiceNo" → "Invoice no"). */
+function humanizeKey(key: string): string {
+  const spaced = key.replace(/([a-z\d])([A-Z])/g, '$1 $2').toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/**
+ * Render metadata as readable facts. Scalar values become label/value rows; an array
+ * of objects (e.g. invoice line items) becomes a bulleted list. Raw JSON stays
+ * available in a collapsible fallback for anything complex.
+ */
+function MetadataBlock({ data }: { data: Record<string, unknown> }) {
+  const scalars = Object.entries(data).filter(
+    ([, value]) =>
+      value != null && (typeof value !== 'object' || value instanceof Date) && value !== '',
+  );
+  const lineArrays = Object.entries(data).filter(
+    ([, value]) =>
+      Array.isArray(value) && value.every((item) => typeof item === 'object' && item !== null),
+  );
+
+  return (
+    <div>
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Details</h3>
+      {scalars.length > 0 ? (
+        <dl className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-1.5 text-sm">
+          {scalars.map(([key, value]) => (
+            <div key={key} className="contents">
+              <dt className="text-slate-400">{humanizeKey(key)}</dt>
+              <dd className="break-words text-slate-700">{String(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {lineArrays.map(([key, value]) => (
+        <div key={key} className="mt-2">
+          <div className="text-xs font-semibold text-slate-500">{humanizeKey(key)}</div>
+          <ul className="mt-1 space-y-1 text-sm text-slate-700">
+            {(value as Array<Record<string, unknown>>).map((item, index) => (
+              <li key={index} className="rounded-lg bg-white px-3 py-1.5 shadow-sm">
+                {Object.entries(item)
+                  .filter(([, v]) => v != null && v !== '')
+                  .map(([k, v]) =>
+                    k === 'product' || k === 'name' ? String(v) : `${humanizeKey(k)}: ${String(v)}`,
+                  )
+                  .join(' · ')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-600">
+          Raw metadata
+        </summary>
+        <pre className="mt-1 overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      </details>
     </div>
   );
 }

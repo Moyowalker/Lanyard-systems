@@ -7,7 +7,8 @@ import {
   BranchInventoryItemDto,
   BranchSummaryDto,
   Paginated,
-  ReceiveInventorySchema,
+  ReceiveInvoiceSchema,
+  StockInvoiceDto,
   StockMovementDto,
   StockMovementType,
 } from '@lanyard/contracts';
@@ -40,13 +41,44 @@ type AdminProductLookup = {
   strength?: string;
 };
 
-type ReceiveFormState = {
+/** One line of the goods-received (invoice) form. Money fields are naira strings. */
+type InvoiceLineForm = {
   productId: string;
   quantity: string;
-  reorderLevel: string;
   batchNo: string;
   expiry: string;
-  reason: string;
+  reorderLevel: string;
+  costNaira: string;
+  priceNaira: string;
+  /** '' = leave storefront visibility unchanged. */
+  visibility: '' | 'visible' | 'hidden';
+};
+
+type InvoiceFormState = {
+  vendorName: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  note: string;
+  lines: InvoiceLineForm[];
+};
+
+const EMPTY_INVOICE_LINE: InvoiceLineForm = {
+  productId: '',
+  quantity: '',
+  batchNo: '',
+  expiry: '',
+  reorderLevel: '',
+  costNaira: '',
+  priceNaira: '',
+  visibility: '',
+};
+
+const EMPTY_INVOICE_FORM: InvoiceFormState = {
+  vendorName: '',
+  invoiceNo: '',
+  invoiceDate: '',
+  note: '',
+  lines: [EMPTY_INVOICE_LINE],
 };
 
 type AdjustFormState = {
@@ -202,14 +234,7 @@ export default function InventoryPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [activityType, setActivityType] = useState<StockMovementType | 'all'>('all');
-  const [receiveForm, setReceiveForm] = useState<ReceiveFormState>({
-    productId: '',
-    quantity: '',
-    reorderLevel: '',
-    batchNo: '',
-    expiry: '',
-    reason: '',
-  });
+  const [invoiceForm, setInvoiceForm] = useState<InvoiceFormState>(EMPTY_INVOICE_FORM);
   const [adjustForm, setAdjustForm] = useState<AdjustFormState>({
     productId: '',
     quantityDelta: '',
@@ -218,7 +243,7 @@ export default function InventoryPage() {
     expiry: '',
     reason: '',
   });
-  const [receiveMessage, setReceiveMessage] = useState<FormMessage>();
+  const [invoiceMessage, setInvoiceMessage] = useState<FormMessage>();
   const [adjustMessage, setAdjustMessage] = useState<FormMessage>();
 
   const branchesQ = useQuery({
@@ -340,12 +365,6 @@ export default function InventoryPage() {
   }, [rows, search, statusFilter]);
 
   useEffect(() => {
-    if (products.length === 0) return;
-    if (products.some((product) => product.id === receiveForm.productId)) return;
-    setReceiveForm((current) => ({ ...current, productId: products[0].id }));
-  }, [products, receiveForm.productId]);
-
-  useEffect(() => {
     if (rows.length === 0) {
       if (adjustForm.productId) {
         setAdjustForm((current) => ({ ...current, productId: '' }));
@@ -361,35 +380,49 @@ export default function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-inventory', branchId] }),
       queryClient.invalidateQueries({ queryKey: ['admin-low-stock', branchId] }),
       queryClient.invalidateQueries({ queryKey: ['admin-inventory-movements', branchId] }),
+      queryClient.invalidateQueries({ queryKey: ['admin-invoices', branchId] }),
     ]);
   }
 
-  const receiveMutation = useMutation({
+  const invoiceMutation = useMutation({
     mutationFn: async (payload: unknown) => {
-      const res = await fetch(`/api/admin/branches/${branchId}/inventory/receive`, {
+      const res = await fetch(`/api/admin/branches/${branchId}/inventory/invoices`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.error?.message ?? 'Failed to receive stock');
-      return body as { data: BranchInventoryItemDto };
+      if (!res.ok) {
+        const issues = body?.error?.details
+          ?.map((d: { field?: string; issue?: string }) => `${d.field}: ${d.issue}`)
+          .join('; ');
+        throw new Error(issues || body?.error?.message || 'Failed to record the invoice');
+      }
+      return body as { data: StockInvoiceDto };
     },
     onSuccess: async (body) => {
-      setReceiveMessage({ tone: 'success', text: `Received stock for ${body.data.productName}.` });
-      setReceiveForm((current) => ({
-        ...current,
-        quantity: '',
-        batchNo: '',
-        expiry: '',
-        reason: '',
-      }));
+      setInvoiceMessage({
+        tone: 'success',
+        text: `Invoice ${body.data.invoiceNo} from ${body.data.vendorName} received — ${body.data.totalUnits} units across ${body.data.lines.length} product(s).`,
+      });
+      setInvoiceForm(EMPTY_INVOICE_FORM);
       await invalidateStock();
     },
     onError: (error) => {
-      setReceiveMessage({ tone: 'danger', text: error.message });
+      setInvoiceMessage({ tone: 'danger', text: error.message });
     },
   });
+
+  const invoicesQ = useQuery({
+    queryKey: ['admin-invoices', branchId],
+    enabled: Boolean(branchId),
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/branches/${branchId}/inventory/invoices?limit=10`);
+      if (!res.ok) throw new Error('Failed to load invoices');
+      return (await res.json()) as Paginated<StockInvoiceDto>;
+    },
+  });
+  const recentInvoices = invoicesQ.data?.data ?? [];
 
   const adjustMutation = useMutation({
     mutationFn: async (payload: unknown) => {
@@ -418,28 +451,50 @@ export default function InventoryPage() {
     },
   });
 
-  async function submitReceive(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setReceiveMessage(undefined);
+  function patchInvoiceLine(index: number, patch: Partial<InvoiceLineForm>) {
+    setInvoiceForm((current) => ({
+      ...current,
+      lines: current.lines.map((line, i) => (i === index ? { ...line, ...patch } : line)),
+    }));
+  }
 
-    const payload = ReceiveInventorySchema.safeParse({
-      productId: receiveForm.productId,
-      quantity: receiveForm.quantity,
-      reorderLevel: receiveForm.reorderLevel || undefined,
-      batchNo: receiveForm.batchNo || undefined,
-      expiry: receiveForm.expiry || undefined,
-      reason: receiveForm.reason || undefined,
+  async function submitInvoice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setInvoiceMessage(undefined);
+
+    const lines = invoiceForm.lines.filter((line) => line.productId);
+    if (lines.length === 0) {
+      setInvoiceMessage({ tone: 'danger', text: 'Add at least one product line.' });
+      return;
+    }
+
+    const payload = ReceiveInvoiceSchema.safeParse({
+      vendorName: invoiceForm.vendorName,
+      invoiceNo: invoiceForm.invoiceNo,
+      invoiceDate: invoiceForm.invoiceDate,
+      note: invoiceForm.note || undefined,
+      lines: lines.map((line) => ({
+        productId: line.productId,
+        quantity: line.quantity,
+        batchNo: line.batchNo || undefined,
+        expiry: line.expiry || undefined,
+        reorderLevel: line.reorderLevel || undefined,
+        costKobo: line.costNaira ? Math.round(Number(line.costNaira) * 100) : undefined,
+        priceKobo: line.priceNaira ? Math.round(Number(line.priceNaira) * 100) : undefined,
+        visibleOnStorefront: line.visibility === '' ? undefined : line.visibility === 'visible',
+      })),
     });
 
     if (!payload.success) {
-      setReceiveMessage({
+      const issue = payload.error.issues[0];
+      setInvoiceMessage({
         tone: 'danger',
-        text: payload.error.issues[0]?.message ?? 'Check the receive stock form.',
+        text: issue ? issue.message : 'Check the invoice form.',
       });
       return;
     }
 
-    await receiveMutation.mutateAsync(payload.data);
+    await invoiceMutation.mutateAsync(payload.data);
   }
 
   async function submitAdjust(event: FormEvent<HTMLFormElement>) {
@@ -466,7 +521,6 @@ export default function InventoryPage() {
     await adjustMutation.mutateAsync(payload.data);
   }
 
-  const selectedReceiveInventory = inventoryByProductId.get(receiveForm.productId);
   const selectedAdjustInventory = inventoryByProductId.get(adjustForm.productId);
   const activityMovements = activityQ.data?.pages.flatMap((page) => page.data) ?? [];
 
@@ -570,8 +624,8 @@ export default function InventoryPage() {
             }
           >
             {manageOpen ? (
-              <div className="grid gap-6 lg:grid-cols-2">
-                {/* Receive stock */}
+              <div className="space-y-8">
+                {/* Receive stock — invoice (GRN) based */}
                 {products.length === 0 ? (
                   <EmptyState
                     title="No products to receive"
@@ -579,140 +633,274 @@ export default function InventoryPage() {
                     icon={IconInventory}
                   />
                 ) : (
-                  <form className="space-y-4" onSubmit={submitReceive}>
-                    <h3 className="text-sm font-semibold text-slate-900">Receive stock</h3>
+                  <form className="space-y-4" onSubmit={submitInvoice}>
                     <div>
-                      <label className={labelClass} htmlFor="receive-product">
-                        Product
-                      </label>
-                      <select
-                        id="receive-product"
-                        value={receiveForm.productId}
-                        onChange={(event) =>
-                          setReceiveForm((current) => ({
-                            ...current,
-                            productId: event.target.value,
-                          }))
-                        }
-                        className={inputClass}
-                      >
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {selectedReceiveInventory
-                          ? `${selectedReceiveInventory.available} available now at this branch.`
-                          : 'This product has no existing inventory row for the selected branch.'}
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        Receive stock — supplier invoice
+                      </h3>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        One entry per invoice: vendor, invoice number, supply date, and every
+                        product on it. This is the record the audit trail is built on.
                       </p>
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <div>
-                        <label className={labelClass} htmlFor="receive-quantity">
-                          Quantity
+                        <label className={labelClass} htmlFor="invoice-vendor">
+                          Vendor
                         </label>
                         <input
-                          id="receive-quantity"
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={receiveForm.quantity}
+                          id="invoice-vendor"
+                          value={invoiceForm.vendorName}
                           onChange={(event) =>
-                            setReceiveForm((current) => ({
+                            setInvoiceForm((current) => ({
                               ...current,
-                              quantity: event.target.value,
+                              vendorName: event.target.value,
                             }))
                           }
                           className={inputClass}
-                          placeholder="e.g. 24"
+                          placeholder="e.g. Emzor Distribution"
                         />
                       </div>
                       <div>
-                        <label className={labelClass} htmlFor="receive-reorder">
-                          Reorder level
+                        <label className={labelClass} htmlFor="invoice-no">
+                          Invoice number
                         </label>
                         <input
-                          id="receive-reorder"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={receiveForm.reorderLevel}
+                          id="invoice-no"
+                          value={invoiceForm.invoiceNo}
                           onChange={(event) =>
-                            setReceiveForm((current) => ({
+                            setInvoiceForm((current) => ({
                               ...current,
-                              reorderLevel: event.target.value,
+                              invoiceNo: event.target.value,
                             }))
                           }
                           className={inputClass}
-                          placeholder="e.g. 8"
+                          placeholder="e.g. INV-0231"
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass} htmlFor="invoice-date">
+                          Invoice date (supplied)
+                        </label>
+                        <input
+                          id="invoice-date"
+                          type="date"
+                          value={invoiceForm.invoiceDate}
+                          onChange={(event) =>
+                            setInvoiceForm((current) => ({
+                              ...current,
+                              invoiceDate: event.target.value,
+                            }))
+                          }
+                          className={inputClass}
                         />
                       </div>
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className={labelClass} htmlFor="receive-batch-no">
-                          Batch number
-                        </label>
-                        <input
-                          id="receive-batch-no"
-                          value={receiveForm.batchNo}
-                          onChange={(event) =>
-                            setReceiveForm((current) => ({
-                              ...current,
-                              batchNo: event.target.value,
-                            }))
-                          }
-                          className={inputClass}
-                          placeholder="e.g. LOT-001"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass} htmlFor="receive-expiry">
-                          Expiry
-                        </label>
-                        <input
-                          id="receive-expiry"
-                          type="date"
-                          value={receiveForm.expiry}
-                          onChange={(event) =>
-                            setReceiveForm((current) => ({
-                              ...current,
-                              expiry: event.target.value,
-                            }))
-                          }
-                          className={inputClass}
-                        />
-                      </div>
+                    <div className="space-y-3">
+                      {invoiceForm.lines.map((line, index) => (
+                        <div
+                          key={index}
+                          className="rounded-xl border border-slate-200 bg-slate-50/60 p-3"
+                        >
+                          <div className="grid gap-2 sm:grid-cols-[2fr_0.8fr_1fr_1fr] sm:items-end">
+                            <div>
+                              <label className={labelClass} htmlFor={`line-product-${index}`}>
+                                Product
+                              </label>
+                              <select
+                                id={`line-product-${index}`}
+                                value={line.productId}
+                                onChange={(event) =>
+                                  patchInvoiceLine(index, { productId: event.target.value })
+                                }
+                                className={inputClass}
+                              >
+                                <option value="">Choose product…</option>
+                                {products.map((product) => (
+                                  <option key={product.id} value={product.id}>
+                                    {product.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className={labelClass} htmlFor={`line-qty-${index}`}>
+                                Qty
+                              </label>
+                              <input
+                                id={`line-qty-${index}`}
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={line.quantity}
+                                onChange={(event) =>
+                                  patchInvoiceLine(index, { quantity: event.target.value })
+                                }
+                                className={inputClass}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass} htmlFor={`line-batch-${index}`}>
+                                Batch no
+                              </label>
+                              <input
+                                id={`line-batch-${index}`}
+                                value={line.batchNo}
+                                onChange={(event) =>
+                                  patchInvoiceLine(index, { batchNo: event.target.value })
+                                }
+                                className={inputClass}
+                                placeholder="e.g. LOT-001"
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass} htmlFor={`line-expiry-${index}`}>
+                                Expiry
+                              </label>
+                              <input
+                                id={`line-expiry-${index}`}
+                                type="date"
+                                value={line.expiry}
+                                onChange={(event) =>
+                                  patchInvoiceLine(index, { expiry: event.target.value })
+                                }
+                                className={inputClass}
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] sm:items-end">
+                            <div>
+                              <label className={labelClass} htmlFor={`line-cost-${index}`}>
+                                Cost (₦)
+                              </label>
+                              <input
+                                id={`line-cost-${index}`}
+                                type="number"
+                                min="0"
+                                value={line.costNaira}
+                                onChange={(event) =>
+                                  patchInvoiceLine(index, { costNaira: event.target.value })
+                                }
+                                className={inputClass}
+                                placeholder="Optional"
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass} htmlFor={`line-price-${index}`}>
+                                Selling (₦)
+                              </label>
+                              <input
+                                id={`line-price-${index}`}
+                                type="number"
+                                min="0"
+                                value={line.priceNaira}
+                                onChange={(event) =>
+                                  patchInvoiceLine(index, { priceNaira: event.target.value })
+                                }
+                                className={inputClass}
+                                placeholder="Optional"
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass} htmlFor={`line-reorder-${index}`}>
+                                Reorder level
+                              </label>
+                              <input
+                                id={`line-reorder-${index}`}
+                                type="number"
+                                min="0"
+                                value={line.reorderLevel}
+                                onChange={(event) =>
+                                  patchInvoiceLine(index, { reorderLevel: event.target.value })
+                                }
+                                className={inputClass}
+                                placeholder="Optional"
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass} htmlFor={`line-visibility-${index}`}>
+                                Storefront
+                              </label>
+                              <select
+                                id={`line-visibility-${index}`}
+                                value={line.visibility}
+                                onChange={(event) =>
+                                  patchInvoiceLine(index, {
+                                    visibility: event.target.value as InvoiceLineForm['visibility'],
+                                  })
+                                }
+                                className={inputClass}
+                              >
+                                <option value="">Leave unchanged</option>
+                                <option value="visible">Visible on storefront</option>
+                                <option value="hidden">Hidden (POS only)</option>
+                              </select>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setInvoiceForm((current) => ({
+                                  ...current,
+                                  lines:
+                                    current.lines.length > 1
+                                      ? current.lines.filter((_, i) => i !== index)
+                                      : current.lines,
+                                }))
+                              }
+                              disabled={invoiceForm.lines.length === 1}
+                              className="mb-0.5 rounded-lg px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() =>
+                          setInvoiceForm((current) => ({
+                            ...current,
+                            lines: [...current.lines, EMPTY_INVOICE_LINE],
+                          }))
+                        }
+                      >
+                        Add product line
+                      </Button>
                     </div>
 
                     <div>
-                      <label className={labelClass} htmlFor="receive-reason">
+                      <label className={labelClass} htmlFor="invoice-note">
                         Note
                       </label>
                       <input
-                        id="receive-reason"
-                        value={receiveForm.reason}
+                        id="invoice-note"
+                        value={invoiceForm.note}
                         onChange={(event) =>
-                          setReceiveForm((current) => ({ ...current, reason: event.target.value }))
+                          setInvoiceForm((current) => ({ ...current, note: event.target.value }))
                         }
                         className={inputClass}
                         placeholder="Optional receiving note"
                       />
                     </div>
 
-                    <InlineNotice message={receiveMessage} />
+                    <p className="text-xs text-slate-500">
+                      Setting a selling price and “Visible on storefront” here publishes the product
+                      online the moment it is received — no separate pricing step.
+                    </p>
 
-                    <Button type="submit" disabled={receiveMutation.isPending || !branchId}>
-                      {receiveMutation.isPending ? (
+                    <InlineNotice message={invoiceMessage} />
+
+                    <Button type="submit" disabled={invoiceMutation.isPending || !branchId}>
+                      {invoiceMutation.isPending ? (
                         <>
-                          <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Receiving…
+                          <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Receiving
+                          invoice…
                         </>
                       ) : (
-                        'Receive stock'
+                        'Receive invoice'
                       )}
                     </Button>
                   </form>
@@ -872,6 +1060,77 @@ export default function InventoryPage() {
                 Receive new stock or apply a manual correction. Both are recorded in the audit trail
                 and the branch activity log below.
               </p>
+            )}
+          </Panel>
+
+          <Panel
+            title="Recent invoices"
+            subtitle="Goods received — vendor, invoice number, and supply date for the audit trail"
+            className="mb-6"
+          >
+            {invoicesQ.isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Skeleton key={index} className="h-10 w-full" />
+                ))}
+              </div>
+            ) : recentInvoices.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No invoices received yet — use “Receive stock” above to record the first delivery.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {recentInvoices.map((invoice) => (
+                  <li key={invoice.id}>
+                    <details className="rounded-xl border border-slate-200 bg-white">
+                      <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-3 px-4 py-3">
+                        <span className="min-w-0">
+                          <span className="font-mono text-sm font-semibold text-slate-800">
+                            {invoice.invoiceNo}
+                          </span>
+                          <span className="ml-2 text-sm text-slate-600">{invoice.vendorName}</span>
+                        </span>
+                        <span className="flex items-center gap-4 text-xs text-slate-500">
+                          <span>Supplied {invoice.invoiceDate.slice(0, 10)}</span>
+                          <span>
+                            {invoice.lines.length} product(s) · {invoice.totalUnits} units
+                          </span>
+                          {invoice.receivedByName ? <span>by {invoice.receivedByName}</span> : null}
+                        </span>
+                      </summary>
+                      <div className="border-t border-slate-100 px-4 py-3">
+                        <ul className="space-y-1 text-sm text-slate-700">
+                          {invoice.lines.map((line, index) => (
+                            <li key={index} className="flex flex-wrap justify-between gap-2">
+                              <span>
+                                {line.productName} × {line.quantity}
+                                {line.batchNo ? (
+                                  <span className="text-xs text-slate-400">
+                                    {' '}
+                                    · batch {line.batchNo}
+                                    {line.expiry ? ` · exp ${line.expiry.slice(0, 10)}` : ''}
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                {line.priceKobo != null ? formatKobo(line.priceKobo) : ''}
+                                {line.visibleOnStorefront === true
+                                  ? ' · visible'
+                                  : line.visibleOnStorefront === false
+                                    ? ' · hidden'
+                                    : ''}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        {invoice.note ? (
+                          <p className="mt-2 text-xs text-slate-500">Note: {invoice.note}</p>
+                        ) : null}
+                      </div>
+                    </details>
+                  </li>
+                ))}
+              </ul>
             )}
           </Panel>
 

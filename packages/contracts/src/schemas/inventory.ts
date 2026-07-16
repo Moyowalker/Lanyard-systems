@@ -97,10 +97,65 @@ export interface StockMovementDto {
   productName: string;
   type: StockMovementType;
   quantity: number;
-  refType?: 'order' | 'manual' | 'system';
+  refType?: 'order' | 'manual' | 'system' | 'invoice';
   refId?: string;
   batchNo?: string;
   actorId?: string;
   reason?: string;
   at: string;
 }
+
+/* ── Invoice-based receiving (GRN) ──
+ * One entry = one supplier invoice: vendor, invoice number, supply date, and
+ * multiple product lines — the trio the pharmacy audits against. Lines may also
+ * set cost/selling price and storefront visibility at the point of reception. */
+
+export const ReceiveInvoiceLineSchema = requireBatchPair(
+  z.object({
+    productId: objectId,
+    quantity: z.coerce.number().int().min(1),
+    batchNo: batchNo.optional(),
+    expiry: z.coerce.date().optional(),
+    reorderLevel: z.coerce.number().int().min(0).optional(),
+    costKobo: z.coerce.number().int().min(0).optional(),
+    priceKobo: z.coerce.number().int().min(0).optional(),
+    visibleOnStorefront: z.boolean().optional(),
+  }),
+);
+
+export const ReceiveInvoiceSchema = z.object({
+  vendorName: z.string().trim().min(1).max(160),
+  invoiceNo: z.string().trim().min(1).max(80),
+  invoiceDate: z.coerce.date(),
+  note: z.string().trim().max(500).optional(),
+  lines: z.array(ReceiveInvoiceLineSchema).min(1).max(100),
+});
+export type ReceiveInvoiceInput = z.infer<typeof ReceiveInvoiceSchema>;
+
+export interface StockInvoiceLineDto {
+  productId: string;
+  productName: string;
+  quantity: number;
+  batchNo?: string;
+  expiry?: string;
+  costKobo?: number;
+  priceKobo?: number;
+  visibleOnStorefront?: boolean;
+}
+
+export interface StockInvoiceDto {
+  id: string;
+  branchId: string;
+  vendorName: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  note?: string;
+  receivedById: string;
+  receivedByName?: string;
+  totalUnits: number;
+  lines: StockInvoiceLineDto[];
+  createdAt: string;
+}
+
+export const StockInvoiceQuerySchema = PaginationQuerySchema;
+export type StockInvoiceQuery = z.infer<typeof StockInvoiceQuerySchema>;

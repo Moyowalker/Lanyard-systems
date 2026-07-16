@@ -13,6 +13,8 @@ export interface AuditLogDto {
   actorType: ActorType;
   /** Dotted action key, e.g. "rx.verify", "refund.create", "phi.view". */
   action: string;
+  /** Human-readable one-liner, e.g. "Invoice INV-0231 from Emzor — 4 products, 320 units". */
+  summary?: string;
   targetType?: string;
   targetId?: string;
   branchId?: string;

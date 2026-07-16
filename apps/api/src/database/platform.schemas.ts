@@ -35,6 +35,10 @@ export class AuditLog {
   @Prop({ required: true, trim: true, index: true })
   action: string;
 
+  /** Human-readable one-liner for the audit viewer (ids alone are not auditable). */
+  @Prop({ type: String, trim: true, maxlength: 300 })
+  summary?: string;
+
   @Prop({ type: String, trim: true })
   targetType?: string;
 
