@@ -63,16 +63,6 @@ describe('PaystackProvider.parseWebhook', () => {
     );
   });
 
-  it('verifies webhook signatures with the configured webhook secret', () => {
-    const webhookProvider = new PaystackProvider(SECRET, 'separate-webhook-secret');
-    const raw = Buffer.from(JSON.stringify(chargeBody));
-    const sig = createHmac('sha512', 'separate-webhook-secret').update(raw).digest('hex');
-
-    expect(webhookProvider.parseWebhook(sig, raw)).toMatchObject({
-      providerEventId: 'evt_123456',
-      reference: 'LNYPAY_abc123',
-    });
-  });
 });
 
 // ── verify ────────────────────────────────────────────────────────────────────

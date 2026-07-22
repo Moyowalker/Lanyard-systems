@@ -66,7 +66,7 @@ Recommended Render setup:
 - One Render Key Value instance for Redis-compatible queues/cache
 - One Web Service each for `web-store`, `web-admin`, and `web-marketing`
 - External MongoDB replica set (for example MongoDB Atlas)
-- Optional S3-compatible object storage, SMTP relay, and SMS provider
+- Optional S3-compatible object storage, Resend email, and SMS provider
 
 The repository now includes a Render Blueprint at `render.yaml` that wires up this
 shape for a first staging deploy.
@@ -121,16 +121,14 @@ Recommended additions once you move beyond a bare staging deploy:
 - `S3_SECRET_KEY`
 - `S3_BUCKET`
 - `S3_FORCE_PATH_STYLE` (`false` for AWS S3, often `true` for MinIO-style endpoints)
-- `SMTP_HOST`
-- `SMTP_PORT`
-- `SMTP_FROM`
-- `SMTP_USER` / `SMTP_PASS` when your relay requires auth
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+- `RESEND_FROM_NAME`
 - `SENDCHAMP_ACCESS_KEY`
 - `SENDCHAMP_SENDER_NAME`
 - `SENDCHAMP_BASE_URL`
 - `SENDCHAMP_SMS_ROUTE`
 - `PAYSTACK_SECRET_KEY`
-- `PAYSTACK_WEBHOOK_SECRET`
 
 Production note:
 

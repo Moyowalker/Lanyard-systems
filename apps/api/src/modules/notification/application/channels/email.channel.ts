@@ -1,7 +1,6 @@
-import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import nodemailer, { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 
 import {
   ChannelSendInput,
@@ -12,63 +11,55 @@ import {
 } from './channel.types';
 
 /**
- * SMTP email channel using nodemailer. Supports authenticated and TLS relays in
- * production, with local Mailpit defaults in development.
+ * Resend email channel. The verified sender domain is configured outside the app,
+ * while this adapter keeps provider details behind the notification channel port.
  */
 @Injectable()
 export class EmailChannel implements NotificationChannelPort {
   private readonly logger = new Logger(EmailChannel.name);
-  private readonly transport: Transporter;
+  private readonly resend: Resend;
 
   constructor(private readonly config: ConfigService) {
-    const host = this.config.get<string>('SMTP_HOST', 'localhost');
-    const port = this.config.get<number>('SMTP_PORT', 1025);
-    const secure = this.config.get<boolean>('SMTP_SECURE', false);
-    const user = this.config.get<string>('SMTP_USER');
-    const pass = this.config.get<string>('SMTP_PASS');
-
-    this.transport = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: user && pass ? { user, pass } : undefined,
-      requireTLS: this.config.get<boolean>('SMTP_REQUIRE_TLS', false),
-      tls: { rejectUnauthorized: this.config.get<boolean>('SMTP_TLS_REJECT_UNAUTHORIZED', true) },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 10_000,
-    });
+    this.resend = new Resend(this.config.get<string>('RESEND_API_KEY'));
   }
 
   async send(input: ChannelSendInput): Promise<ChannelSendResult> {
-    const from = this.config.get<string>('SMTP_FROM', 'no-reply@lanyard.test');
-    const messageId = `${randomUUID()}@lanyard`;
+    const fromEmail = this.config.get<string>('RESEND_FROM_EMAIL', 'onboarding@resend.dev');
+    const fromName = this.config.get<string>('RESEND_FROM_NAME', 'Lanyard Pharmacy');
     const toMasked = maskDestination(input.to);
 
     try {
-      const info = await this.transport.sendMail({
-        from: `Lanyard Pharmacy <${from}>`,
+      const { data, error } = await this.resend.emails.send({
+        from: `${fromName} <${fromEmail}>`,
         to: input.to,
         subject: input.subject,
         text: input.text,
-        messageId,
       });
-      const providerRef = info.messageId || messageId;
+
+      if (error) {
+        const retryable = ![
+          'invalid_api_key',
+          'validation_error',
+          'restricted_api_key',
+          'not_found',
+          'method_not_allowed',
+        ].includes(error.name);
+        this.logger.error(
+          `Email delivery failed: destination=${toMasked} provider=resend code=${error.name} message=${error.message}`,
+        );
+        throw new NotificationDeliveryError(error.message, retryable);
+      }
+
+      const providerRef = data?.id;
       this.logger.log(`Email delivered: destination=${toMasked} providerRef=${providerRef}`);
       return { providerRef };
     } catch (err) {
-      const cause = err as NodeJS.ErrnoException & { responseCode?: number; code?: string };
-      const retryable =
-        (typeof cause.responseCode === 'number' &&
-          cause.responseCode >= 400 &&
-          cause.responseCode < 500) ||
-        cause.code === 'ETIMEDOUT' ||
-        cause.code === 'ECONNRESET' ||
-        cause.code === 'ECONNREFUSED';
+      if (err instanceof NotificationDeliveryError) throw err;
+      const cause = err as NodeJS.ErrnoException;
       this.logger.error(
-        `Email delivery failed: destination=${toMasked} code=${cause.code ?? 'unknown'} responseCode=${cause.responseCode ?? 'n/a'} message=${cause.message}`,
+        `Email delivery failed: destination=${toMasked} provider=resend code=${cause.code ?? 'unknown'} message=${cause.message}`,
       );
-      throw new NotificationDeliveryError(cause.message || 'SMTP delivery failed', retryable);
+      throw new NotificationDeliveryError(cause.message || 'Resend delivery failed', true);
     }
   }
 }
