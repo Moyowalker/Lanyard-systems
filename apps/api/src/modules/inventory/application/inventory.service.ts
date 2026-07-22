@@ -279,8 +279,8 @@ export class InventoryService {
    * invoice, lines may set price/cost/storefront visibility at reception, and ONE
    * invoice-level audit entry records the whole delivery in human terms.
    *
-  * All lines are validated up-front, then the invoice, stock, movements, and prices
-  * commit atomically so a mid-invoice failure cannot leave a partial receipt.
+   * All lines are validated up-front, then the invoice, stock, movements, and prices
+   * commit atomically so a mid-invoice failure cannot leave a partial receipt.
    */
   async receiveInvoice(
     branchId: string,
@@ -396,15 +396,7 @@ export class InventoryService {
       );
       if (!draft) throw new DomainError(ErrorCode.CONFLICT, 'Invoice is already received');
 
-      await this.applyInvoiceLines(
-        branchId,
-        actorId,
-        input,
-        id,
-        existingPrices,
-        nameById,
-        session,
-      );
+      await this.applyInvoiceLines(branchId, actorId, input, id, existingPrices, nameById, session);
       draft.status = 'received';
       await draft.save({ session });
       invoice.status = 'received';
@@ -584,18 +576,23 @@ export class InventoryService {
     session: ClientSession,
   ): Promise<void> {
     for (const line of input.lines) {
-      await this.applyManualMutation(branchId, actorId, {
-        productId: line.productId,
-        productName: nameById.get(line.productId),
-        quantityDelta: line.quantity,
-        reorderLevel: line.reorderLevel,
-        batchNo: line.batchNo,
-        expiry: line.expiry,
-        reason: `Invoice ${input.invoiceNo} — ${input.vendorName}`,
-        movementType: StockMovementType.RECEIVE,
-        invoiceId,
-        suppressAudit: true,
-      }, session);
+      await this.applyManualMutation(
+        branchId,
+        actorId,
+        {
+          productId: line.productId,
+          productName: nameById.get(line.productId),
+          quantityDelta: line.quantity,
+          reorderLevel: line.reorderLevel,
+          batchNo: line.batchNo,
+          expiry: line.expiry,
+          reason: `Invoice ${input.invoiceNo} — ${input.vendorName}`,
+          movementType: StockMovementType.RECEIVE,
+          invoiceId,
+          suppressAudit: true,
+        },
+        session,
+      );
 
       if (
         line.priceKobo != null ||
@@ -1008,13 +1005,20 @@ export class InventoryService {
           throw err;
         }
 
-        await this.movement(input.movementType, branchId, input.productId, input.quantityDelta, {
-          actorId,
-          reason: input.reason,
-          batchNo: input.batchNo,
-          refType: input.invoiceId ? 'invoice' : 'manual',
-          invoiceId: input.invoiceId,
-        }, session);
+        await this.movement(
+          input.movementType,
+          branchId,
+          input.productId,
+          input.quantityDelta,
+          {
+            actorId,
+            reason: input.reason,
+            batchNo: input.batchNo,
+            refType: input.invoiceId ? 'invoice' : 'manual',
+            invoiceId: input.invoiceId,
+          },
+          session,
+        );
         if (!input.suppressAudit) {
           await this.recordManualAudit(
             branchId,
@@ -1064,13 +1068,20 @@ export class InventoryService {
 
       if (update.modifiedCount !== 1) continue;
 
-      await this.movement(input.movementType, branchId, input.productId, input.quantityDelta, {
-        actorId,
-        reason: input.reason,
-        batchNo: input.batchNo,
-        refType: input.invoiceId ? 'invoice' : 'manual',
-        invoiceId: input.invoiceId,
-      }, session);
+      await this.movement(
+        input.movementType,
+        branchId,
+        input.productId,
+        input.quantityDelta,
+        {
+          actorId,
+          reason: input.reason,
+          batchNo: input.batchNo,
+          refType: input.invoiceId ? 'invoice' : 'manual',
+          invoiceId: input.invoiceId,
+        },
+        session,
+      );
       if (!input.suppressAudit) {
         await this.recordManualAudit(
           branchId,
