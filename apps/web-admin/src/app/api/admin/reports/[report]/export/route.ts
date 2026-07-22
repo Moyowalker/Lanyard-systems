@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { proxy } from '@/lib/proxy';
 
-const ALLOWED = new Set(['sales-summary', 'inventory-valuation', 'consumption']);
+const ALLOWED = new Set([
+  'sales-summary',
+  'inventory-valuation',
+  'consumption',
+  'low-stock',
+  'expiring',
+]);
 
 /**
  * Dedicated BFF for report exports. Passes the binary spreadsheet body and the

@@ -484,3 +484,174 @@ describe('InventoryService.receiveInvoice', () => {
     expect(invoiceCreate).not.toHaveBeenCalled();
   });
 });
+
+describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => {
+  const branchId = new Types.ObjectId().toString();
+  const actorId = new Types.ObjectId().toString();
+  const productA = new Types.ObjectId();
+
+  function makeService(
+    overrides: {
+      findOne?: unknown;
+      priceMap?: Map<string, unknown>;
+    } = {},
+  ) {
+    const invoiceId = new Types.ObjectId();
+    const invoiceCreate = jest.fn().mockResolvedValue([
+      {
+        _id: invoiceId,
+        toObject: () => ({
+          _id: invoiceId,
+          branchId: new Types.ObjectId(branchId),
+          vendorName: 'Emzor',
+          invoiceNo: 'INV-9',
+          invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+          receivedByStaffId: new Types.ObjectId(actorId),
+          status: 'draft',
+          paymentStatus: 'paid',
+          lines: [{ productId: productA, productName: 'Paracetamol', quantity: 100 }],
+          createdAt: new Date(),
+        }),
+      },
+    ]);
+    const invoiceDeleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+    const movementCreate = jest.fn().mockResolvedValue(undefined);
+    const auditRecord = jest.fn().mockResolvedValue(undefined);
+    const upsertPrice = jest.fn().mockResolvedValue(undefined);
+
+    const inventoryModel = {
+      findOne: jest.fn().mockReturnValue(findOneLean(null)),
+      create: jest.fn().mockResolvedValue(undefined),
+      updateOne: jest.fn(),
+      find: jest.fn(),
+    };
+    const productModel = {
+      find: jest.fn().mockReturnValue(findOneLean([{ _id: productA, name: 'Paracetamol' }])),
+      findById: jest.fn(),
+    };
+    const invoiceModel = {
+      create: invoiceCreate,
+      find: jest.fn(),
+      findOne: jest.fn().mockResolvedValue(overrides.findOne ?? null),
+      deleteOne: invoiceDeleteOne,
+    };
+
+    const service = new InventoryService(
+      inventoryModel as never,
+      { create: movementCreate } as never,
+      invoiceModel as never,
+      productModel as never,
+      { find: jest.fn() } as never,
+      {
+        getPriceMap: jest.fn().mockResolvedValue(overrides.priceMap ?? new Map()),
+        upsertPrice,
+      } as never,
+      { record: auditRecord } as never,
+    );
+    return { service, invoiceCreate, invoiceDeleteOne, movementCreate, auditRecord, invoiceId };
+  }
+
+  const draftInput = {
+    vendorName: 'Emzor',
+    invoiceNo: 'INV-9',
+    invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+    paymentStatus: 'paid',
+    asDraft: true,
+    lines: [{ productId: productA.toString(), quantity: 100, visibleOnStorefront: false }],
+  };
+
+  it('draft create applies no stock movements and audits as a draft', async () => {
+    const { service, invoiceCreate, movementCreate, auditRecord } = makeService();
+
+    await service.receiveInvoice(branchId, actorId, draftInput as never);
+
+    expect(invoiceCreate).toHaveBeenCalledTimes(1);
+    expect(movementCreate).not.toHaveBeenCalled();
+    expect(auditRecord.mock.calls[0][0].action).toBe('inventory.invoice_draft');
+  });
+
+  it('publish applies stock exactly once and audits the receive', async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const draftDoc = {
+      _id: new Types.ObjectId(),
+      status: 'draft',
+      vendorName: 'Emzor',
+      invoiceNo: 'INV-9',
+      invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+      paymentStatus: 'paid',
+      lines: [{ productId: productA, quantity: 100, priceKobo: 50000, visibleOnStorefront: false }],
+      save,
+      toObject: () => ({
+        _id: new Types.ObjectId(),
+        branchId: new Types.ObjectId(branchId),
+        vendorName: 'Emzor',
+        invoiceNo: 'INV-9',
+        invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+        receivedByStaffId: new Types.ObjectId(actorId),
+        status: 'received',
+        paymentStatus: 'paid',
+        lines: [{ productId: productA, productName: 'Paracetamol', quantity: 100 }],
+        createdAt: new Date(),
+      }),
+    };
+    const { service, movementCreate, auditRecord } = makeService({ findOne: draftDoc });
+
+    await service.publishInvoice(branchId, actorId, draftDoc._id.toString());
+
+    expect(movementCreate).toHaveBeenCalledTimes(1);
+    expect(draftDoc.status).toBe('received');
+    expect(save).toHaveBeenCalled();
+    expect(auditRecord.mock.calls.at(-1)?.[0].action).toBe('inventory.receive_invoice');
+  });
+
+  it('rejects updating a received invoice', async () => {
+    const { service } = makeService({ findOne: { status: 'received' } });
+    await expect(
+      service.updateInvoice(
+        branchId,
+        actorId,
+        new Types.ObjectId().toString(),
+        draftInput as never,
+      ),
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
+  });
+
+  it('rejects deleting a received invoice', async () => {
+    const { service, invoiceDeleteOne } = makeService({ findOne: { status: 'received' } });
+    await expect(
+      service.deleteInvoice(branchId, actorId, new Types.ObjectId().toString()),
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
+    expect(invoiceDeleteOne).not.toHaveBeenCalled();
+  });
+
+  it('marks an invoice paid and audits it', async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const doc = {
+      _id: new Types.ObjectId(),
+      branchId: new Types.ObjectId(branchId),
+      status: 'received',
+      vendorName: 'Emzor',
+      invoiceNo: 'INV-9',
+      paymentStatus: 'unpaid',
+      paymentDueDate: new Date(),
+      invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+      receivedByStaffId: new Types.ObjectId(actorId),
+      lines: [{ productId: productA, productName: 'Paracetamol', quantity: 100 }],
+      save,
+      toObject() {
+        return this;
+      },
+    };
+    const { service, auditRecord } = makeService({ findOne: doc });
+
+    await service.updateInvoicePayment(branchId, actorId, doc._id.toString(), {
+      paymentStatus: 'paid',
+    });
+
+    expect(doc.paymentStatus).toBe('paid');
+    expect(save).toHaveBeenCalled();
+    const entry = auditRecord.mock.calls.at(-1)?.[0];
+    expect(entry.action).toBe('inventory.invoice_paid');
+    expect(entry.summary).toContain('marked paid');
+  });
+});

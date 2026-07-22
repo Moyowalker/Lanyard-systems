@@ -16,12 +16,14 @@ import {
   Th,
 } from '@/components/ui';
 import { IconAlert, IconCash, IconCheck, IconInventory } from '@/components/icons';
+import { useFileDownload } from '@/lib/use-download';
 
 const selectClass =
   'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 outline-none focus:border-brand-500';
 
 export function InventoryValuationReport({ branches }: { branches: BranchSummaryDto[] }) {
   const [branchId, setBranchId] = useState('');
+  const { download: runDownload, error: exportError } = useFileDownload();
 
   const { data, isLoading } = useQuery({
     queryKey: ['reports', 'inventory-valuation', branchId],
@@ -35,7 +37,10 @@ export function InventoryValuationReport({ branches }: { branches: BranchSummary
   function download(format: 'xlsx' | 'csv') {
     const params = new URLSearchParams({ format });
     if (branchId) params.set('branchId', branchId);
-    window.open(`/api/admin/reports/inventory-valuation/export?${params.toString()}`, '_blank');
+    void runDownload(
+      `/api/admin/reports/inventory-valuation/export?${params.toString()}`,
+      `inventory-valuation.${format}`,
+    );
   }
 
   return (
@@ -73,6 +78,9 @@ export function InventoryValuationReport({ branches }: { branches: BranchSummary
             Export CSV
           </Button>
         </div>
+        {exportError ? (
+          <p className="w-full text-xs font-medium text-rose-600">{exportError}</p>
+        ) : null}
       </div>
 
       {isLoading ? (

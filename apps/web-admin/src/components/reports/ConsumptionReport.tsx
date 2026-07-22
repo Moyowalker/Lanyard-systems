@@ -16,6 +16,7 @@ import {
   Th,
 } from '@/components/ui';
 import { IconAlert, IconCash, IconOrders, IconReports } from '@/components/icons';
+import { useFileDownload } from '@/lib/use-download';
 
 const selectClass =
   'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 outline-none focus:border-brand-500';
@@ -38,6 +39,7 @@ export function ConsumptionReport({ branches }: { branches: BranchSummaryDto[] }
   const [from, setFrom] = useState(defaultFrom());
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
   const [branchId, setBranchId] = useState('');
+  const { download: runDownload, error: exportError } = useFileDownload();
 
   function buildParams(extra?: Record<string, string>): URLSearchParams {
     const params = new URLSearchParams({
@@ -58,9 +60,9 @@ export function ConsumptionReport({ branches }: { branches: BranchSummaryDto[] }
   });
 
   function download(format: 'xlsx' | 'csv') {
-    window.open(
+    void runDownload(
       `/api/admin/reports/consumption/export?${buildParams({ format }).toString()}`,
-      '_blank',
+      `consumption-report.${format}`,
     );
   }
 
@@ -125,6 +127,9 @@ export function ConsumptionReport({ branches }: { branches: BranchSummaryDto[] }
             Export CSV
           </Button>
         </div>
+        {exportError ? (
+          <p className="w-full text-xs font-medium text-rose-600">{exportError}</p>
+        ) : null}
       </div>
 
       {isLoading ? (

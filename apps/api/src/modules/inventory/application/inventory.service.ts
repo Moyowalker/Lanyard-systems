@@ -21,7 +21,7 @@ import {
 import { InventoryItem, StockInvoice, StockMovement } from '../infrastructure/inventory.schemas';
 import { Product } from '../../catalog/infrastructure/catalog.schemas';
 import { StaffUser } from '../../identity/infrastructure/identity.schemas';
-import { PricingService } from '../../pricing/application/pricing.service';
+import { PriceEntry, PricingService } from '../../pricing/application/pricing.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { AuditService } from '../../../core/platform/audit.service';
 import { cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
@@ -285,7 +285,156 @@ export class InventoryService {
     actorId: string,
     input: ReceiveInvoiceInput,
   ): Promise<StockInvoiceDto> {
-    // ── validate everything before touching stock ──
+    const asDraft = input.asDraft === true;
+    // Drafts snapshot names + validate products exist, but skip the visible-without-price
+    // guard (nothing is applied yet) and never touch stock/prices.
+    const { nameById, existingPrices } = await this.resolveInvoiceProducts(branchId, input, {
+      requirePriceForVisible: !asDraft,
+    });
+
+    const [invoice] = await this.invoiceModel.create([
+      this.buildInvoiceDoc(branchId, actorId, input, nameById, asDraft ? 'draft' : 'received'),
+    ]);
+    const invoiceId = invoice._id.toString();
+
+    if (asDraft) {
+      await this.recordInvoiceAudit(
+        branchId,
+        actorId,
+        invoiceId,
+        'inventory.invoice_draft',
+        `Draft invoice ${input.invoiceNo} from ${input.vendorName} saved — ${input.lines.length} product(s)`,
+        input,
+        nameById,
+      );
+      return this.toInvoiceDto(invoice.toObject(), undefined);
+    }
+
+    await this.applyInvoiceLines(branchId, actorId, input, invoiceId, existingPrices, nameById);
+    await this.recordReceiveAudit(branchId, actorId, input, invoiceId, nameById);
+    return this.toInvoiceDto(invoice.toObject(), undefined);
+  }
+
+  /** Update the payload of an existing DRAFT invoice (received invoices are immutable here). */
+  async updateInvoice(
+    branchId: string,
+    actorId: string,
+    id: string,
+    input: ReceiveInvoiceInput,
+  ): Promise<StockInvoiceDto> {
+    const invoice = await this.invoiceModel.findOne({
+      _id: new Types.ObjectId(id),
+      branchId: new Types.ObjectId(branchId),
+    });
+    if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
+    if (invoice.status !== 'draft') {
+      throw new DomainError(ErrorCode.CONFLICT, 'Only draft invoices can be edited');
+    }
+
+    const { nameById } = await this.resolveInvoiceProducts(branchId, input, {
+      requirePriceForVisible: false,
+    });
+    const doc = this.buildInvoiceDoc(branchId, actorId, input, nameById, 'draft');
+    invoice.vendorName = doc.vendorName;
+    invoice.invoiceNo = doc.invoiceNo;
+    invoice.invoiceDate = doc.invoiceDate;
+    invoice.note = doc.note;
+    invoice.paymentStatus = doc.paymentStatus;
+    invoice.paymentDueDate = doc.paymentDueDate;
+    invoice.lines = doc.lines as typeof invoice.lines;
+    await invoice.save();
+
+    await this.recordInvoiceAudit(
+      branchId,
+      actorId,
+      id,
+      'inventory.invoice_draft',
+      `Draft invoice ${input.invoiceNo} from ${input.vendorName} updated — ${input.lines.length} product(s)`,
+      input,
+      nameById,
+    );
+    return this.toInvoiceDto(invoice.toObject(), undefined);
+  }
+
+  /** Publish a draft: full validation, apply stock + price/visibility, mark received. */
+  async publishInvoice(branchId: string, actorId: string, id: string): Promise<StockInvoiceDto> {
+    const invoice = await this.invoiceModel.findOne({
+      _id: new Types.ObjectId(id),
+      branchId: new Types.ObjectId(branchId),
+    });
+    if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
+    if (invoice.status !== 'draft') {
+      throw new DomainError(ErrorCode.CONFLICT, 'Invoice is already received');
+    }
+
+    const input = this.invoiceDocToInput(invoice);
+    const { nameById, existingPrices } = await this.resolveInvoiceProducts(branchId, input, {
+      requirePriceForVisible: true,
+    });
+    await this.applyInvoiceLines(branchId, actorId, input, id, existingPrices, nameById);
+
+    invoice.status = 'received';
+    await invoice.save();
+    await this.recordReceiveAudit(branchId, actorId, input, id, nameById);
+    return this.toInvoiceDto(invoice.toObject(), undefined);
+  }
+
+  /** Delete a draft invoice (received invoices cannot be deleted). */
+  async deleteInvoice(branchId: string, actorId: string, id: string): Promise<void> {
+    const invoice = await this.invoiceModel.findOne({
+      _id: new Types.ObjectId(id),
+      branchId: new Types.ObjectId(branchId),
+    });
+    if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
+    if (invoice.status !== 'draft') {
+      throw new DomainError(ErrorCode.CONFLICT, 'Only draft invoices can be deleted');
+    }
+    await this.invoiceModel.deleteOne({ _id: invoice._id });
+    await this.recordInvoiceAudit(
+      branchId,
+      actorId,
+      id,
+      'inventory.invoice_draft_deleted',
+      `Draft invoice ${invoice.invoiceNo} from ${invoice.vendorName} deleted`,
+    );
+  }
+
+  /** Update an invoice's payment status (paid/unpaid + expected date). Audited. */
+  async updateInvoicePayment(
+    branchId: string,
+    actorId: string,
+    id: string,
+    input: { paymentStatus: 'paid' | 'unpaid'; paymentDueDate?: Date },
+  ): Promise<StockInvoiceDto> {
+    const invoice = await this.invoiceModel.findOne({
+      _id: new Types.ObjectId(id),
+      branchId: new Types.ObjectId(branchId),
+    });
+    if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
+
+    invoice.paymentStatus = input.paymentStatus;
+    invoice.paymentDueDate = input.paymentStatus === 'unpaid' ? input.paymentDueDate : undefined;
+    await invoice.save();
+
+    const verb = input.paymentStatus === 'paid' ? 'paid' : 'unpaid';
+    await this.recordInvoiceAudit(
+      branchId,
+      actorId,
+      id,
+      'inventory.invoice_paid',
+      `Invoice ${invoice.invoiceNo} from ${invoice.vendorName} marked ${verb}`,
+    );
+    return this.toInvoiceDto(invoice.toObject(), undefined);
+  }
+
+  /* ── invoice helpers ── */
+
+  /** Resolve product names, existing prices, and validate lines before persisting. */
+  private async resolveInvoiceProducts(
+    branchId: string,
+    input: ReceiveInvoiceInput,
+    opts: { requirePriceForVisible: boolean },
+  ): Promise<{ nameById: Map<string, string>; existingPrices: Map<string, PriceEntry> }> {
     const productIds = input.lines.map((line) => line.productId);
     const products = await this.productModel
       .find({ _id: { $in: productIds.map((id) => new Types.ObjectId(id)) } })
@@ -302,6 +451,7 @@ export class InventoryService {
         return;
       }
       if (
+        opts.requirePriceForVisible &&
         line.visibleOnStorefront === true &&
         line.priceKobo == null &&
         !existingPrices.get(line.productId)
@@ -315,31 +465,89 @@ export class InventoryService {
     if (problems.length > 0) {
       throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Invoice has invalid lines', problems);
     }
+    return { nameById, existingPrices };
+  }
 
-    // ── the GRN record itself (product names snapshotted for readability) ──
-    const [invoice] = await this.invoiceModel.create([
-      {
-        branchId: new Types.ObjectId(branchId),
-        vendorName: input.vendorName,
-        invoiceNo: input.invoiceNo,
-        invoiceDate: input.invoiceDate,
-        note: input.note,
-        receivedByStaffId: new Types.ObjectId(actorId),
-        lines: input.lines.map((line) => ({
-          productId: new Types.ObjectId(line.productId),
-          productName: nameById.get(line.productId)!,
-          quantity: line.quantity,
-          batchNo: line.batchNo,
-          expiry: line.expiry,
-          costKobo: line.costKobo,
-          priceKobo: line.priceKobo,
-          visibleOnStorefront: line.visibleOnStorefront,
-        })),
-      },
-    ]);
-    const invoiceId = invoice._id.toString();
+  /** Shape the persisted invoice document (product names snapshotted for readability). */
+  private buildInvoiceDoc(
+    branchId: string,
+    actorId: string,
+    input: ReceiveInvoiceInput,
+    nameById: Map<string, string>,
+    status: 'draft' | 'received',
+  ) {
+    return {
+      branchId: new Types.ObjectId(branchId),
+      vendorName: input.vendorName,
+      invoiceNo: input.invoiceNo,
+      invoiceDate: input.invoiceDate,
+      note: input.note,
+      status,
+      paymentStatus: input.paymentStatus,
+      paymentDueDate: input.paymentStatus === 'unpaid' ? input.paymentDueDate : undefined,
+      receivedByStaffId: new Types.ObjectId(actorId),
+      lines: input.lines.map((line) => ({
+        productId: new Types.ObjectId(line.productId),
+        productName: nameById.get(line.productId)!,
+        quantity: line.quantity,
+        batchNo: line.batchNo,
+        expiry: line.expiry,
+        costKobo: line.costKobo,
+        priceKobo: line.priceKobo,
+        reorderLevel: line.reorderLevel,
+        visibleOnStorefront: line.visibleOnStorefront,
+      })),
+    };
+  }
 
-    // ── apply stock + optional price per line ──
+  /** Reconstruct a ReceiveInvoiceInput from a stored invoice document (for publish). */
+  private invoiceDocToInput(invoice: {
+    vendorName: string;
+    invoiceNo: string;
+    invoiceDate: Date;
+    note?: string;
+    paymentStatus: 'paid' | 'unpaid';
+    paymentDueDate?: Date;
+    lines: Array<{
+      productId: Types.ObjectId;
+      quantity: number;
+      batchNo?: string;
+      expiry?: Date;
+      costKobo?: number;
+      priceKobo?: number;
+      reorderLevel?: number;
+      visibleOnStorefront?: boolean;
+    }>;
+  }): ReceiveInvoiceInput {
+    return {
+      vendorName: invoice.vendorName,
+      invoiceNo: invoice.invoiceNo,
+      invoiceDate: invoice.invoiceDate,
+      note: invoice.note,
+      paymentStatus: invoice.paymentStatus,
+      paymentDueDate: invoice.paymentDueDate,
+      lines: invoice.lines.map((line) => ({
+        productId: line.productId.toString(),
+        quantity: line.quantity,
+        batchNo: line.batchNo,
+        expiry: line.expiry,
+        costKobo: line.costKobo,
+        priceKobo: line.priceKobo,
+        reorderLevel: line.reorderLevel,
+        visibleOnStorefront: line.visibleOnStorefront ?? false,
+      })),
+    };
+  }
+
+  /** Apply stock movements + optional price/visibility upserts for every line. */
+  private async applyInvoiceLines(
+    branchId: string,
+    actorId: string,
+    input: ReceiveInvoiceInput,
+    invoiceId: string,
+    existingPrices: Map<string, PriceEntry>,
+    nameById: Map<string, string>,
+  ): Promise<void> {
     for (const line of input.lines) {
       await this.applyManualMutation(branchId, actorId, {
         productId: line.productId,
@@ -372,8 +580,16 @@ export class InventoryService {
         }
       }
     }
+  }
 
-    // ── one invoice-level audit entry, in human terms ──
+  /** One invoice-level "received" audit entry, in human terms. Best-effort. */
+  private async recordReceiveAudit(
+    branchId: string,
+    actorId: string,
+    input: ReceiveInvoiceInput,
+    invoiceId: string,
+    nameById: Map<string, string>,
+  ): Promise<void> {
     const totalUnits = input.lines.reduce((sum, line) => sum + line.quantity, 0);
     const supplied = input.invoiceDate.toISOString().slice(0, 10);
     try {
@@ -405,8 +621,46 @@ export class InventoryService {
         }`,
       );
     }
+  }
 
-    return this.toInvoiceDto(invoice.toObject(), undefined);
+  /** Lightweight invoice audit entry (draft save/update/delete, payment change). */
+  private async recordInvoiceAudit(
+    branchId: string,
+    actorId: string,
+    invoiceId: string,
+    action: string,
+    summary: string,
+    input?: ReceiveInvoiceInput,
+    nameById?: Map<string, string>,
+  ): Promise<void> {
+    try {
+      await this.audit.record({
+        actorId,
+        actorType: ActorType.STAFF,
+        action,
+        summary,
+        targetType: 'stock_invoice',
+        targetId: invoiceId,
+        branchId,
+        metadata: input
+          ? {
+              vendorName: input.vendorName,
+              invoiceNo: input.invoiceNo,
+              totalUnits: input.lines.reduce((sum, line) => sum + line.quantity, 0),
+              lines: input.lines.map((line) => ({
+                product: nameById?.get(line.productId),
+                quantity: line.quantity,
+              })),
+            }
+          : undefined,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Invoice audit write failed: branch=${branchId} invoice=${invoiceId} reason=${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   /** Goods-received history for a branch, newest first, cursor-paginated. */
@@ -414,8 +668,13 @@ export class InventoryService {
     branchId: string,
     query: StockInvoiceQuery,
   ): Promise<Paginated<StockInvoiceDto>> {
+    const filter: Record<string, unknown> = {
+      branchId: new Types.ObjectId(branchId),
+      ...cursorFilterDesc(query.cursor),
+    };
+    if (query.status) filter.status = query.status;
     const rows = await this.invoiceModel
-      .find({ branchId: new Types.ObjectId(branchId), ...cursorFilterDesc(query.cursor) })
+      .find(filter)
       .sort({ _id: -1 })
       .limit(query.limit + 1)
       .lean();
@@ -447,6 +706,9 @@ export class InventoryService {
       invoiceNo: string;
       invoiceDate: Date;
       note?: string;
+      status?: 'draft' | 'received';
+      paymentStatus?: 'paid' | 'unpaid';
+      paymentDueDate?: Date;
       receivedByStaffId: Types.ObjectId;
       lines: Array<{
         productId: Types.ObjectId;
@@ -456,6 +718,7 @@ export class InventoryService {
         expiry?: Date;
         costKobo?: number;
         priceKobo?: number;
+        reorderLevel?: number;
         visibleOnStorefront?: boolean;
       }>;
       createdAt?: Date;
@@ -469,6 +732,9 @@ export class InventoryService {
       invoiceNo: row.invoiceNo,
       invoiceDate: row.invoiceDate.toISOString(),
       note: row.note,
+      status: row.status ?? 'received',
+      paymentStatus: row.paymentStatus ?? 'unpaid',
+      paymentDueDate: row.paymentDueDate?.toISOString(),
       receivedById: row.receivedByStaffId.toString(),
       receivedByName: receivedByName || undefined,
       totalUnits: row.lines.reduce((sum, line) => sum + line.quantity, 0),
@@ -480,6 +746,7 @@ export class InventoryService {
         expiry: line.expiry?.toISOString(),
         costKobo: line.costKobo,
         priceKobo: line.priceKobo,
+        reorderLevel: line.reorderLevel,
         visibleOnStorefront: line.visibleOnStorefront,
       })),
       createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),

@@ -379,8 +379,7 @@ export default function PosPage() {
   const queryClient = useQueryClient();
   const [branchId, setBranchId] = useState('');
   const [search, setSearch] = useState('');
-  const [scanCode, setScanCode] = useState('');
-  const [scanError, setScanError] = useState<string>();
+  const [searchNotice, setSearchNotice] = useState<{ tone: 'warn' | 'info'; text: string }>();
   const [cart, setCart] = useState<Map<string, CartLine>>(new Map());
   const [payments, setPayments] = useState<PaymentRow[]>([{ channel: 'cash', amountNaira: '' }]);
   const [discountType, setDiscountType] = useState<DiscountType>('percent');
@@ -424,6 +423,41 @@ export default function PosPage() {
 
   useEffect(() => {
     if (branchId) setHeldSales(loadHeldSales(branchId));
+  }, [branchId]);
+
+  // Global keyboard-wedge scanner capture: assemble rapid keystrokes ending in Enter
+  // when no text field is focused, and route them through the same exact-match handler.
+  // This makes scanning work even when the cursor is anywhere on the POS page.
+  useEffect(() => {
+    if (!branchId) return;
+    let buffer = '';
+    let last = 0;
+    function isEditable(node: EventTarget | null): boolean {
+      const el = node as HTMLElement | null;
+      if (!el) return false;
+      return (
+        el.tagName === 'INPUT' ||
+        el.tagName === 'TEXTAREA' ||
+        el.tagName === 'SELECT' ||
+        el.isContentEditable
+      );
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (isEditable(document.activeElement)) return; // typed into a field — leave it alone
+      const now = Date.now();
+      if (now - last > 100) buffer = ''; // gap too large → not a scan burst
+      last = now;
+      if (event.key === 'Enter') {
+        if (buffer.length >= 3) void addByCode(buffer);
+        buffer = '';
+        return;
+      }
+      if (event.key.length === 1) buffer += event.key;
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // addByCode closes over branchId; rebinding on branchId keeps it current.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchId]);
 
   // Debounce the search so we don't refetch on every keystroke.
@@ -510,32 +544,60 @@ export default function PosPage() {
     });
   }
 
-  /** Keyboard-wedge scanners type the code then send Enter — resolve and add. */
-  async function handleScan() {
-    const code = scanCode.trim();
-    if (!code || !branchId) return;
-    setScanError(undefined);
+  /**
+   * Resolve an exact barcode/SKU match and add it to the cart. Shared by the single
+   * search bar (Enter) and the page-level keyboard-wedge scanner capture. Returns true
+   * on a successful add; sets a distinguishing notice otherwise (no match vs matched
+   * but not sellable here).
+   */
+  async function addByCode(code: string): Promise<boolean> {
+    const trimmed = code.trim();
+    if (!trimmed || !branchId) return false;
     try {
       const res = await fetch(
-        `/api/admin/pos/products?branchId=${branchId}&barcode=${encodeURIComponent(code)}`,
+        `/api/admin/pos/products?branchId=${branchId}&barcode=${encodeURIComponent(trimmed)}`,
       );
       if (!res.ok) throw new Error('Lookup failed');
       const body = (await res.json()) as Paginated<ProductListItemDto>;
       const product = body.data[0];
       if (!product) {
-        setScanError(`No product found for "${code}".`);
-      } else if (isControlled(product)) {
-        setScanError(`${product.name} is a controlled substance — cannot be sold at the counter.`);
-      } else if (product.price == null || product.inStock === false) {
-        setScanError(`${product.name} has no price or stock at this branch.`);
-      } else {
-        addToCart(product);
+        setSearchNotice({
+          tone: 'info',
+          text: `No exact barcode/SKU match for “${trimmed}” — showing search results instead.`,
+        });
+        return false;
       }
+      if (isControlled(product)) {
+        setSearchNotice({
+          tone: 'warn',
+          text: `${product.name} is a controlled substance — cannot be sold at the counter.`,
+        });
+        return false;
+      }
+      if (product.price == null || product.inStock === false) {
+        setSearchNotice({
+          tone: 'warn',
+          text: `${product.name} matched but has no price or stock at this branch.`,
+        });
+        return false;
+      }
+      addToCart(product);
+      setSearchNotice(undefined);
+      return true;
     } catch {
-      setScanError('Barcode lookup failed — try again.');
+      setSearchNotice({ tone: 'warn', text: 'Barcode lookup failed — try again.' });
+      return false;
     }
-    setScanCode('');
-    scanRef.current?.focus();
+  }
+
+  /** Enter in the search bar: try an exact barcode/SKU match first, else keep searching. */
+  async function handleSearchEnter() {
+    const code = search.trim();
+    if (!code) return;
+    if (await addByCode(code)) {
+      setSearch('');
+      scanRef.current?.focus();
+    }
   }
 
   function setQuantity(productId: string, quantity: number) {
@@ -563,7 +625,7 @@ export default function PosPage() {
     setDiscountType('percent');
     setDiscountValue('');
     setError(undefined);
-    setScanError(undefined);
+    setSearchNotice(undefined);
     setCompletedSale(null);
     idempotencyKey.current = '';
   }
@@ -811,40 +873,47 @@ export default function PosPage() {
           title="Find medicines"
           subtitle="Scan a barcode or search — prices and stock are for this branch"
         >
-          <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
-            <div>
-              <input
-                ref={scanRef}
-                value={scanCode}
-                onChange={(e) => setScanCode(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void handleScan();
-                  }
-                }}
-                placeholder="Scan barcode / type code + Enter"
-                className={inputClass}
-                autoFocus
-                inputMode="numeric"
-                aria-label="Scan barcode"
-              />
-            </div>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, generic, or brand…"
-              className={inputClass}
-              aria-label="Search products"
-            />
-          </div>
-          {scanError ? (
-            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {scanError}
+          <input
+            ref={scanRef}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void handleSearchEnter();
+              }
+            }}
+            placeholder="Scan barcode, or search by name, generic, brand, or code…"
+            className={inputClass}
+            autoFocus
+            aria-label="Scan or search products"
+          />
+          {searchNotice ? (
+            <p
+              className={`mt-2 rounded-lg px-3 py-2 text-sm ${
+                searchNotice.tone === 'warn'
+                  ? 'bg-amber-50 text-amber-800'
+                  : 'bg-slate-50 text-slate-600'
+              }`}
+            >
+              {searchNotice.text}
             </p>
           ) : null}
 
-          {productsQ.isLoading ? (
+          {productsQ.isError ? (
+            <div className="mt-4">
+              <EmptyState
+                title="Couldn’t load products"
+                description="The product lookup failed for this branch. Check your connection or permissions, then retry."
+                icon={IconAlert}
+              />
+              <div className="mt-3">
+                <Button variant="secondary" onClick={() => productsQ.refetch()}>
+                  Retry
+                </Button>
+              </div>
+            </div>
+          ) : productsQ.isLoading ? (
             <div className="mt-4 space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
@@ -907,11 +976,16 @@ export default function PosPage() {
             title="Current sale"
             subtitle={branchName ? `At ${branchName}` : undefined}
             action={
-              lines.length > 0 ? (
-                <Button variant="secondary" onClick={holdSale}>
-                  Hold sale
-                </Button>
-              ) : undefined
+              <Button
+                variant="secondary"
+                onClick={holdSale}
+                disabled={lines.length === 0}
+                title={
+                  lines.length === 0 ? 'Add items to the cart before holding the sale' : undefined
+                }
+              >
+                Hold sale
+              </Button>
             }
           >
             {lines.length === 0 ? (
@@ -964,60 +1038,65 @@ export default function PosPage() {
               </ul>
             )}
 
-            {lines.length > 0 ? (
-              <div className="mt-4 space-y-1.5 border-t border-slate-100 pt-3 text-sm">
+            <div className="mt-4 space-y-1.5 border-t border-slate-100 pt-3 text-sm">
+              {lines.length > 0 ? (
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-slate-500">Subtotal</span>
                   <span className="tnum font-semibold text-slate-800">
                     {formatKobo(subtotalKobo)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-slate-500">Discount</span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-flex overflow-hidden rounded-lg border border-slate-200">
-                      {(['percent', 'fixed'] as const).map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setDiscountType(type)}
-                          className={`px-2 py-1 text-xs font-semibold ${
-                            discountType === type
-                              ? 'bg-brand-500 text-white'
-                              : 'bg-white text-slate-500 hover:bg-slate-50'
-                          }`}
-                        >
-                          {type === 'percent' ? '%' : '₦'}
-                        </button>
-                      ))}
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      step={discountType === 'percent' ? '1' : '50'}
-                      max={discountType === 'percent' ? 100 : undefined}
-                      value={discountValue}
-                      onChange={(e) => setDiscountValue(e.target.value)}
-                      placeholder="0"
-                      className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-right text-sm outline-none focus:border-brand-500"
-                      aria-label={`Discount ${discountType === 'percent' ? 'percentage' : 'amount in naira'}`}
-                    />
+              ) : null}
+              {/* Discount is always discoverable — disabled until the cart has items. */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-slate-500">Discount</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-flex overflow-hidden rounded-lg border border-slate-200">
+                    {(['percent', 'fixed'] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        disabled={lines.length === 0}
+                        onClick={() => setDiscountType(type)}
+                        className={`px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
+                          discountType === type
+                            ? 'bg-brand-500 text-white'
+                            : 'bg-white text-slate-500 hover:bg-slate-50'
+                        }`}
+                      >
+                        {type === 'percent' ? '%' : '₦'}
+                      </button>
+                    ))}
                   </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step={discountType === 'percent' ? '1' : '50'}
+                    max={discountType === 'percent' ? 100 : undefined}
+                    value={discountValue}
+                    disabled={lines.length === 0}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    placeholder="0"
+                    className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-right text-sm outline-none focus:border-brand-500 disabled:bg-slate-50"
+                    aria-label={`Discount ${discountType === 'percent' ? 'percentage' : 'amount in naira'}`}
+                  />
+                </span>
+              </div>
+              {discountKobo > 0 ? (
+                <div className="flex items-center justify-between text-emerald-700">
+                  <span>Discount applied</span>
+                  <span className="tnum">−{formatKobo(discountKobo)}</span>
                 </div>
-                {discountKobo > 0 ? (
-                  <div className="flex items-center justify-between text-emerald-700">
-                    <span>Discount applied</span>
-                    <span className="tnum">−{formatKobo(discountKobo)}</span>
-                  </div>
-                ) : null}
+              ) : null}
+              {lines.length > 0 ? (
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-sm font-medium text-slate-500">Total</span>
                   <span className="tnum text-xl font-bold text-slate-900">
                     {formatKobo(totalKobo)}
                   </span>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </Panel>
 
           {hasPomLine ? (

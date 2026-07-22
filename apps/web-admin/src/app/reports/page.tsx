@@ -19,6 +19,7 @@ import {
 import { Bars, Donut } from '@/components/charts';
 import { IconCash, IconOrders, IconCheck, IconReports } from '@/components/icons';
 import { Button } from '@/components/ui';
+import { useFileDownload } from '@/lib/use-download';
 import { InventoryValuationReport } from '@/components/reports/InventoryValuationReport';
 import { ConsumptionReport } from '@/components/reports/ConsumptionReport';
 import { LowStockReport } from '@/components/reports/LowStockReport';
@@ -51,6 +52,7 @@ export default function ReportsPage() {
   const [customTo, setCustomTo] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [fulfillmentFilter, setFulfillmentFilter] = useState('');
+  const { download: runDownload, error: exportError } = useFileDownload();
 
   function downloadSales(format: 'xlsx' | 'csv') {
     const to = customFrom && customTo ? new Date(`${customTo}T23:59:59`) : new Date();
@@ -61,7 +63,10 @@ export default function ReportsPage() {
     const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString(), format });
     if (branchFilter) params.set('branchId', branchFilter);
     if (fulfillmentFilter) params.set('fulfillmentType', fulfillmentFilter);
-    window.open(`/api/admin/reports/sales-summary/export?${params.toString()}`, '_blank');
+    void runDownload(
+      `/api/admin/reports/sales-summary/export?${params.toString()}`,
+      `sales-summary.${format}`,
+    );
   }
 
   const branchesQ = useQuery({
@@ -232,6 +237,9 @@ export default function ReportsPage() {
               <Button variant="secondary" disabled={!data} onClick={() => downloadSales('csv')}>
                 Export CSV
               </Button>
+              {exportError ? (
+                <p className="w-full text-xs font-medium text-rose-600">{exportError}</p>
+              ) : null}
             </div>
           </div>
 

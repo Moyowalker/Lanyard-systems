@@ -65,6 +65,12 @@ export const NAV: NavSection[] = [
       { label: 'Orders', href: '/orders', icon: 'orders', permission: 'order:read' },
       { label: 'Deliveries', href: '/deliveries', icon: 'orders', permission: 'order:transition' },
       { label: 'Inventory', href: '/inventory', icon: 'inventory', permission: 'inventory:read' },
+      {
+        label: 'Stock adjustments',
+        href: '/adjustments',
+        icon: 'inventory',
+        permission: 'inventory:adjust',
+      },
     ],
   },
   {
