@@ -4,14 +4,14 @@ Use this before promoting to a real payment-provider test-key environment.
 
 ## 1 · Environment variables
 
-| Variable                     | Required in staging | Notes                                                                                                   |
-| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------- |
-| `PAYMENT_PROVIDER`           | ✅                  | `paystack` or `flutterwave`.                                                                            |
-| `PAYSTACK_SECRET_KEY`        | Paystack only       | Test key (`sk_test_…`). Also verifies Paystack's webhook HMAC signature.                                 |
-| `FLUTTERWAVE_SECRET_KEY`     | Flutterwave only    | Test secret key from the Flutterwave dashboard.                                                         |
-| `FLUTTERWAVE_WEBHOOK_SECRET` | Flutterwave only    | The Flutterwave secret hash configured in dashboard webhook settings.                                   |
-| `MONGODB_URI`                | ✅                  | Replica set required (transactions used in settlement).                                                 |
-| `REDIS_URL`                  | ✅                  | BullMQ reconcile queue.                                                                                 |
+| Variable                     | Required in staging | Notes                                                                    |
+| ---------------------------- | ------------------- | ------------------------------------------------------------------------ |
+| `PAYMENT_PROVIDER`           | ✅                  | `paystack` or `flutterwave`.                                             |
+| `PAYSTACK_SECRET_KEY`        | Paystack only       | Test key (`sk_test_…`). Also verifies Paystack's webhook HMAC signature. |
+| `FLUTTERWAVE_SECRET_KEY`     | Flutterwave only    | Test secret key from the Flutterwave dashboard.                          |
+| `FLUTTERWAVE_WEBHOOK_SECRET` | Flutterwave only    | The Flutterwave secret hash configured in dashboard webhook settings.    |
+| `MONGODB_URI`                | ✅                  | Replica set required (transactions used in settlement).                  |
+| `REDIS_URL`                  | ✅                  | BullMQ reconcile queue.                                                  |
 
 ## 2 · Provider dashboard config
 

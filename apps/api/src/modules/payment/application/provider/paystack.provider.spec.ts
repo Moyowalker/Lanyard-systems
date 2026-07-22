@@ -62,7 +62,6 @@ describe('PaystackProvider.parseWebhook', () => {
       provider.parseWebhook(s2, r2)?.providerEventId,
     );
   });
-
 });
 
 // ── verify ────────────────────────────────────────────────────────────────────
