@@ -1,26 +1,25 @@
 import { ConfigService } from '@nestjs/config';
-import nodemailer from 'nodemailer';
 
 import { EmailChannel } from './email.channel';
 
-describe('EmailChannel', () => {
-  const sendMail = jest.fn();
-  const createTransport = jest.spyOn(nodemailer, 'createTransport');
+const mockSend = jest.fn();
 
+jest.mock('resend', () => ({
+  Resend: jest.fn().mockImplementation(() => ({ emails: { send: mockSend } })),
+}));
+
+describe('EmailChannel', () => {
   beforeEach(() => {
-    sendMail.mockReset();
-    createTransport.mockReset();
-    createTransport.mockReturnValue({ sendMail } as never);
+    mockSend.mockReset();
   });
 
   it('sends email and returns provider reference', async () => {
-    sendMail.mockResolvedValue({ messageId: 'smtp-123' });
+    mockSend.mockResolvedValue({ data: { id: 'resend-123' }, error: null });
 
     const channel = new EmailChannel(
       new ConfigService({
-        SMTP_HOST: 'localhost',
-        SMTP_PORT: 1025,
-        SMTP_FROM: 'no-reply@lanyard.test',
+        RESEND_API_KEY: 're_test_key',
+        RESEND_FROM_EMAIL: 'notifications@lanyardpharmacy.com',
       }),
     );
 
@@ -30,24 +29,26 @@ describe('EmailChannel', () => {
       text: 'Your order is ready.',
     });
 
-    expect(sendMail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'customer@example.com', subject: 'Order update' }),
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'Lanyard Pharmacy <notifications@lanyardpharmacy.com>',
+        to: 'customer@example.com',
+        subject: 'Order update',
+      }),
     );
-    expect(result).toEqual({ providerRef: 'smtp-123' });
+    expect(result).toEqual({ providerRef: 'resend-123' });
   });
 
-  it('marks SMTP 5xx response errors as non-retryable', async () => {
-    sendMail.mockRejectedValue({
-      message: 'Mailbox unavailable',
-      responseCode: 550,
-      code: 'EENVELOPE',
+  it('marks Resend validation errors as non-retryable', async () => {
+    mockSend.mockResolvedValue({
+      data: null,
+      error: { name: 'validation_error', message: 'Invalid recipient' },
     });
 
     const channel = new EmailChannel(
       new ConfigService({
-        SMTP_HOST: 'localhost',
-        SMTP_PORT: 1025,
-        SMTP_FROM: 'no-reply@lanyard.test',
+        RESEND_API_KEY: 're_test_key',
+        RESEND_FROM_EMAIL: 'notifications@lanyardpharmacy.com',
       }),
     );
 
@@ -60,14 +61,16 @@ describe('EmailChannel', () => {
     ).rejects.toMatchObject({ retryable: false });
   });
 
-  it('marks SMTP timeout errors as retryable', async () => {
-    sendMail.mockRejectedValue({ message: 'Connection timeout', code: 'ETIMEDOUT' });
+  it('marks Resend rate-limit errors as retryable', async () => {
+    mockSend.mockResolvedValue({
+      data: null,
+      error: { name: 'rate_limit_exceeded', message: 'Too many requests' },
+    });
 
     const channel = new EmailChannel(
       new ConfigService({
-        SMTP_HOST: 'localhost',
-        SMTP_PORT: 1025,
-        SMTP_FROM: 'no-reply@lanyard.test',
+        RESEND_API_KEY: 're_test_key',
+        RESEND_FROM_EMAIL: 'notifications@lanyardpharmacy.com',
       }),
     );
 

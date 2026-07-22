@@ -42,9 +42,8 @@ import { PAYMENT_RECONCILE_QUEUE } from '../../core/queue/queue.constants';
         }
 
         const secret = config.get<string>('PAYSTACK_SECRET_KEY');
-        const webhookSecret = config.get<string>('PAYSTACK_WEBHOOK_SECRET');
         return secret
-          ? new PaystackProvider(secret, webhookSecret ?? secret)
+          ? new PaystackProvider(secret)
           : new MockPaymentProvider(PaymentProvider.PAYSTACK);
       },
     },

@@ -65,20 +65,14 @@ export const envSchema = z
     SENDCHAMP_BASE_URL: z.string().url().default('https://api.sendchamp.com/api/v1'),
     SENDCHAMP_SMS_ROUTE: z.string().default('non_dnd'),
 
-    // Email delivery (SMTP relay)
-    SMTP_HOST: z.string().optional(),
-    SMTP_PORT: z.coerce.number().int().positive().optional(),
-    SMTP_FROM: z.string().email().optional(),
-    SMTP_SECURE: z.coerce.boolean().default(false),
-    SMTP_REQUIRE_TLS: z.coerce.boolean().default(false),
-    SMTP_TLS_REJECT_UNAUTHORIZED: z.coerce.boolean().default(true),
-    SMTP_USER: z.string().optional(),
-    SMTP_PASS: z.string().optional(),
+    // Email delivery (Resend)
+    RESEND_API_KEY: z.string().optional(),
+    RESEND_FROM_EMAIL: z.string().email().optional(),
+    RESEND_FROM_NAME: z.string().default('Lanyard Pharmacy'),
 
     // Payments
     PAYMENT_PROVIDER: z.enum(['paystack', 'flutterwave']).default('paystack'),
     PAYSTACK_SECRET_KEY: z.string().optional(),
-    PAYSTACK_WEBHOOK_SECRET: z.string().optional(),
     FLUTTERWAVE_SECRET_KEY: z.string().optional(),
     FLUTTERWAVE_WEBHOOK_SECRET: z.string().optional(),
     ENABLE_DEV_PAYMENT_CONFIRM: z.coerce.boolean().default(false),
@@ -102,35 +96,19 @@ export const envSchema = z
       });
     }
 
-    if (!value.SMTP_HOST) {
+    if (!value.RESEND_API_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['SMTP_HOST'],
-        message: 'SMTP_HOST is required in production',
+        path: ['RESEND_API_KEY'],
+        message: 'RESEND_API_KEY is required in production',
       });
     }
 
-    if (!value.SMTP_PORT) {
+    if (!value.RESEND_FROM_EMAIL) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['SMTP_PORT'],
-        message: 'SMTP_PORT is required in production',
-      });
-    }
-
-    if (!value.SMTP_FROM) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['SMTP_FROM'],
-        message: 'SMTP_FROM is required in production',
-      });
-    }
-
-    if ((value.SMTP_USER && !value.SMTP_PASS) || (!value.SMTP_USER && value.SMTP_PASS)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['SMTP_USER'],
-        message: 'SMTP_USER and SMTP_PASS must be provided together',
+        path: ['RESEND_FROM_EMAIL'],
+        message: 'RESEND_FROM_EMAIL is required in production',
       });
     }
 
@@ -139,14 +117,6 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['PAYSTACK_SECRET_KEY'],
         message: 'PAYSTACK_SECRET_KEY is required in production when PAYMENT_PROVIDER=paystack',
-      });
-    }
-
-    if (value.PAYMENT_PROVIDER === 'paystack' && !value.PAYSTACK_WEBHOOK_SECRET) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['PAYSTACK_WEBHOOK_SECRET'],
-        message: 'PAYSTACK_WEBHOOK_SECRET is required in production when PAYMENT_PROVIDER=paystack',
       });
     }
 

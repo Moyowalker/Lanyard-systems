@@ -64,27 +64,15 @@ services:
         value: https://api.sendchamp.com/api/v1
       - key: SENDCHAMP_SMS_ROUTE
         value: non_dnd
-      - key: SMTP_HOST
+      - key: RESEND_API_KEY
         sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_FROM
-        sync: false
-      - key: SMTP_SECURE
-        value: 'false'
-      - key: SMTP_REQUIRE_TLS
-        value: 'false'
-      - key: SMTP_TLS_REJECT_UNAUTHORIZED
-        value: 'true'
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: notifications@lanyardpharmacy.com
+      - key: RESEND_FROM_NAME
+        value: Lanyard Pharmacy
       - key: PAYMENT_PROVIDER
         value: paystack
       - key: PAYSTACK_SECRET_KEY
-        sync: false
-      - key: PAYSTACK_WEBHOOK_SECRET
         sync: false
       - key: FLUTTERWAVE_SECRET_KEY
         sync: false
@@ -185,46 +173,21 @@ services:
           name: lanyard-api
           type: web
           envVarKey: SENDCHAMP_SMS_ROUTE
-      - key: SMTP_HOST
+      - key: RESEND_API_KEY
         fromService:
           name: lanyard-api
           type: web
-          envVarKey: SMTP_HOST
-      - key: SMTP_PORT
+          envVarKey: RESEND_API_KEY
+      - key: RESEND_FROM_EMAIL
         fromService:
           name: lanyard-api
           type: web
-          envVarKey: SMTP_PORT
-      - key: SMTP_FROM
+          envVarKey: RESEND_FROM_EMAIL
+      - key: RESEND_FROM_NAME
         fromService:
           name: lanyard-api
           type: web
-          envVarKey: SMTP_FROM
-      - key: SMTP_SECURE
-        fromService:
-          name: lanyard-api
-          type: web
-          envVarKey: SMTP_SECURE
-      - key: SMTP_REQUIRE_TLS
-        fromService:
-          name: lanyard-api
-          type: web
-          envVarKey: SMTP_REQUIRE_TLS
-      - key: SMTP_TLS_REJECT_UNAUTHORIZED
-        fromService:
-          name: lanyard-api
-          type: web
-          envVarKey: SMTP_TLS_REJECT_UNAUTHORIZED
-      - key: SMTP_USER
-        fromService:
-          name: lanyard-api
-          type: web
-          envVarKey: SMTP_USER
-      - key: SMTP_PASS
-        fromService:
-          name: lanyard-api
-          type: web
-          envVarKey: SMTP_PASS
+          envVarKey: RESEND_FROM_NAME
       - key: PAYMENT_PROVIDER
         fromService:
           name: lanyard-api
@@ -235,11 +198,6 @@ services:
           name: lanyard-api
           type: web
           envVarKey: PAYSTACK_SECRET_KEY
-      - key: PAYSTACK_WEBHOOK_SECRET
-        fromService:
-          name: lanyard-api
-          type: web
-          envVarKey: PAYSTACK_WEBHOOK_SECRET
       - key: FLUTTERWAVE_SECRET_KEY
         fromService:
           name: lanyard-api

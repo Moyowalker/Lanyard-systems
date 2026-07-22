@@ -116,7 +116,7 @@ export default async function HomePage() {
   const branchCount = branches.length;
 
   return (
-    <div className="space-y-12 pb-10 sm:space-y-16 sm:pb-12">
+    <div className="-mt-4 space-y-12 pb-10 sm:mt-0 sm:space-y-16 sm:pb-12 [&>section:first-of-type]:!mt-0">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(marketingOrganizationJsonLd(branches)) }}
@@ -131,7 +131,7 @@ export default async function HomePage() {
         <div className="order-1 lg:order-1 rise-in">
           <div className="eyebrow">Lagos&apos; trusted online pharmacy</div>
           <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-[-0.01em] text-ink-900 sm:text-5xl">
-            Shop <span className="text-gradient">genuine medicine</span> fast.
+            Your <span className="text-gradient">Trusted Neighbourhood Pharmacy</span> Online
           </h1>
           <p className="mt-4 max-w-lg text-base leading-7 text-ink-900/70 sm:text-lg sm:leading-8">
             Order from a licensed Lanyard branch. Choose delivery, free pickup, or send your

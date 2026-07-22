@@ -20,10 +20,7 @@ const PAYSTACK_BASE = 'https://api.paystack.co';
 export class PaystackProvider implements PaymentProviderPort {
   readonly key = PaymentProvider.PAYSTACK;
 
-  constructor(
-    private readonly secretKey: string,
-    private readonly webhookSecret: string = secretKey,
-  ) {}
+  constructor(private readonly secretKey: string) {}
 
   async initialize(params: PaymentInitParams): Promise<PaymentInitResult> {
     const res = await fetch(`${PAYSTACK_BASE}/transaction/initialize`, {
@@ -99,7 +96,7 @@ export class PaystackProvider implements PaymentProviderPort {
 
   parseWebhook(signature: string | undefined, rawBody: Buffer): NormalizedCharge | null {
     if (!signature) throw new Error('Missing Paystack signature');
-    const expected = createHmac('sha512', this.webhookSecret).update(rawBody).digest('hex');
+    const expected = createHmac('sha512', this.secretKey).update(rawBody).digest('hex');
     const a = Buffer.from(expected);
     const b = Buffer.from(signature);
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
