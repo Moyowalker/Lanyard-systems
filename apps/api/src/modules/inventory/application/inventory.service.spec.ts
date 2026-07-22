@@ -15,6 +15,10 @@ function findOneLean<T>(value: T) {
   return { lean, select: jest.fn().mockReturnValue({ lean }) };
 }
 
+const transaction = {
+  run: jest.fn(async (work: (session: object) => Promise<unknown>) => work({ transaction: true })),
+};
+
 describe('InventoryService', () => {
   const branchId = new Types.ObjectId().toString();
   const productId = new Types.ObjectId().toString();
@@ -58,6 +62,7 @@ describe('InventoryService', () => {
       { find: jest.fn() } as never,
       { getPriceMap: jest.fn().mockResolvedValue(new Map()), upsertPrice: jest.fn() } as never,
       audit as never,
+      transaction as never,
     );
   });
 
@@ -390,6 +395,7 @@ describe('InventoryService.receiveInvoice', () => {
         upsertPrice,
       } as never,
       { record: auditRecord } as never,
+      transaction as never,
     );
     return { service, invoiceCreate, movementCreate, auditRecord, upsertPrice, invoiceId };
   }
@@ -449,13 +455,17 @@ describe('InventoryService.receiveInvoice', () => {
     } as never);
 
     expect(upsertPrice).toHaveBeenCalledTimes(1);
-    expect(upsertPrice).toHaveBeenCalledWith(branchId, {
-      productId: productA.toString(),
-      priceKobo: 50000,
-      costKobo: 30000,
-      compareAtKobo: undefined,
-      isAvailable: false,
-    });
+    expect(upsertPrice).toHaveBeenCalledWith(
+      branchId,
+      {
+        productId: productA.toString(),
+        priceKobo: 50000,
+        costKobo: 30000,
+        compareAtKobo: undefined,
+        isAvailable: false,
+      },
+      expect.anything(),
+    );
   });
 
   it('rejects a line marked visible with no price (new or existing) before any mutation', async () => {
@@ -547,6 +557,7 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
         upsertPrice,
       } as never,
       { record: auditRecord } as never,
+      transaction as never,
     );
     return { service, invoiceCreate, invoiceDeleteOne, movementCreate, auditRecord, invoiceId };
   }

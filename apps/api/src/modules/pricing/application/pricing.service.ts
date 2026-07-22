@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { Currency, UpsertPriceInput } from '@lanyard/contracts';
 
 import { PriceList } from '../infrastructure/price-list.schema';
@@ -44,7 +44,11 @@ export class PricingService {
     return this.priceModel.find({ branchId: new Types.ObjectId(branchId) }).lean();
   }
 
-  async upsertPrice(branchId: string, input: UpsertPriceInput): Promise<void> {
+  async upsertPrice(
+    branchId: string,
+    input: UpsertPriceInput,
+    session?: ClientSession,
+  ): Promise<void> {
     await this.priceModel.updateOne(
       { branchId: new Types.ObjectId(branchId), productId: new Types.ObjectId(input.productId) },
       {
@@ -56,7 +60,7 @@ export class PricingService {
           currency: Currency.NGN,
         },
       },
-      { upsert: true },
+      { upsert: true, session },
     );
   }
 }

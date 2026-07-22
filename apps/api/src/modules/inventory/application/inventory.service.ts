@@ -24,6 +24,7 @@ import { StaffUser } from '../../identity/infrastructure/identity.schemas';
 import { PriceEntry, PricingService } from '../../pricing/application/pricing.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { AuditService } from '../../../core/platform/audit.service';
+import { TransactionService } from '../../../core/platform/transaction.service';
 import { cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
 
 type InventorySnapshot = {
@@ -83,6 +84,7 @@ export class InventoryService {
     @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
     private readonly pricing: PricingService,
     private readonly audit: AuditService,
+    private readonly tx: TransactionService,
   ) {}
 
   async listBranchInventory(branchId: string): Promise<BranchInventoryItemDto[]> {
@@ -277,8 +279,8 @@ export class InventoryService {
    * invoice, lines may set price/cost/storefront visibility at reception, and ONE
    * invoice-level audit entry records the whole delivery in human terms.
    *
-   * All lines are validated up-front; mutations then apply sequentially (the same
-   * non-transactional model as single receive — the ledger is the source of truth).
+  * All lines are validated up-front, then the invoice, stock, movements, and prices
+  * commit atomically so a mid-invoice failure cannot leave a partial receipt.
    */
   async receiveInvoice(
     branchId: string,
@@ -292,12 +294,11 @@ export class InventoryService {
       requirePriceForVisible: !asDraft,
     });
 
-    const [invoice] = await this.invoiceModel.create([
-      this.buildInvoiceDoc(branchId, actorId, input, nameById, asDraft ? 'draft' : 'received'),
-    ]);
-    const invoiceId = invoice._id.toString();
-
     if (asDraft) {
+      const [invoice] = await this.invoiceModel.create([
+        this.buildInvoiceDoc(branchId, actorId, input, nameById, 'draft'),
+      ]);
+      const invoiceId = invoice._id.toString();
       await this.recordInvoiceAudit(
         branchId,
         actorId,
@@ -310,9 +311,25 @@ export class InventoryService {
       return this.toInvoiceDto(invoice.toObject(), undefined);
     }
 
-    await this.applyInvoiceLines(branchId, actorId, input, invoiceId, existingPrices, nameById);
+    let invoice!: StockInvoice & { _id: Types.ObjectId; toObject(): Record<string, unknown> };
+    await this.tx.run(async (session) => {
+      [invoice] = await this.invoiceModel.create(
+        [this.buildInvoiceDoc(branchId, actorId, input, nameById, 'received')],
+        { session },
+      );
+      await this.applyInvoiceLines(
+        branchId,
+        actorId,
+        input,
+        invoice._id.toString(),
+        existingPrices,
+        nameById,
+        session,
+      );
+    });
+    const invoiceId = invoice._id.toString();
     await this.recordReceiveAudit(branchId, actorId, input, invoiceId, nameById);
-    return this.toInvoiceDto(invoice.toObject(), undefined);
+    return this.toInvoiceDto(invoice.toObject() as never, undefined);
   }
 
   /** Update the payload of an existing DRAFT invoice (received invoices are immutable here). */
@@ -371,10 +388,27 @@ export class InventoryService {
     const { nameById, existingPrices } = await this.resolveInvoiceProducts(branchId, input, {
       requirePriceForVisible: true,
     });
-    await this.applyInvoiceLines(branchId, actorId, input, id, existingPrices, nameById);
+    await this.tx.run(async (session) => {
+      const draft = await this.invoiceModel.findOne(
+        { _id: new Types.ObjectId(id), branchId: new Types.ObjectId(branchId), status: 'draft' },
+        null,
+        { session },
+      );
+      if (!draft) throw new DomainError(ErrorCode.CONFLICT, 'Invoice is already received');
 
-    invoice.status = 'received';
-    await invoice.save();
+      await this.applyInvoiceLines(
+        branchId,
+        actorId,
+        input,
+        id,
+        existingPrices,
+        nameById,
+        session,
+      );
+      draft.status = 'received';
+      await draft.save({ session });
+      invoice.status = 'received';
+    });
     await this.recordReceiveAudit(branchId, actorId, input, id, nameById);
     return this.toInvoiceDto(invoice.toObject(), undefined);
   }
@@ -547,6 +581,7 @@ export class InventoryService {
     invoiceId: string,
     existingPrices: Map<string, PriceEntry>,
     nameById: Map<string, string>,
+    session: ClientSession,
   ): Promise<void> {
     for (const line of input.lines) {
       await this.applyManualMutation(branchId, actorId, {
@@ -560,7 +595,7 @@ export class InventoryService {
         movementType: StockMovementType.RECEIVE,
         invoiceId,
         suppressAudit: true,
-      });
+      }, session);
 
       if (
         line.priceKobo != null ||
@@ -570,13 +605,17 @@ export class InventoryService {
         const existing = existingPrices.get(line.productId);
         const priceKobo = line.priceKobo ?? existing?.priceKobo;
         if (priceKobo != null) {
-          await this.pricing.upsertPrice(branchId, {
-            productId: line.productId,
-            priceKobo,
-            costKobo: line.costKobo ?? existing?.costKobo,
-            compareAtKobo: existing?.compareAtKobo,
-            isAvailable: line.visibleOnStorefront ?? existing?.isAvailable ?? true,
-          });
+          await this.pricing.upsertPrice(
+            branchId,
+            {
+              productId: line.productId,
+              priceKobo,
+              costKobo: line.costKobo ?? existing?.costKobo,
+              compareAtKobo: existing?.compareAtKobo,
+              isAvailable: line.visibleOnStorefront ?? existing?.isAvailable ?? true,
+            },
+            session,
+          );
         }
       }
     }
@@ -934,13 +973,14 @@ export class InventoryService {
     branchId: string,
     actorId: string,
     input: ManualInventoryMutation,
+    session?: ClientSession,
   ): Promise<void> {
     const branchObjectId = new Types.ObjectId(branchId);
     const productObjectId = new Types.ObjectId(input.productId);
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const current = await this.inventoryModel
-        .findOne({ branchId: branchObjectId, productId: productObjectId })
+        .findOne({ branchId: branchObjectId, productId: productObjectId }, null, { session })
         .lean<InventorySnapshot | null>();
 
       if (!current) {
@@ -951,7 +991,7 @@ export class InventoryService {
         const batches = this.applyBatchDelta([], input.quantityDelta, input.batchNo, input.expiry);
 
         try {
-          await this.inventoryModel.create([
+          const docs = [
             {
               branchId: branchObjectId,
               productId: productObjectId,
@@ -960,7 +1000,9 @@ export class InventoryService {
               reorderLevel: input.reorderLevel ?? 0,
               batches,
             },
-          ]);
+          ];
+          if (session) await this.inventoryModel.create(docs, { session });
+          else await this.inventoryModel.create(docs);
         } catch (err) {
           if (this.isDuplicateKey(err)) continue;
           throw err;
@@ -972,7 +1014,7 @@ export class InventoryService {
           batchNo: input.batchNo,
           refType: input.invoiceId ? 'invoice' : 'manual',
           invoiceId: input.invoiceId,
-        });
+        }, session);
         if (!input.suppressAudit) {
           await this.recordManualAudit(
             branchId,
@@ -1008,16 +1050,17 @@ export class InventoryService {
         input.expiry,
       );
 
-      const update = await this.inventoryModel.updateOne(
-        { _id: current._id, onHand: currentOnHand, reserved: currentReserved },
-        {
-          $set: {
-            onHand: nextOnHand,
-            reorderLevel: input.reorderLevel ?? current.reorderLevel ?? 0,
-            batches: nextBatches,
-          },
+      const filter = { _id: current._id, onHand: currentOnHand, reserved: currentReserved };
+      const mutation = {
+        $set: {
+          onHand: nextOnHand,
+          reorderLevel: input.reorderLevel ?? current.reorderLevel ?? 0,
+          batches: nextBatches,
         },
-      );
+      };
+      const update = session
+        ? await this.inventoryModel.updateOne(filter, mutation, { session })
+        : await this.inventoryModel.updateOne(filter, mutation);
 
       if (update.modifiedCount !== 1) continue;
 
@@ -1027,7 +1070,7 @@ export class InventoryService {
         batchNo: input.batchNo,
         refType: input.invoiceId ? 'invoice' : 'manual',
         invoiceId: input.invoiceId,
-      });
+      }, session);
       if (!input.suppressAudit) {
         await this.recordManualAudit(
           branchId,
