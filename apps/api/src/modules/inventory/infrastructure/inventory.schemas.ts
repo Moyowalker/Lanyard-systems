@@ -117,6 +117,7 @@ export class StockInvoiceLine {
   @Prop({ type: Date }) expiry?: Date;
   @Prop({ type: Number, min: 0 }) costKobo?: number;
   @Prop({ type: Number, min: 0 }) priceKobo?: number;
+  @Prop({ type: Number, min: 0 }) reorderLevel?: number;
   @Prop({ type: Boolean }) visibleOnStorefront?: boolean;
 }
 export const StockInvoiceLineSchema = SchemaFactory.createForClass(StockInvoiceLine);
@@ -142,6 +143,21 @@ export class StockInvoice {
   @Prop({ type: Types.ObjectId, ref: 'StaffUser', required: true })
   receivedByStaffId: Types.ObjectId;
 
+  /**
+   * `draft` = editable, no stock/price applied yet; `received` = published, stock
+   * movements + price/visibility upserts done. Defaults to `received` so legacy
+   * documents (which predate drafts) read as received.
+   */
+  @Prop({ type: String, enum: ['draft', 'received'], default: 'received', index: true })
+  status: 'draft' | 'received';
+
+  @Prop({ type: String, enum: ['paid', 'unpaid'], default: 'unpaid' })
+  paymentStatus: 'paid' | 'unpaid';
+
+  /** Expected payment date — required (in the DTO) while unpaid. */
+  @Prop({ type: Date })
+  paymentDueDate?: Date;
+
   @Prop({ type: [StockInvoiceLineSchema], required: true })
   lines: StockInvoiceLine[];
 }
@@ -149,4 +165,7 @@ export class StockInvoice {
 export const StockInvoiceSchema = SchemaFactory.createForClass(StockInvoice);
 StockInvoiceSchema.index({ branchId: 1, createdAt: -1 });
 StockInvoiceSchema.index({ branchId: 1, invoiceNo: 1 });
-immutableGuard(StockInvoiceSchema); // append-only
+StockInvoiceSchema.index({ branchId: 1, status: 1, createdAt: -1 });
+// NOTE: no immutableGuard here. Invoices are NOT append-only: drafts are editable
+// and deletable, and received invoices accept payment-status updates. The service
+// enforces which transitions are allowed (received docs accept payment fields only).

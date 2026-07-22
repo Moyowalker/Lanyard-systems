@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import { randomUUID } from 'node:crypto';
@@ -33,6 +33,8 @@ export interface UploadedProductImage {
 
 @Injectable()
 export class CatalogService {
+  private readonly logger = new Logger(CatalogService.name);
+
   constructor(
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
     @InjectModel(Category.name) private readonly categoryModel: Model<Category>,
@@ -63,13 +65,14 @@ export class CatalogService {
       const cat = await this.categoryModel.findOne({ slug: query.category }).lean();
       filter.categoryIds = cat?._id ?? new Types.ObjectId(); // no match → empty result
     }
-    if (query.q) filter.$text = { $search: query.q };
 
-    const rows = await this.productModel
-      .find(filter)
-      .sort({ _id: 1 })
-      .limit(query.limit + 1)
-      .lean();
+    const rows = query.q
+      ? await this.textOrSubstring(filter, query.q, query.limit + 1)
+      : await this.productModel
+          .find(filter)
+          .sort({ _id: 1 })
+          .limit(query.limit + 1)
+          .lean();
 
     const items = await this.decorate(rows, query.branchId);
     // Show every priced product at the branch; out-of-stock ones render with an
@@ -105,19 +108,14 @@ export class CatalogService {
       status: ProductStatus.PUBLISHED,
       ...cursorFilter(query.cursor),
     };
-    if (query.q) filter.$text = { $search: query.q };
 
-    let rows = await this.productModel
-      .find(filter)
-      .sort({ _id: 1 })
-      .limit(query.limit + 1)
-      .lean();
-    if (rows.length === 0 && query.q) {
-      rows = await this.productModel
-        .find({ status: ProductStatus.PUBLISHED, ...this.substringFilter(query.q) })
-        .limit(query.limit + 1)
-        .lean();
-    }
+    const rows = query.q
+      ? await this.textOrSubstring(filter, query.q, query.limit + 1, true)
+      : await this.productModel
+          .find(filter)
+          .sort({ _id: 1 })
+          .limit(query.limit + 1)
+          .lean();
 
     const items = await this.decorate(rows, query.branchId, true);
     const visible = query.branchId ? items.filter((i) => i.price) : items;
@@ -142,17 +140,13 @@ export class CatalogService {
 
   async search(query: ProductSearchQuery): Promise<{ data: ProductListItemDto[] }> {
     // Primary: weighted full-text match. Fallback: case-insensitive substring match
-    // so partial terms and minor misspellings still return something useful.
-    let rows = await this.productModel
-      .find({ status: ProductStatus.PUBLISHED, $text: { $search: query.q } })
-      .limit(query.limit)
-      .lean();
-    if (rows.length === 0) {
-      rows = await this.productModel
-        .find({ status: ProductStatus.PUBLISHED, ...this.substringFilter(query.q) })
-        .limit(query.limit)
-        .lean();
-    }
+    // so partial terms and minor misspellings still return something useful — and so
+    // a missing/conflicted text index degrades to substring instead of a 500.
+    const rows = await this.textOrSubstring(
+      { status: ProductStatus.PUBLISHED },
+      query.q,
+      query.limit,
+    );
     return { data: await this.decorateForStorefront(rows, query.branchId) };
   }
 
@@ -281,17 +275,38 @@ export class CatalogService {
     // catalog (and stay within the page limit) instead of being buried after
     // older rows. Pair the descending sort with the matching cursor helper.
     const filter: FilterQuery<Product> = { ...cursorFilterDesc(query.cursor) };
-    if (query.q) filter.$text = { $search: query.q };
-    const rows = await this.productModel
-      .find(filter)
-      .sort({ _id: -1 })
-      .limit(query.limit + 1)
-      .lean();
+    let rows: Array<Record<string, unknown> & { _id: Types.ObjectId }>;
+    if (query.q) {
+      try {
+        rows = await this.productModel
+          .find({ ...filter, $text: { $search: query.q } })
+          .sort({ _id: -1 })
+          .limit(query.limit + 1)
+          .lean();
+      } catch (err) {
+        this.logger.warn(
+          `Admin text search failed, falling back to substring match: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        rows = (await this.productModel
+          .find({ ...filter, ...this.substringFilter(query.q, true) })
+          .sort({ _id: -1 })
+          .limit(query.limit + 1)
+          .lean()) as Array<Record<string, unknown> & { _id: Types.ObjectId }>;
+      }
+    } else {
+      rows = await this.productModel
+        .find(filter)
+        .sort({ _id: -1 })
+        .limit(query.limit + 1)
+        .lean();
+    }
     const mapped = await Promise.all(
       rows.map(async (r) => ({
         ...r,
         id: r._id.toString(),
-        imageUrls: await this.signedImages(r.images ?? []),
+        imageUrls: await this.signedImages((r.images as string[]) ?? []),
       })),
     );
     return paginate(mapped, query.limit);
@@ -366,10 +381,54 @@ export class CatalogService {
     return branchId ? items.filter((i) => i.price) : items;
   }
 
-  /** Case-insensitive substring match across the customer-facing fields. */
-  private substringFilter(q: string): FilterQuery<Product> {
+  /**
+   * Run a weighted `$text` search and fall back to a case-insensitive substring match
+   * when the text query throws (a missing or conflicted `product_text` index throws at
+   * query time — e.g. prod runs `autoIndex: false`) OR returns nothing. Without this
+   * guard a broken index surfaces as a 500 and the POS/search UIs render "no results".
+   */
+  private async textOrSubstring(
+    baseFilter: FilterQuery<Product>,
+    q: string,
+    limit: number,
+    forPos = false,
+  ): Promise<Array<Record<string, unknown> & { _id: Types.ObjectId }>> {
+    try {
+      const rows = await this.productModel
+        .find({ ...baseFilter, $text: { $search: q } })
+        .sort({ _id: 1 })
+        .limit(limit)
+        .lean();
+      if (rows.length > 0) return rows as Array<Record<string, unknown> & { _id: Types.ObjectId }>;
+    } catch (err) {
+      this.logger.warn(
+        `Text search failed, falling back to substring match: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+    return this.productModel
+      .find({ ...baseFilter, ...this.substringFilter(q, forPos) })
+      .sort({ _id: 1 })
+      .limit(limit)
+      .lean() as unknown as Array<Record<string, unknown> & { _id: Types.ObjectId }>;
+  }
+
+  /**
+   * Case-insensitive substring match across the customer-facing fields. For POS
+   * lookups (`forPos`), also match SKU and barcode so typed codes resolve even when
+   * the exact-match scanner path is not used.
+   */
+  private substringFilter(q: string, forPos = false): FilterQuery<Product> {
     const rx = new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    return { $or: [{ name: rx }, { genericName: rx }, { brand: rx }, { packSize: rx }] };
+    const or: FilterQuery<Product>[] = [
+      { name: rx },
+      { genericName: rx },
+      { brand: rx },
+      { packSize: rx },
+    ];
+    if (forPos) or.push({ sku: rx }, { barcode: rx });
+    return { $or: or };
   }
 
   private async signedImages(keys: string[]): Promise<string[]> {

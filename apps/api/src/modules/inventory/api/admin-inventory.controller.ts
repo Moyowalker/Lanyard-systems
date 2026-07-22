@@ -1,9 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
+  Patch,
   Post,
+  Put,
   Query,
   StreamableFile,
   UseGuards,
@@ -24,6 +28,10 @@ import {
   StockInvoiceQuerySchema,
   StockMovementQuery,
   StockMovementQuerySchema,
+  UpdateInvoiceInput,
+  UpdateInvoiceSchema,
+  UpdateInvoicePaymentInput,
+  UpdateInvoicePaymentSchema,
 } from '@lanyard/contracts';
 
 import {
@@ -103,7 +111,7 @@ export class AdminInventoryController {
     return { data: await this.inventory.receiveInvoice(branchId, user.sub, dto) };
   }
 
-  /** Goods-received history, newest first. */
+  /** Goods-received history, newest first (optionally filtered by draft/received). */
   @Get('invoices')
   @RequirePermissions('inventory:read')
   async listInvoices(
@@ -111,6 +119,53 @@ export class AdminInventoryController {
     @Query(new ZodValidationPipe(StockInvoiceQuerySchema)) query: StockInvoiceQuery,
   ) {
     return this.inventory.listInvoices(branchId, query);
+  }
+
+  /** Update a draft invoice's payload (received invoices are immutable here). */
+  @Put('invoices/:id')
+  @RequirePermissions('inventory:receive')
+  async updateInvoice(
+    @Param('branchId') branchId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(UpdateInvoiceSchema)) dto: UpdateInvoiceInput,
+  ) {
+    return { data: await this.inventory.updateInvoice(branchId, user.sub, id, dto) };
+  }
+
+  /** Publish a draft invoice: apply stock + price/visibility, mark received. */
+  @Post('invoices/:id/publish')
+  @RequirePermissions('inventory:receive')
+  async publishInvoice(
+    @Param('branchId') branchId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
+    return { data: await this.inventory.publishInvoice(branchId, user.sub, id) };
+  }
+
+  /** Update an invoice's payment status (paid/unpaid + expected date). */
+  @Patch('invoices/:id/payment')
+  @RequirePermissions('inventory:receive')
+  async updateInvoicePayment(
+    @Param('branchId') branchId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(UpdateInvoicePaymentSchema)) dto: UpdateInvoicePaymentInput,
+  ) {
+    return { data: await this.inventory.updateInvoicePayment(branchId, user.sub, id, dto) };
+  }
+
+  /** Delete a draft invoice (received invoices cannot be deleted). */
+  @Delete('invoices/:id')
+  @HttpCode(204)
+  @RequirePermissions('inventory:receive')
+  async deleteInvoice(
+    @Param('branchId') branchId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
+    await this.inventory.deleteInvoice(branchId, user.sub, id);
   }
 
   @Post('receive')

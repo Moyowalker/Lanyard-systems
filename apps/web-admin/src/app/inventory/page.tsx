@@ -1,16 +1,13 @@
 'use client';
 
-import { Fragment, FormEvent, useEffect, useMemo, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  AdjustInventorySchema,
   BranchInventoryItemDto,
   BranchSummaryDto,
   Paginated,
-  ReceiveInvoiceSchema,
   StockInvoiceDto,
   StockMovementDto,
-  StockMovementType,
 } from '@lanyard/contracts';
 
 import { IconAlert, IconBranch, IconCheck, IconClock, IconInventory } from '@/components/icons';
@@ -31,69 +28,13 @@ import {
 } from '@/components/ui';
 import { formatDateTime, formatKobo } from '@/lib/format';
 import { useBranchPrices } from '@/components/use-branch-prices';
+import { useFileDownload } from '@/lib/use-download';
+import { InvoiceReceiveForm } from '@/components/inventory/InvoiceReceiveForm';
+import { RecentInvoices } from '@/components/inventory/RecentInvoices';
+import { ActivityFeed } from '@/components/inventory/ActivityFeed';
+import type { ComboboxProduct } from '@/components/ProductCombobox';
 
-type AdminProductLookup = {
-  id: string;
-  name: string;
-  genericName?: string;
-  brand?: string;
-  form?: string;
-  strength?: string;
-};
-
-/** One line of the goods-received (invoice) form. Money fields are naira strings. */
-type InvoiceLineForm = {
-  productId: string;
-  quantity: string;
-  batchNo: string;
-  expiry: string;
-  reorderLevel: string;
-  costNaira: string;
-  priceNaira: string;
-  /** '' = leave storefront visibility unchanged. */
-  visibility: '' | 'visible' | 'hidden';
-};
-
-type InvoiceFormState = {
-  vendorName: string;
-  invoiceNo: string;
-  invoiceDate: string;
-  note: string;
-  lines: InvoiceLineForm[];
-};
-
-const EMPTY_INVOICE_LINE: InvoiceLineForm = {
-  productId: '',
-  quantity: '',
-  batchNo: '',
-  expiry: '',
-  reorderLevel: '',
-  costNaira: '',
-  priceNaira: '',
-  visibility: '',
-};
-
-const EMPTY_INVOICE_FORM: InvoiceFormState = {
-  vendorName: '',
-  invoiceNo: '',
-  invoiceDate: '',
-  note: '',
-  lines: [EMPTY_INVOICE_LINE],
-};
-
-type AdjustFormState = {
-  productId: string;
-  quantityDelta: string;
-  reorderLevel: string;
-  batchNo: string;
-  expiry: string;
-  reason: string;
-};
-
-type FormMessage = {
-  tone: 'success' | 'danger';
-  text: string;
-};
+type AdminProductLookup = ComboboxProduct;
 
 type StatusFilter = 'all' | 'low' | 'out';
 
@@ -119,7 +60,6 @@ function stockLabel(row: BranchInventoryItemDto): string {
   return 'Healthy';
 }
 
-/** Colour + a short hint for a batch expiry date relative to today. */
 function expiryInfo(nextExpiry?: string): { className: string; label: string; hint?: string } {
   if (!nextExpiry) return { className: 'text-slate-400', label: '—' };
   const days = Math.ceil((new Date(nextExpiry).getTime() - Date.now()) / DAY_MS);
@@ -128,35 +68,6 @@ function expiryInfo(nextExpiry?: string): { className: string; label: string; hi
   if (days <= EXPIRING_SOON_DAYS)
     return { className: 'font-semibold text-amber-700', label, hint: `${days}d left` };
   return { className: 'text-slate-500', label };
-}
-
-const MOVEMENT_TONE: Record<StockMovementType, 'success' | 'warn' | 'danger' | 'info' | 'neutral'> =
-  {
-    [StockMovementType.RECEIVE]: 'success',
-    [StockMovementType.ADJUST]: 'info',
-    [StockMovementType.RESERVE]: 'warn',
-    [StockMovementType.RELEASE]: 'neutral',
-    [StockMovementType.DISPENSE]: 'danger',
-    [StockMovementType.RETURN]: 'success',
-  };
-
-function short(id?: string): string {
-  return id ? id.slice(-6) : '—';
-}
-
-function InlineNotice({ message }: { message?: FormMessage }) {
-  if (!message) return null;
-  return (
-    <p
-      className={
-        message.tone === 'success'
-          ? 'rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700'
-          : 'rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700'
-      }
-    >
-      {message.text}
-    </p>
-  );
 }
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -198,7 +109,6 @@ function SearchIcon() {
   );
 }
 
-/** Compact movement rows used both per-product (in an expanded row) and standalone. */
 function MovementList({ movements }: { movements: StockMovementDto[] }) {
   if (movements.length === 0) {
     return <p className="text-sm text-slate-500">No stock movements recorded yet.</p>;
@@ -211,7 +121,7 @@ function MovementList({ movements }: { movements: StockMovementDto[] }) {
           className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
         >
           <div className="flex items-center gap-2">
-            <Badge tone={MOVEMENT_TONE[m.type]}>{m.type}</Badge>
+            <Badge tone="neutral">{m.type}</Badge>
             <span
               className={cn('font-semibold', m.quantity < 0 ? 'text-rose-600' : 'text-emerald-600')}
             >
@@ -233,18 +143,9 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
-  const [activityType, setActivityType] = useState<StockMovementType | 'all'>('all');
-  const [invoiceForm, setInvoiceForm] = useState<InvoiceFormState>(EMPTY_INVOICE_FORM);
-  const [adjustForm, setAdjustForm] = useState<AdjustFormState>({
-    productId: '',
-    quantityDelta: '',
-    reorderLevel: '',
-    batchNo: '',
-    expiry: '',
-    reason: '',
-  });
-  const [invoiceMessage, setInvoiceMessage] = useState<FormMessage>();
-  const [adjustMessage, setAdjustMessage] = useState<FormMessage>();
+  const [editingInvoice, setEditingInvoice] = useState<StockInvoiceDto | null>(null);
+  const [manageMessage, setManageMessage] = useState<string | null>(null);
+  const { download: runDownload, error: exportError } = useFileDownload();
 
   const branchesQ = useQuery({
     queryKey: ['admin-branches', 'inventory'],
@@ -268,9 +169,7 @@ export default function InventoryPage() {
   const products = useMemo(() => productsQ.data?.data ?? [], [productsQ.data]);
 
   useEffect(() => {
-    if (!branchId && branches[0]?.id) {
-      setBranchId(branches[0].id);
-    }
+    if (!branchId && branches[0]?.id) setBranchId(branches[0].id);
   }, [branchId, branches]);
 
   const inventoryQ = useQuery({
@@ -305,26 +204,8 @@ export default function InventoryPage() {
     },
   });
 
-  const activityQ = useInfiniteQuery({
-    queryKey: ['admin-inventory-movements', branchId, activityType],
-    enabled: Boolean(branchId),
-    initialPageParam: '',
-    queryFn: async ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: '25' });
-      if (pageParam) params.set('cursor', pageParam as string);
-      if (activityType !== 'all') params.set('type', activityType);
-      const res = await fetch(
-        `/api/admin/branches/${branchId}/inventory/movements?${params.toString()}`,
-      );
-      if (!res.ok) throw new Error('Failed to load stock movements');
-      return (await res.json()) as Paginated<StockMovementDto>;
-    },
-    getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
-  });
-
   const prices = useBranchPrices(branchId, products);
 
-  // Per-product movement history for the expanded row.
   const productMovementsQ = useQuery({
     queryKey: ['admin-inventory-movements', branchId, 'product', expandedProductId],
     enabled: Boolean(branchId && expandedProductId),
@@ -339,15 +220,21 @@ export default function InventoryPage() {
 
   function downloadExport(format: 'xlsx' | 'csv') {
     if (!branchId) return;
-    window.open(`/api/admin/branches/${branchId}/inventory/export?format=${format}`, '_blank');
+    void runDownload(
+      `/api/admin/branches/${branchId}/inventory/export?format=${format}`,
+      `inventory-${branchId}.${format}`,
+    );
   }
 
   const rows = inventoryQ.data?.data ?? [];
-  const inventoryByProductId = new Map(rows.map((row) => [row.productId, row]));
+  const inventoryByProductId = useMemo(
+    () => new Map(rows.map((row) => [row.productId, row])),
+    [rows],
+  );
   const lowStockRows = lowStockQ.data?.data ?? rows.filter((row) => row.isLowStock);
   const expiringCount = expiringQ.data?.data.length ?? 0;
-  const totalAvailable = rows.reduce((sum, row) => sum + row.available, 0);
-  const totalReserved = rows.reduce((sum, row) => sum + row.reserved, 0);
+  const totalAvailable = useMemo(() => rows.reduce((sum, row) => sum + row.available, 0), [rows]);
+  const totalReserved = useMemo(() => rows.reduce((sum, row) => sum + row.reserved, 0), [rows]);
   const lowStockCount = lowStockRows.length;
   const initialLoading =
     branchesQ.isLoading || (Boolean(branchId) && inventoryQ.isLoading && !inventoryQ.data);
@@ -364,171 +251,35 @@ export default function InventoryPage() {
     });
   }, [rows, search, statusFilter]);
 
-  useEffect(() => {
-    if (rows.length === 0) {
-      if (adjustForm.productId) {
-        setAdjustForm((current) => ({ ...current, productId: '' }));
-      }
-      return;
-    }
-    if (rows.some((row) => row.productId === adjustForm.productId)) return;
-    setAdjustForm((current) => ({ ...current, productId: rows[0].productId }));
-  }, [adjustForm.productId, rows]);
-
   async function invalidateStock() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['admin-inventory', branchId] }),
       queryClient.invalidateQueries({ queryKey: ['admin-low-stock', branchId] }),
+      queryClient.invalidateQueries({ queryKey: ['admin-expiring', branchId] }),
       queryClient.invalidateQueries({ queryKey: ['admin-inventory-movements', branchId] }),
       queryClient.invalidateQueries({ queryKey: ['admin-invoices', branchId] }),
+      queryClient.invalidateQueries({ queryKey: ['admin-prices', branchId] }),
     ]);
   }
 
-  const invoiceMutation = useMutation({
-    mutationFn: async (payload: unknown) => {
-      const res = await fetch(`/api/admin/branches/${branchId}/inventory/invoices`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) {
-        const issues = body?.error?.details
-          ?.map((d: { field?: string; issue?: string }) => `${d.field}: ${d.issue}`)
-          .join('; ');
-        throw new Error(issues || body?.error?.message || 'Failed to record the invoice');
-      }
-      return body as { data: StockInvoiceDto };
-    },
-    onSuccess: async (body) => {
-      setInvoiceMessage({
-        tone: 'success',
-        text: `Invoice ${body.data.invoiceNo} from ${body.data.vendorName} received — ${body.data.totalUnits} units across ${body.data.lines.length} product(s).`,
-      });
-      setInvoiceForm(EMPTY_INVOICE_FORM);
-      await invalidateStock();
-    },
-    onError: (error) => {
-      setInvoiceMessage({ tone: 'danger', text: error.message });
-    },
-  });
-
-  const invoicesQ = useQuery({
-    queryKey: ['admin-invoices', branchId],
-    enabled: Boolean(branchId),
-    queryFn: async () => {
-      const res = await fetch(`/api/admin/branches/${branchId}/inventory/invoices?limit=10`);
-      if (!res.ok) throw new Error('Failed to load invoices');
-      return (await res.json()) as Paginated<StockInvoiceDto>;
-    },
-  });
-  const recentInvoices = invoicesQ.data?.data ?? [];
-
-  const adjustMutation = useMutation({
-    mutationFn: async (payload: unknown) => {
-      const res = await fetch(`/api/admin/branches/${branchId}/inventory/adjust`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.error?.message ?? 'Failed to adjust stock');
-      return body as { data: BranchInventoryItemDto };
-    },
-    onSuccess: async (body) => {
-      setAdjustMessage({ tone: 'success', text: `Adjusted stock for ${body.data.productName}.` });
-      setAdjustForm((current) => ({
-        ...current,
-        quantityDelta: '',
-        batchNo: '',
-        expiry: '',
-        reason: '',
-      }));
-      await invalidateStock();
-    },
-    onError: (error) => {
-      setAdjustMessage({ tone: 'danger', text: error.message });
-    },
-  });
-
-  function patchInvoiceLine(index: number, patch: Partial<InvoiceLineForm>) {
-    setInvoiceForm((current) => ({
-      ...current,
-      lines: current.lines.map((line, i) => (i === index ? { ...line, ...patch } : line)),
-    }));
+  function onInvoiceSaved(message: string) {
+    setManageMessage(message);
+    setEditingInvoice(null);
+    void invalidateStock();
   }
 
-  async function submitInvoice(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setInvoiceMessage(undefined);
-
-    const lines = invoiceForm.lines.filter((line) => line.productId);
-    if (lines.length === 0) {
-      setInvoiceMessage({ tone: 'danger', text: 'Add at least one product line.' });
-      return;
-    }
-
-    const payload = ReceiveInvoiceSchema.safeParse({
-      vendorName: invoiceForm.vendorName,
-      invoiceNo: invoiceForm.invoiceNo,
-      invoiceDate: invoiceForm.invoiceDate,
-      note: invoiceForm.note || undefined,
-      lines: lines.map((line) => ({
-        productId: line.productId,
-        quantity: line.quantity,
-        batchNo: line.batchNo || undefined,
-        expiry: line.expiry || undefined,
-        reorderLevel: line.reorderLevel || undefined,
-        costKobo: line.costNaira ? Math.round(Number(line.costNaira) * 100) : undefined,
-        priceKobo: line.priceNaira ? Math.round(Number(line.priceNaira) * 100) : undefined,
-        visibleOnStorefront: line.visibility === '' ? undefined : line.visibility === 'visible',
-      })),
-    });
-
-    if (!payload.success) {
-      const issue = payload.error.issues[0];
-      setInvoiceMessage({
-        tone: 'danger',
-        text: issue ? issue.message : 'Check the invoice form.',
-      });
-      return;
-    }
-
-    await invoiceMutation.mutateAsync(payload.data);
+  function resumeDraft(invoice: StockInvoiceDto) {
+    setEditingInvoice(invoice);
+    setManageOpen(true);
+    setManageMessage(null);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-
-  async function submitAdjust(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAdjustMessage(undefined);
-
-    const payload = AdjustInventorySchema.safeParse({
-      productId: adjustForm.productId,
-      quantityDelta: adjustForm.quantityDelta,
-      reorderLevel: adjustForm.reorderLevel || undefined,
-      batchNo: adjustForm.batchNo || undefined,
-      expiry: adjustForm.expiry || undefined,
-      reason: adjustForm.reason,
-    });
-
-    if (!payload.success) {
-      setAdjustMessage({
-        tone: 'danger',
-        text: payload.error.issues[0]?.message ?? 'Check the stock adjustment form.',
-      });
-      return;
-    }
-
-    await adjustMutation.mutateAsync(payload.data);
-  }
-
-  const selectedAdjustInventory = inventoryByProductId.get(adjustForm.productId);
-  const activityMovements = activityQ.data?.pages.flatMap((page) => page.data) ?? [];
 
   return (
     <div>
       <PageHeader
         title="Inventory"
-        subtitle="Stock levels, pricing, receiving, adjustments, and a full audit trail — all on one page"
+        subtitle="Stock levels, pricing, receiving, and a full audit trail — all on one page"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -559,6 +310,10 @@ export default function InventoryPage() {
           </div>
         }
       />
+
+      {exportError ? (
+        <p className="mb-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{exportError}</p>
+      ) : null}
 
       {initialLoading ? (
         <Card className="p-5">
@@ -614,524 +369,56 @@ export default function InventoryPage() {
           </div>
 
           <Panel
-            title="Manage stock"
-            subtitle="Receive new stock or apply a manual correction — every action is audited"
+            title="Receive stock"
+            subtitle="Record a supplier invoice — save it as a draft or receive it into stock"
             className="mb-6"
             action={
               <Button variant="secondary" onClick={() => setManageOpen((open) => !open)}>
-                {manageOpen ? 'Hide' : 'Receive / adjust'}
+                {manageOpen ? 'Hide' : 'Receive invoice'}
               </Button>
             }
           >
             {manageOpen ? (
-              <div className="space-y-8">
-                {/* Receive stock — invoice (GRN) based */}
-                {products.length === 0 ? (
-                  <EmptyState
-                    title="No products to receive"
-                    description="Add products to the catalog before receiving stock into a branch."
-                    icon={IconInventory}
-                  />
-                ) : (
-                  <form className="space-y-4" onSubmit={submitInvoice}>
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900">
-                        Receive stock — supplier invoice
-                      </h3>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        One entry per invoice: vendor, invoice number, supply date, and every
-                        product on it. This is the record the audit trail is built on.
-                      </p>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div>
-                        <label className={labelClass} htmlFor="invoice-vendor">
-                          Vendor
-                        </label>
-                        <input
-                          id="invoice-vendor"
-                          value={invoiceForm.vendorName}
-                          onChange={(event) =>
-                            setInvoiceForm((current) => ({
-                              ...current,
-                              vendorName: event.target.value,
-                            }))
-                          }
-                          className={inputClass}
-                          placeholder="e.g. Emzor Distribution"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass} htmlFor="invoice-no">
-                          Invoice number
-                        </label>
-                        <input
-                          id="invoice-no"
-                          value={invoiceForm.invoiceNo}
-                          onChange={(event) =>
-                            setInvoiceForm((current) => ({
-                              ...current,
-                              invoiceNo: event.target.value,
-                            }))
-                          }
-                          className={inputClass}
-                          placeholder="e.g. INV-0231"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass} htmlFor="invoice-date">
-                          Invoice date (supplied)
-                        </label>
-                        <input
-                          id="invoice-date"
-                          type="date"
-                          value={invoiceForm.invoiceDate}
-                          onChange={(event) =>
-                            setInvoiceForm((current) => ({
-                              ...current,
-                              invoiceDate: event.target.value,
-                            }))
-                          }
-                          className={inputClass}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      {invoiceForm.lines.map((line, index) => (
-                        <div
-                          key={index}
-                          className="rounded-xl border border-slate-200 bg-slate-50/60 p-3"
-                        >
-                          <div className="grid gap-2 sm:grid-cols-[2fr_0.8fr_1fr_1fr] sm:items-end">
-                            <div>
-                              <label className={labelClass} htmlFor={`line-product-${index}`}>
-                                Product
-                              </label>
-                              <select
-                                id={`line-product-${index}`}
-                                value={line.productId}
-                                onChange={(event) =>
-                                  patchInvoiceLine(index, { productId: event.target.value })
-                                }
-                                className={inputClass}
-                              >
-                                <option value="">Choose product…</option>
-                                {products.map((product) => (
-                                  <option key={product.id} value={product.id}>
-                                    {product.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className={labelClass} htmlFor={`line-qty-${index}`}>
-                                Qty
-                              </label>
-                              <input
-                                id={`line-qty-${index}`}
-                                type="number"
-                                min="1"
-                                step="1"
-                                value={line.quantity}
-                                onChange={(event) =>
-                                  patchInvoiceLine(index, { quantity: event.target.value })
-                                }
-                                className={inputClass}
-                              />
-                            </div>
-                            <div>
-                              <label className={labelClass} htmlFor={`line-batch-${index}`}>
-                                Batch no
-                              </label>
-                              <input
-                                id={`line-batch-${index}`}
-                                value={line.batchNo}
-                                onChange={(event) =>
-                                  patchInvoiceLine(index, { batchNo: event.target.value })
-                                }
-                                className={inputClass}
-                                placeholder="e.g. LOT-001"
-                              />
-                            </div>
-                            <div>
-                              <label className={labelClass} htmlFor={`line-expiry-${index}`}>
-                                Expiry
-                              </label>
-                              <input
-                                id={`line-expiry-${index}`}
-                                type="date"
-                                value={line.expiry}
-                                onChange={(event) =>
-                                  patchInvoiceLine(index, { expiry: event.target.value })
-                                }
-                                className={inputClass}
-                              />
-                            </div>
-                          </div>
-                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] sm:items-end">
-                            <div>
-                              <label className={labelClass} htmlFor={`line-cost-${index}`}>
-                                Cost (₦)
-                              </label>
-                              <input
-                                id={`line-cost-${index}`}
-                                type="number"
-                                min="0"
-                                value={line.costNaira}
-                                onChange={(event) =>
-                                  patchInvoiceLine(index, { costNaira: event.target.value })
-                                }
-                                className={inputClass}
-                                placeholder="Optional"
-                              />
-                            </div>
-                            <div>
-                              <label className={labelClass} htmlFor={`line-price-${index}`}>
-                                Selling (₦)
-                              </label>
-                              <input
-                                id={`line-price-${index}`}
-                                type="number"
-                                min="0"
-                                value={line.priceNaira}
-                                onChange={(event) =>
-                                  patchInvoiceLine(index, { priceNaira: event.target.value })
-                                }
-                                className={inputClass}
-                                placeholder="Optional"
-                              />
-                            </div>
-                            <div>
-                              <label className={labelClass} htmlFor={`line-reorder-${index}`}>
-                                Reorder level
-                              </label>
-                              <input
-                                id={`line-reorder-${index}`}
-                                type="number"
-                                min="0"
-                                value={line.reorderLevel}
-                                onChange={(event) =>
-                                  patchInvoiceLine(index, { reorderLevel: event.target.value })
-                                }
-                                className={inputClass}
-                                placeholder="Optional"
-                              />
-                            </div>
-                            <div>
-                              <label className={labelClass} htmlFor={`line-visibility-${index}`}>
-                                Storefront
-                              </label>
-                              <select
-                                id={`line-visibility-${index}`}
-                                value={line.visibility}
-                                onChange={(event) =>
-                                  patchInvoiceLine(index, {
-                                    visibility: event.target.value as InvoiceLineForm['visibility'],
-                                  })
-                                }
-                                className={inputClass}
-                              >
-                                <option value="">Leave unchanged</option>
-                                <option value="visible">Visible on storefront</option>
-                                <option value="hidden">Hidden (POS only)</option>
-                              </select>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setInvoiceForm((current) => ({
-                                  ...current,
-                                  lines:
-                                    current.lines.length > 1
-                                      ? current.lines.filter((_, i) => i !== index)
-                                      : current.lines,
-                                }))
-                              }
-                              disabled={invoiceForm.lines.length === 1}
-                              className="mb-0.5 rounded-lg px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() =>
-                          setInvoiceForm((current) => ({
-                            ...current,
-                            lines: [...current.lines, EMPTY_INVOICE_LINE],
-                          }))
-                        }
-                      >
-                        Add product line
-                      </Button>
-                    </div>
-
-                    <div>
-                      <label className={labelClass} htmlFor="invoice-note">
-                        Note
-                      </label>
-                      <input
-                        id="invoice-note"
-                        value={invoiceForm.note}
-                        onChange={(event) =>
-                          setInvoiceForm((current) => ({ ...current, note: event.target.value }))
-                        }
-                        className={inputClass}
-                        placeholder="Optional receiving note"
-                      />
-                    </div>
-
-                    <p className="text-xs text-slate-500">
-                      Setting a selling price and “Visible on storefront” here publishes the product
-                      online the moment it is received — no separate pricing step.
+              products.length === 0 ? (
+                <EmptyState
+                  title="No products to receive"
+                  description="Add products to the catalog before receiving stock into a branch."
+                  icon={IconInventory}
+                />
+              ) : (
+                <div className="space-y-3">
+                  {manageMessage ? (
+                    <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                      {manageMessage}
                     </p>
-
-                    <InlineNotice message={invoiceMessage} />
-
-                    <Button type="submit" disabled={invoiceMutation.isPending || !branchId}>
-                      {invoiceMutation.isPending ? (
-                        <>
-                          <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Receiving
-                          invoice…
-                        </>
-                      ) : (
-                        'Receive invoice'
-                      )}
-                    </Button>
-                  </form>
-                )}
-
-                {/* Adjust stock */}
-                {rows.length === 0 ? (
-                  <EmptyState
-                    title="No stock to adjust yet"
-                    description="Receive stock into this branch first, then manual adjustments can target those rows."
-                    icon={IconInventory}
+                  ) : null}
+                  <InvoiceReceiveForm
+                    branchId={branchId}
+                    products={products}
+                    editingInvoice={editingInvoice}
+                    onSaved={onInvoiceSaved}
+                    onCancelEdit={() => setEditingInvoice(null)}
                   />
-                ) : (
-                  <form className="space-y-4" onSubmit={submitAdjust}>
-                    <h3 className="text-sm font-semibold text-slate-900">Adjust stock</h3>
-                    <div>
-                      <label className={labelClass} htmlFor="adjust-product">
-                        Inventory row
-                      </label>
-                      <select
-                        id="adjust-product"
-                        value={adjustForm.productId}
-                        onChange={(event) =>
-                          setAdjustForm((current) => ({
-                            ...current,
-                            productId: event.target.value,
-                          }))
-                        }
-                        className={inputClass}
-                      >
-                        {rows.map((row) => (
-                          <option key={row.productId} value={row.productId}>
-                            {row.productName}
-                          </option>
-                        ))}
-                      </select>
-                      {selectedAdjustInventory ? (
-                        <p className="mt-1 text-xs text-slate-500">
-                          {selectedAdjustInventory.available} available,{' '}
-                          {selectedAdjustInventory.reserved} reserved, reorder at{' '}
-                          {selectedAdjustInventory.reorderLevel}.
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className={labelClass} htmlFor="adjust-delta">
-                          Quantity delta
-                        </label>
-                        <input
-                          id="adjust-delta"
-                          type="number"
-                          step="1"
-                          value={adjustForm.quantityDelta}
-                          onChange={(event) =>
-                            setAdjustForm((current) => ({
-                              ...current,
-                              quantityDelta: event.target.value,
-                            }))
-                          }
-                          className={inputClass}
-                          placeholder="Use negative values to reduce stock"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass} htmlFor="adjust-reorder">
-                          Reorder level
-                        </label>
-                        <input
-                          id="adjust-reorder"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={adjustForm.reorderLevel}
-                          onChange={(event) =>
-                            setAdjustForm((current) => ({
-                              ...current,
-                              reorderLevel: event.target.value,
-                            }))
-                          }
-                          className={inputClass}
-                          placeholder={
-                            selectedAdjustInventory
-                              ? `${selectedAdjustInventory.reorderLevel}`
-                              : 'Optional'
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className={labelClass} htmlFor="adjust-batch-no">
-                          Batch number
-                        </label>
-                        <input
-                          id="adjust-batch-no"
-                          value={adjustForm.batchNo}
-                          onChange={(event) =>
-                            setAdjustForm((current) => ({
-                              ...current,
-                              batchNo: event.target.value,
-                            }))
-                          }
-                          className={inputClass}
-                          placeholder="Required for tracked batches"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass} htmlFor="adjust-expiry">
-                          Expiry
-                        </label>
-                        <input
-                          id="adjust-expiry"
-                          type="date"
-                          value={adjustForm.expiry}
-                          onChange={(event) =>
-                            setAdjustForm((current) => ({ ...current, expiry: event.target.value }))
-                          }
-                          className={inputClass}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className={labelClass} htmlFor="adjust-reason">
-                        Reason
-                      </label>
-                      <input
-                        id="adjust-reason"
-                        value={adjustForm.reason}
-                        onChange={(event) =>
-                          setAdjustForm((current) => ({ ...current, reason: event.target.value }))
-                        }
-                        className={inputClass}
-                        placeholder="Required audit note"
-                      />
-                    </div>
-
-                    <InlineNotice message={adjustMessage} />
-
-                    <Button type="submit" disabled={adjustMutation.isPending || !branchId}>
-                      {adjustMutation.isPending ? (
-                        <>
-                          <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Saving…
-                        </>
-                      ) : (
-                        'Apply adjustment'
-                      )}
-                    </Button>
-                  </form>
-                )}
-              </div>
+                </div>
+              )
             ) : (
               <p className="text-sm text-slate-500">
-                Receive new stock or apply a manual correction. Both are recorded in the audit trail
-                and the branch activity log below.
+                Record a supplier invoice (goods-received note). Receiving applies stock and any
+                per-line pricing; both are captured in the audit trail and the activity log below.
               </p>
             )}
           </Panel>
 
           <Panel
             title="Recent invoices"
-            subtitle="Goods received — vendor, invoice number, and supply date for the audit trail"
+            subtitle="Goods received and drafts — vendor, invoice number, payment status, and supply date"
             className="mb-6"
           >
-            {invoicesQ.isLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Skeleton key={index} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : recentInvoices.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                No invoices received yet — use “Receive stock” above to record the first delivery.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {recentInvoices.map((invoice) => (
-                  <li key={invoice.id}>
-                    <details className="rounded-xl border border-slate-200 bg-white">
-                      <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-3 px-4 py-3">
-                        <span className="min-w-0">
-                          <span className="font-mono text-sm font-semibold text-slate-800">
-                            {invoice.invoiceNo}
-                          </span>
-                          <span className="ml-2 text-sm text-slate-600">{invoice.vendorName}</span>
-                        </span>
-                        <span className="flex items-center gap-4 text-xs text-slate-500">
-                          <span>Supplied {invoice.invoiceDate.slice(0, 10)}</span>
-                          <span>
-                            {invoice.lines.length} product(s) · {invoice.totalUnits} units
-                          </span>
-                          {invoice.receivedByName ? <span>by {invoice.receivedByName}</span> : null}
-                        </span>
-                      </summary>
-                      <div className="border-t border-slate-100 px-4 py-3">
-                        <ul className="space-y-1 text-sm text-slate-700">
-                          {invoice.lines.map((line, index) => (
-                            <li key={index} className="flex flex-wrap justify-between gap-2">
-                              <span>
-                                {line.productName} × {line.quantity}
-                                {line.batchNo ? (
-                                  <span className="text-xs text-slate-400">
-                                    {' '}
-                                    · batch {line.batchNo}
-                                    {line.expiry ? ` · exp ${line.expiry.slice(0, 10)}` : ''}
-                                  </span>
-                                ) : null}
-                              </span>
-                              <span className="text-xs text-slate-500">
-                                {line.priceKobo != null ? formatKobo(line.priceKobo) : ''}
-                                {line.visibleOnStorefront === true
-                                  ? ' · visible'
-                                  : line.visibleOnStorefront === false
-                                    ? ' · hidden'
-                                    : ''}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                        {invoice.note ? (
-                          <p className="mt-2 text-xs text-slate-500">Note: {invoice.note}</p>
-                        ) : null}
-                      </div>
-                    </details>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <RecentInvoices
+              branchId={branchId}
+              onResume={resumeDraft}
+              onChanged={invalidateStock}
+            />
           </Panel>
 
           {/* Search + filter */}
@@ -1168,7 +455,7 @@ export default function InventoryPage() {
             <Card>
               <EmptyState
                 title="No inventory rows yet"
-                description="This branch has no stock entries yet. Use “Manage stock” above to receive the first inventory rows."
+                description="This branch has no stock entries yet. Use “Receive stock” above to record the first delivery."
                 icon={IconInventory}
               />
             </Card>
@@ -1350,9 +637,18 @@ export default function InventoryPage() {
                                   Hidden products stay off the online store but can still be sold at
                                   the POS counter.
                                 </p>
-                                <div className="mt-3">
-                                  <InlineNotice message={prices.message} />
-                                </div>
+                                {prices.message ? (
+                                  <p
+                                    className={cn(
+                                      'mt-3 rounded-lg px-3 py-2 text-sm',
+                                      prices.message.tone === 'success'
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'bg-rose-50 text-rose-700',
+                                    )}
+                                  >
+                                    {prices.message.text}
+                                  </p>
+                                ) : null}
                                 <Button
                                   variant="secondary"
                                   className="mt-3"
@@ -1397,109 +693,7 @@ export default function InventoryPage() {
             </TableCard>
           )}
 
-          {/* Branch-wide activity ledger */}
-          <Panel
-            title="Recent activity"
-            subtitle="Every stock movement at this branch — receiving, adjustments, reservations, and sales"
-            className="mt-6"
-            action={
-              <select
-                value={activityType}
-                onChange={(event) =>
-                  setActivityType(event.target.value as StockMovementType | 'all')
-                }
-                className={selectClass}
-                aria-label="Filter activity by type"
-              >
-                <option value="all">All types</option>
-                {Object.values(StockMovementType).map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            }
-          >
-            {activityQ.isLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <Skeleton key={index} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : activityQ.isError ? (
-              <EmptyState
-                title="Activity unavailable"
-                description="The stock-movement endpoint did not return data for this branch."
-                icon={IconAlert}
-              />
-            ) : activityMovements.length === 0 ? (
-              <EmptyState
-                title="No stock movements yet"
-                description="Receiving, adjustments, and sales will appear here as they happen."
-                icon={IconClock}
-              />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="py-2 pr-3 font-semibold">When</th>
-                      <th className="py-2 pr-3 font-semibold">Product</th>
-                      <th className="py-2 pr-3 font-semibold">Type</th>
-                      <th className="py-2 pr-3 text-right font-semibold">Qty</th>
-                      <th className="py-2 pr-3 font-semibold">Ref</th>
-                      <th className="py-2 pr-3 font-semibold">Actor</th>
-                      <th className="py-2 font-semibold">Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {activityMovements.map((m) => (
-                      <tr key={m.id} className="text-slate-600">
-                        <td className="py-2 pr-3 text-slate-400">{formatDateTime(m.at)}</td>
-                        <td className="py-2 pr-3 font-medium text-slate-800">{m.productName}</td>
-                        <td className="py-2 pr-3">
-                          <Badge tone={MOVEMENT_TONE[m.type]}>{m.type}</Badge>
-                        </td>
-                        <td
-                          className={cn(
-                            'py-2 pr-3 text-right font-semibold',
-                            m.quantity < 0 ? 'text-rose-600' : 'text-emerald-600',
-                          )}
-                        >
-                          {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
-                        </td>
-                        <td className="py-2 pr-3 text-slate-500">
-                          {m.refType ?? 'system'}
-                          {m.refId ? ` · ${short(m.refId)}` : ''}
-                        </td>
-                        <td className="py-2 pr-3 text-slate-500">
-                          {m.actorId ? short(m.actorId) : 'System'}
-                        </td>
-                        <td className="py-2 text-slate-500">{m.reason ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {activityQ.hasNextPage ? (
-                  <div className="mt-4">
-                    <Button
-                      variant="secondary"
-                      onClick={() => activityQ.fetchNextPage()}
-                      disabled={activityQ.isFetchingNextPage}
-                    >
-                      {activityQ.isFetchingNextPage ? (
-                        <>
-                          <Spinner className="h-4 w-4" /> Loading…
-                        </>
-                      ) : (
-                        'Load more'
-                      )}
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </Panel>
+          <ActivityFeed branchId={branchId} />
         </>
       )}
     </div>

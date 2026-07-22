@@ -16,6 +16,7 @@ import {
   Th,
 } from '@/components/ui';
 import { IconAlert, IconCheck } from '@/components/icons';
+import { useFileDownload } from '@/lib/use-download';
 
 const selectClass =
   'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 outline-none focus:border-brand-500';
@@ -23,6 +24,7 @@ const selectClass =
 /** Items that are out of stock (red) or at/below their reorder threshold (amber). */
 export function LowStockReport({ branches }: { branches: BranchSummaryDto[] }) {
   const [branchId, setBranchId] = useState('');
+  const { download: runDownload, error: exportError } = useFileDownload();
 
   function buildParams(extra?: Record<string, string>): URLSearchParams {
     const params = new URLSearchParams(extra);
@@ -39,9 +41,9 @@ export function LowStockReport({ branches }: { branches: BranchSummaryDto[] }) {
   });
 
   function download(format: 'xlsx' | 'csv') {
-    window.open(
+    void runDownload(
       `/api/admin/reports/low-stock/export?${buildParams({ format }).toString()}`,
-      '_blank',
+      `low-stock-report.${format}`,
     );
   }
 
@@ -80,6 +82,9 @@ export function LowStockReport({ branches }: { branches: BranchSummaryDto[] }) {
             Export CSV
           </Button>
         </div>
+        {exportError ? (
+          <p className="w-full text-xs font-medium text-rose-600">{exportError}</p>
+        ) : null}
       </div>
 
       {isLoading ? (

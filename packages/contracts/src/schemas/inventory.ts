@@ -119,18 +119,58 @@ export const ReceiveInvoiceLineSchema = requireBatchPair(
     reorderLevel: z.coerce.number().int().min(0).optional(),
     costKobo: z.coerce.number().int().min(0).optional(),
     priceKobo: z.coerce.number().int().min(0).optional(),
-    visibleOnStorefront: z.boolean().optional(),
+    // Storefront visibility is decided per line at reception (binary, no "leave unchanged").
+    visibleOnStorefront: z.boolean(),
   }),
 );
 
-export const ReceiveInvoiceSchema = z.object({
-  vendorName: z.string().trim().min(1).max(160),
-  invoiceNo: z.string().trim().min(1).max(80),
-  invoiceDate: z.coerce.date(),
-  note: z.string().trim().max(500).optional(),
-  lines: z.array(ReceiveInvoiceLineSchema).min(1).max(100),
-});
+export const InvoicePaymentStatus = z.enum(['paid', 'unpaid']);
+export type InvoicePaymentStatusValue = z.infer<typeof InvoicePaymentStatus>;
+
+export const InvoiceStatus = z.enum(['draft', 'received']);
+export type InvoiceStatusValue = z.infer<typeof InvoiceStatus>;
+
+/** Unpaid invoices must carry an expected payment date. */
+const paymentDueDateRefinement = (
+  value: { paymentStatus: 'paid' | 'unpaid'; paymentDueDate?: Date },
+  ctx: z.RefinementCtx,
+) => {
+  if (value.paymentStatus === 'unpaid' && !value.paymentDueDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['paymentDueDate'],
+      message: 'Expected payment date is required for unpaid invoices',
+    });
+  }
+};
+
+export const ReceiveInvoiceSchema = z
+  .object({
+    vendorName: z.string().trim().min(1).max(160),
+    invoiceNo: z.string().trim().min(1).max(80),
+    invoiceDate: z.coerce.date(),
+    note: z.string().trim().max(500).optional(),
+    paymentStatus: InvoicePaymentStatus,
+    paymentDueDate: z.coerce.date().optional(),
+    /** When true, persist as an editable draft (no stock/price applied yet). */
+    asDraft: z.boolean().optional(),
+    lines: z.array(ReceiveInvoiceLineSchema).min(1).max(100),
+  })
+  .superRefine(paymentDueDateRefinement);
 export type ReceiveInvoiceInput = z.infer<typeof ReceiveInvoiceSchema>;
+
+/** Update the payload of an existing DRAFT invoice (same shape, never published here). */
+export const UpdateInvoiceSchema = ReceiveInvoiceSchema;
+export type UpdateInvoiceInput = z.infer<typeof UpdateInvoiceSchema>;
+
+/** Mark an invoice paid / unpaid (unpaid still needs an expected payment date). */
+export const UpdateInvoicePaymentSchema = z
+  .object({
+    paymentStatus: InvoicePaymentStatus,
+    paymentDueDate: z.coerce.date().optional(),
+  })
+  .superRefine(paymentDueDateRefinement);
+export type UpdateInvoicePaymentInput = z.infer<typeof UpdateInvoicePaymentSchema>;
 
 export interface StockInvoiceLineDto {
   productId: string;
@@ -140,6 +180,7 @@ export interface StockInvoiceLineDto {
   expiry?: string;
   costKobo?: number;
   priceKobo?: number;
+  reorderLevel?: number;
   visibleOnStorefront?: boolean;
 }
 
@@ -150,6 +191,9 @@ export interface StockInvoiceDto {
   invoiceNo: string;
   invoiceDate: string;
   note?: string;
+  status: InvoiceStatusValue;
+  paymentStatus: InvoicePaymentStatusValue;
+  paymentDueDate?: string;
   receivedById: string;
   receivedByName?: string;
   totalUnits: number;
@@ -157,5 +201,7 @@ export interface StockInvoiceDto {
   createdAt: string;
 }
 
-export const StockInvoiceQuerySchema = PaginationQuerySchema;
+export const StockInvoiceQuerySchema = PaginationQuerySchema.extend({
+  status: InvoiceStatus.optional(),
+});
 export type StockInvoiceQuery = z.infer<typeof StockInvoiceQuerySchema>;

@@ -17,6 +17,7 @@ import {
   cn,
 } from '@/components/ui';
 import { IconAlert, IconCheck, IconClock } from '@/components/icons';
+import { useFileDownload } from '@/lib/use-download';
 
 const selectClass =
   'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 outline-none focus:border-brand-500';
@@ -39,6 +40,7 @@ const HORIZONS = [
 export function ExpiringDrugsReport({ branches }: { branches: BranchSummaryDto[] }) {
   const [branchId, setBranchId] = useState('');
   const [days, setDays] = useState('270');
+  const { download: runDownload, error: exportError } = useFileDownload();
 
   function buildParams(extra?: Record<string, string>): URLSearchParams {
     const params = new URLSearchParams({ days, ...extra });
@@ -55,9 +57,9 @@ export function ExpiringDrugsReport({ branches }: { branches: BranchSummaryDto[]
   });
 
   function download(format: 'xlsx' | 'csv') {
-    window.open(
+    void runDownload(
       `/api/admin/reports/expiring/export?${buildParams({ format }).toString()}`,
-      '_blank',
+      `expiring-report.${format}`,
     );
   }
 
@@ -113,6 +115,9 @@ export function ExpiringDrugsReport({ branches }: { branches: BranchSummaryDto[]
             Export CSV
           </Button>
         </div>
+        {exportError ? (
+          <p className="w-full text-xs font-medium text-rose-600">{exportError}</p>
+        ) : null}
       </div>
 
       {isLoading ? (
