@@ -99,6 +99,14 @@ function CartContent() {
     setQuantity.mutate({ branchId, productId, quantity });
   }
 
+  function decreaseLineQuantity(item: CartLineDto) {
+    if (item.quantity <= 1) {
+      remove.mutate(item.productId);
+      return;
+    }
+    updateLineQuantity(item.productId, item.quantity - 1);
+  }
+
   function availabilityHint(item: CartLineDto) {
     if (item.available === undefined || item.available > 5 || item.quantity < item.available) {
       return null;
@@ -154,9 +162,10 @@ function CartContent() {
                     <QuantityStepper
                       label={`${item.name} quantity`}
                       quantity={item.quantity}
+                      min={0}
                       max={Math.min(item.available ?? 99, 99)}
-                      disabled={setQuantity.isPending || !cart.branchId}
-                      onDecrease={() => updateLineQuantity(item.productId, item.quantity - 1)}
+                      disabled={setQuantity.isPending || remove.isPending || !cart.branchId}
+                      onDecrease={() => decreaseLineQuantity(item)}
                       onIncrease={() => updateLineQuantity(item.productId, item.quantity + 1)}
                     />
                     {availabilityHint(item) ? (

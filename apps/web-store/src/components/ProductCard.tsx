@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ProductListItemDto } from '@lanyard/contracts';
 import { formatKobo } from '@/lib/format';
 import { RxBadge } from './RxBadge';
-import { AddToCartButton } from './AddToCartButton';
+import { ProductQuantityControl } from './ProductQuantityControl';
 
 function ProductMedia({ product }: { product: ProductListItemDto }) {
   const image = product.images?.[0];
@@ -117,9 +117,11 @@ export function ProductCard({
         ) : null}
 
         <div className="mt-3">
-          <AddToCartButton
+          <ProductQuantityControl
             branchId={branchId}
             productId={product.id}
+            productName={product.name}
+            available={product.available}
             disabled={outOfStock || product.price == null}
           />
         </div>
