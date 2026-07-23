@@ -5,6 +5,7 @@ import {
   NormalizedCharge,
   PaymentInitParams,
   PaymentInitResult,
+  PaymentInitializationError,
   PaymentProviderPort,
   RefundResult,
   VerifyResult,
@@ -43,7 +44,11 @@ export class PaystackProvider implements PaymentProviderPort {
       data?: { reference: string; authorization_url: string };
     };
     if (!res.ok || !json.status || !json.data) {
-      throw new Error(`Paystack initialize failed: ${json.message ?? res.statusText}`);
+      const providerMessage = json.message ?? res.statusText ?? 'Payment provider rejected request';
+      throw new PaymentInitializationError(
+        `Paystack initialize failed: ${providerMessage}`,
+        providerMessage,
+      );
     }
     return { providerRef: json.data.reference, authorizationUrl: json.data.authorization_url };
   }

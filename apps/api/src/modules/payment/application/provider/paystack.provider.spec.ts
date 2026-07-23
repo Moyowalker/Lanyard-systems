@@ -111,3 +111,31 @@ describe('PaystackProvider.verify', () => {
     expect(result.status).toBe('failed');
   });
 });
+
+describe('PaystackProvider.initialize', () => {
+  const fetchMock = jest.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    global.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  it('preserves a provider rejection as a customer-safe initialization error', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      statusText: 'Bad Request',
+      json: async () => ({ status: false, message: 'Transaction amount is below the minimum' }),
+    });
+
+    await expect(
+      provider.initialize({
+        amountKobo: 2_000,
+        currency: 'NGN',
+        email: 'payments@example.com',
+        reference: 'LNYPAY_low',
+      }),
+    ).rejects.toMatchObject({
+      customerMessage: 'Transaction amount is below the minimum',
+    });
+  });
+});

@@ -13,6 +13,16 @@ export interface PaymentInitResult {
   authorizationUrl: string;
 }
 
+export class PaymentInitializationError extends Error {
+  constructor(
+    message: string,
+    public readonly customerMessage: string,
+  ) {
+    super(message);
+    this.name = 'PaymentInitializationError';
+  }
+}
+
 /** Normalised, provider-agnostic charge event (from webhook or verify). */
 export interface NormalizedCharge {
   reference: string; // our reference

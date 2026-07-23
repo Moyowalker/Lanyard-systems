@@ -3,7 +3,10 @@ import { Types } from 'mongoose';
 import { PaymentChannel, PaymentIntentStatus, PaymentProvider } from '@lanyard/contracts';
 
 import { PaymentService } from './payment.service';
-import { NormalizedCharge } from './provider/payment-provider.interface';
+import {
+  NormalizedCharge,
+  PaymentInitializationError,
+} from './provider/payment-provider.interface';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -50,7 +53,8 @@ function buildService(overrides: {
   txnExists?: jest.Mock;
   txnCreate?: jest.Mock;
   orderModel?: Partial<{ findById: jest.Mock; updateOne: jest.Mock }>;
-  provider?: Partial<{ verify: jest.Mock; parseWebhook: jest.Mock }>;
+  customerFindById?: jest.Mock;
+  provider?: Partial<{ initialize: jest.Mock; verify: jest.Mock; parseWebhook: jest.Mock }>;
 }) {
   const intentFindOne = overrides.intentFindOne ?? jest.fn();
   const txnExists = overrides.txnExists ?? jest.fn().mockResolvedValue(null);
@@ -73,7 +77,7 @@ function buildService(overrides: {
     { findOne: intentFindOne } as never,
     { exists: txnExists, create: txnCreate } as never,
     orderModel as never,
-    { findById: jest.fn() } as never,
+    { findById: overrides.customerFindById ?? jest.fn() } as never,
     provider as never,
     { markPaid: jest.fn().mockResolvedValue(undefined) } as never,
     { notifyOrderEvent: jest.fn().mockResolvedValue(undefined) } as never,
@@ -91,6 +95,51 @@ function buildService(overrides: {
 
   return { service, intentFindOne, txnExists, txnCreate, orderModel, provider };
 }
+
+describe('PaymentService.initialize', () => {
+  it('uses a valid fallback email and surfaces Paystack rejections as validation errors', async () => {
+    const customerId = new Types.ObjectId();
+    const orderId = new Types.ObjectId();
+    const initialize = jest
+      .fn()
+      .mockRejectedValue(
+        new PaymentInitializationError(
+          'Paystack initialize failed: Transaction amount is below the minimum',
+          'Transaction amount is below the minimum',
+        ),
+      );
+    const { service } = buildService({
+      intentFindOne: jest.fn().mockResolvedValue(null),
+      orderModel: {
+        findById: jest.fn(),
+        updateOne: jest.fn(),
+      },
+      customerFindById: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }),
+      provider: { initialize },
+    });
+    (service as unknown as { orderModel: { findOne: jest.Mock } }).orderModel.findOne = jest
+      .fn()
+      .mockResolvedValue({
+        _id: orderId,
+        customerId,
+        orderNo: 'LNY-1001',
+        status: 'AWAITING_PAYMENT',
+        totals: { totalKobo: 2_000, currency: 'NGN' },
+      });
+
+    await expect(
+      service.initialize({ sub: customerId.toString() } as never, orderId.toString()),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+      message: 'Transaction amount is below the minimum',
+    });
+    expect(initialize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: `payments+${customerId.toString()}@lanyardpharmacy.com`,
+      }),
+    );
+  });
+});
 
 // ── applyChargeEvent ──────────────────────────────────────────────────────────
 

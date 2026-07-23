@@ -25,6 +25,8 @@ import { DomainError } from '../../../core/errors/domain-error';
 import { AuthPrincipal } from '../../../core/auth/principal';
 import {
   PAYMENT_PROVIDER,
+  PaymentInitializationError,
+  PaymentInitResult,
   PaymentProviderPort,
   NormalizedCharge,
 } from './provider/payment-provider.interface';
@@ -65,13 +67,22 @@ export class PaymentService {
 
     const customer = await this.customerModel.findById(order.customerId).lean();
     const ourRef = `LNYPAY_${randomBytes(8).toString('hex')}`;
-    const init = await this.provider.initialize({
-      amountKobo: order.totals.totalKobo,
-      currency: order.totals.currency,
-      email: customer?.email ?? `${order.customerId.toString()}@customer.lanyard.local`,
-      reference: ourRef,
-      metadata: { orderId: order._id.toString(), orderNo: order.orderNo },
-    });
+    let init: PaymentInitResult;
+    try {
+      init = await this.provider.initialize({
+        amountKobo: order.totals.totalKobo,
+        currency: order.totals.currency,
+        email: customer?.email ?? `payments+${order.customerId.toString()}@lanyardpharmacy.com`,
+        reference: ourRef,
+        metadata: { orderId: order._id.toString(), orderNo: order.orderNo },
+      });
+    } catch (error) {
+      if (error instanceof PaymentInitializationError) {
+        this.logger.warn(error.message);
+        throw new DomainError(ErrorCode.VALIDATION_FAILED, error.customerMessage);
+      }
+      throw error;
+    }
 
     const intent = await this.intentModel.create({
       orderId: order._id,
