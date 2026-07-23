@@ -10,6 +10,7 @@ export * from './schemas/identity';
 export * from './schemas/staff';
 export * from './schemas/catalog';
 export * from './schemas/branch';
+export * from './schemas/vendor';
 export * from './schemas/inventory';
 export * from './schemas/prescription';
 export * from './schemas/cart';

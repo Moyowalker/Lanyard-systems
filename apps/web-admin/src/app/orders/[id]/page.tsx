@@ -127,6 +127,34 @@ export default function AdminOrderDetail({ params }: { params: Promise<{ id: str
         </Panel>
       )}
 
+      {o.prescriptionIds.length > 0 ? (
+        <Panel
+          title="Prescriptions"
+          subtitle="Recall the uploaded prescription for this order — e.g. to resolve a dispute"
+        >
+          <ul className="space-y-1.5">
+            {o.prescriptionIds.map((rxId) => (
+              <li key={rxId}>
+                <Link
+                  href={`/prescriptions/${rxId}`}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700"
+                >
+                  <span className="font-medium text-brand-700">℞</span>
+                  Prescription {rxId.slice(-6)}
+                  <IconChevronRight width={14} height={14} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : o.requiresRxVerification ? (
+        <Panel title="Prescriptions">
+          <p className="text-sm text-slate-500">
+            This order requires prescription verification, but no prescription is linked yet.
+          </p>
+        </Panel>
+      ) : null}
+
       <Panel title="Actions">
         <div className="flex flex-wrap gap-2">
           {actions.map((to) => (

@@ -4,7 +4,7 @@ import { use, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import type { PrescriptionDto } from '@lanyard/contracts';
+import type { AdminPrescriptionDetailDto } from '@lanyard/contracts';
 import { rxTone } from '@/lib/format';
 import { Badge, Button, Panel, Spinner } from '@/components/ui';
 import { IconAlert, IconChevronRight, IconExternal, IconShield } from '@/components/icons';
@@ -25,7 +25,7 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
     queryKey: ['rx', id],
     queryFn: async () => {
       const r = await fetch(`/api/admin/prescriptions/${id}`);
-      return r.ok ? ((await r.json()) as PrescriptionDto) : null;
+      return r.ok ? ((await r.json()) as AdminPrescriptionDetailDto) : null;
     },
   });
 
@@ -96,6 +96,36 @@ export default function PrescriptionDetail({ params }: { params: Promise<{ id: s
         </h1>
         <Badge tone={rxTone(rx.status)}>{rx.status}</Badge>
       </div>
+
+      {rx.customer || (rx.orders && rx.orders.length > 0) ? (
+        <Panel title="Customer & orders" subtitle="Use this to recall the order during a dispute">
+          {rx.customer ? (
+            <div className="text-sm text-slate-700">
+              <span className="font-semibold text-slate-900">{rx.customer.name || 'Customer'}</span>
+              <span className="ml-2 text-slate-500">{rx.customer.phone}</span>
+            </div>
+          ) : null}
+          {rx.orders && rx.orders.length > 0 ? (
+            <ul className="mt-3 space-y-1.5">
+              {rx.orders.map((o) => (
+                <li key={o.id}>
+                  <Link
+                    href={`/orders/${o.id}`}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    <span className="font-mono">{o.orderNo}</span>
+                    <Badge tone="neutral">{o.status}</Badge>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-slate-500">
+              No orders linked to this prescription yet.
+            </p>
+          )}
+        </Panel>
+      ) : null}
 
       <Panel
         title="Files"

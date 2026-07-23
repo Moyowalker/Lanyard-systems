@@ -197,8 +197,18 @@ export const IconReports = (p: IconProps) => (
   </svg>
 );
 
+export const IconVendor = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 8h11v9H3z" />
+    <path d="M14 11h4l3 3v3h-7z" />
+    <circle cx="7" cy="18" r="1.6" />
+    <circle cx="17.5" cy="18" r="1.6" />
+  </svg>
+);
+
 export const Icons = {
   dashboard: IconDashboard,
+  vendor: IconVendor,
   rx: IconRx,
   orders: IconOrders,
   inventory: IconInventory,

@@ -6,11 +6,14 @@ import { Model, Types } from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import {
   ActorType,
+  AdminPrescriptionDetailDto,
   AvScanStatus,
   CreatePrescriptionMetaInput,
   ErrorCode,
   Paginated,
   PaginationQuery,
+  PrescriptionAdminListItemDto,
+  PrescriptionAdminSearchQuery,
   PrescriptionDto,
   RequestPrescriptionInfoInput,
   RxStatus,
@@ -20,14 +23,15 @@ import {
 } from '@lanyard/contracts';
 
 import { Prescription, PrescriptionDocument } from '../infrastructure/prescription.schema';
-import { StaffUser } from '../../identity/infrastructure/identity.schemas';
+import { Customer, StaffUser } from '../../identity/infrastructure/identity.schemas';
+import { Order } from '../../order/infrastructure/order.schema';
 import { OrderService } from '../../order/application/order.service';
 import { NotificationService } from '../../notification/application/notification.service';
 import { AuditService } from '../../../core/platform/audit.service';
 import { StorageService } from '../../../core/storage/storage.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { AuthPrincipal } from '../../../core/auth/principal';
-import { cursorFilter, paginate } from '../../../core/pagination/cursor';
+import { cursorFilter, cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
 import { AvScanJobData, PRESCRIPTION_AV_QUEUE } from '../../../core/queue/queue.constants';
 
 /** A validated file received from the multipart upload. */
@@ -98,6 +102,8 @@ export class PrescriptionService {
   constructor(
     @InjectModel(Prescription.name) private readonly rxModel: Model<Prescription>,
     @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
+    @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
+    @InjectModel(Order.name) private readonly orderModel: Model<Order>,
     @InjectQueue(PRESCRIPTION_AV_QUEUE) private readonly avQueue: Queue<AvScanJobData>,
     private readonly orders: OrderService,
     private readonly notifications: NotificationService,
@@ -229,11 +235,137 @@ export class PrescriptionService {
     );
   }
 
-  async adminGet(branchScope: string[], id: string): Promise<PrescriptionDto> {
+  async adminGet(branchScope: string[], id: string): Promise<AdminPrescriptionDetailDto> {
     const rx = await this.rxModel.findById(id);
     if (!rx) throw new DomainError(ErrorCode.NOT_FOUND, 'Prescription not found');
     this.assertBranchScope(branchScope, rx.branchId.toString());
-    return this.toDto(rx);
+
+    // Enrich with dispute context: the customer and the orders this Rx is linked to.
+    const [customer, orders] = await Promise.all([
+      this.customerModel.findById(rx.customerId).select('firstName lastName phone').lean<{
+        _id: Types.ObjectId;
+        firstName?: string;
+        lastName?: string;
+        phone: string;
+      } | null>(),
+      rx.linkedOrderIds.length
+        ? this.orderModel
+            .find({ _id: { $in: rx.linkedOrderIds } })
+            .select('orderNo status createdAt')
+            .lean<
+              Array<{ _id: Types.ObjectId; orderNo: string; status: string; createdAt?: Date }>
+            >()
+        : Promise.resolve([]),
+    ]);
+
+    return {
+      ...this.toDto(rx),
+      customer: customer
+        ? {
+            id: customer._id.toString(),
+            name: [customer.firstName, customer.lastName].filter(Boolean).join(' '),
+            phone: customer.phone,
+          }
+        : undefined,
+      orders: orders.map((o) => ({
+        id: o._id.toString(),
+        orderNo: o.orderNo,
+        status: o.status,
+        createdAt: o.createdAt?.toISOString() ?? new Date().toISOString(),
+      })),
+    };
+  }
+
+  /**
+   * Staff prescription recall for disputes: search ALL statuses (unlike the pharmacist
+   * queue) by customer phone or order number, so a fulfilled order's prescription can be
+   * retrieved. Returns linkage + metadata only — the image stays behind phi:view.
+   */
+  async searchAdmin(
+    branchScope: string[],
+    query: PrescriptionAdminSearchQuery,
+  ): Promise<Paginated<PrescriptionAdminListItemDto>> {
+    const filter: Record<string, unknown> = { ...cursorFilterDesc(query.cursor) };
+    if (!branchScope.includes('ALL')) {
+      filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
+    }
+    if (query.status) filter.status = query.status;
+
+    if (query.q) {
+      const q = query.q.trim();
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const [customers, order] = await Promise.all([
+        this.customerModel
+          .find({ phone: new RegExp(escaped, 'i') })
+          .select('_id')
+          .limit(25)
+          .lean<Array<{ _id: Types.ObjectId }>>(),
+        this.orderModel
+          .findOne({ orderNo: new RegExp(`^${escaped}$`, 'i') })
+          .select('_id prescriptionIds')
+          .lean<{ _id: Types.ObjectId; prescriptionIds?: Types.ObjectId[] } | null>(),
+      ]);
+
+      const or: Record<string, unknown>[] = [];
+      if (customers.length) or.push({ customerId: { $in: customers.map((c) => c._id) } });
+      if (order) {
+        or.push({ _id: { $in: order.prescriptionIds ?? [] } });
+        or.push({ linkedOrderIds: order._id });
+      }
+      if (or.length === 0) return { data: [], meta: { nextCursor: null } };
+      filter.$or = or;
+    }
+
+    const rows = await this.rxModel
+      .find(filter)
+      .sort({ _id: -1 })
+      .limit(query.limit + 1);
+
+    const items = await this.toSearchItems(rows);
+    return paginate(items, query.limit);
+  }
+
+  /** Enrich prescription docs with customer name/phone + linked order numbers. */
+  private async toSearchItems(
+    rows: PrescriptionDocument[],
+  ): Promise<PrescriptionAdminListItemDto[]> {
+    if (rows.length === 0) return [];
+    const customerIds = [...new Set(rows.map((r) => r.customerId.toString()))];
+    const orderIds = [...new Set(rows.flatMap((r) => r.linkedOrderIds.map(String)))];
+
+    const [customers, orders] = await Promise.all([
+      this.customerModel
+        .find({ _id: { $in: customerIds.map((id) => new Types.ObjectId(id)) } })
+        .select('firstName lastName phone')
+        .lean<
+          Array<{ _id: Types.ObjectId; firstName?: string; lastName?: string; phone: string }>
+        >(),
+      orderIds.length
+        ? this.orderModel
+            .find({ _id: { $in: orderIds.map((id) => new Types.ObjectId(id)) } })
+            .select('orderNo')
+            .lean<Array<{ _id: Types.ObjectId; orderNo: string }>>()
+        : Promise.resolve([]),
+    ]);
+    const customerById = new Map(customers.map((c) => [c._id.toString(), c]));
+    const orderNoById = new Map(orders.map((o) => [o._id.toString(), o.orderNo]));
+
+    return rows.map((rx) => {
+      const customer = customerById.get(rx.customerId.toString());
+      return {
+        id: rx._id.toString(),
+        status: rx.status,
+        customerName: customer
+          ? [customer.firstName, customer.lastName].filter(Boolean).join(' ')
+          : undefined,
+        customerPhone: customer?.phone,
+        orderNos: rx.linkedOrderIds
+          .map((id) => orderNoById.get(id.toString()))
+          .filter((no): no is string => Boolean(no)),
+        fileCount: (rx.files as unknown as unknown[]).length,
+        createdAt: (rx as unknown as { createdAt: Date }).createdAt.toISOString(),
+      };
+    });
   }
 
   /** Staff signed URL for a prescription image (requires phi:view) — audited. */

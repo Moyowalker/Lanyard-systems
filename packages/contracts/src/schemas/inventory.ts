@@ -146,6 +146,7 @@ const paymentDueDateRefinement = (
 
 export const ReceiveInvoiceSchema = z
   .object({
+    vendorId: objectId.optional(),
     vendorName: z.string().trim().min(1).max(160),
     invoiceNo: z.string().trim().min(1).max(80),
     invoiceDate: z.coerce.date(),
@@ -187,6 +188,7 @@ export interface StockInvoiceLineDto {
 export interface StockInvoiceDto {
   id: string;
   branchId: string;
+  vendorId?: string;
   vendorName: string;
   invoiceNo: string;
   invoiceDate: string;
@@ -194,6 +196,8 @@ export interface StockInvoiceDto {
   status: InvoiceStatusValue;
   paymentStatus: InvoicePaymentStatusValue;
   paymentDueDate?: string;
+  /** Whether a scanned invoice document has been attached (fetch the URL separately). */
+  hasAttachment?: boolean;
   receivedById: string;
   receivedByName?: string;
   totalUnits: number;

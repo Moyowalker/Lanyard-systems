@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 
+import { BadRequestException } from '@nestjs/common';
 import { PATH_METADATA } from '@nestjs/common/constants';
 import {
   AdjustInventoryInput,
@@ -81,5 +82,43 @@ describe('AdminInventoryController', () => {
 
     expect(inventory.receive).toHaveBeenCalledWith('branch-1', principal.sub, receiveDto);
     expect(inventory.adjust).toHaveBeenCalledWith('branch-1', principal.sub, adjustDto);
+  });
+
+  it('rejects an invoice scan whose bytes do not match its declared type', async () => {
+    const controller = new AdminInventoryController({ attachInvoiceScan: jest.fn() } as never);
+
+    await expect(
+      controller.attachInvoiceScan(
+        'branch-1',
+        'invoice-1',
+        { sub: 'staff-1' } as never,
+        {
+          mimetype: 'application/pdf',
+          buffer: Buffer.from('not a pdf'),
+        } as Express.Multer.File,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('forwards a valid invoice scan after checking its signature', async () => {
+    const attachInvoiceScan = jest.fn().mockResolvedValue({ id: 'invoice-1' });
+    const controller = new AdminInventoryController({ attachInvoiceScan } as never);
+    const buffer = Buffer.from('%PDF-1.7');
+
+    await controller.attachInvoiceScan(
+      'branch-1',
+      'invoice-1',
+      { sub: 'staff-1' } as never,
+      {
+        mimetype: 'application/pdf',
+        buffer,
+      } as Express.Multer.File,
+    );
+
+    expect(attachInvoiceScan).toHaveBeenCalledWith('branch-1', 'staff-1', 'invoice-1', {
+      buffer,
+      mime: 'application/pdf',
+      ext: 'pdf',
+    });
   });
 });

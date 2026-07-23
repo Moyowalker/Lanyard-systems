@@ -127,6 +127,10 @@ export class StockInvoice {
   @Prop({ type: Types.ObjectId, ref: 'Branch', required: true, index: true })
   branchId: Types.ObjectId;
 
+  /** Optional link to the vendor registry; `vendorName` is the readable snapshot. */
+  @Prop({ type: Types.ObjectId, ref: 'Vendor', index: true })
+  vendorId?: Types.ObjectId;
+
   @Prop({ required: true, trim: true, maxlength: 160 })
   vendorName: string;
 
@@ -157,6 +161,10 @@ export class StockInvoice {
   /** Expected payment date — required (in the DTO) while unpaid. */
   @Prop({ type: Date })
   paymentDueDate?: Date;
+
+  /** Object-store key of the uploaded scanned invoice (audit artefact), if any. */
+  @Prop({ type: String, trim: true })
+  attachmentKey?: string;
 
   @Prop({ type: [StockInvoiceLineSchema], required: true })
   lines: StockInvoiceLine[];

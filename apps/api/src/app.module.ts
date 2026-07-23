@@ -12,6 +12,7 @@ import { HealthModule } from './modules/health/health.module';
 import { AuthzModule } from './modules/authz/authz.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { BranchModule } from './modules/branch/branch.module';
+import { VendorModule } from './modules/vendor/vendor.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { PricingModule } from './modules/pricing/pricing.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
@@ -62,6 +63,7 @@ import { PosModule } from './modules/pos/pos.module';
     AuthzModule,
     IdentityModule,
     BranchModule,
+    VendorModule,
     CatalogModule,
     PricingModule,
     InventoryModule,

@@ -5,6 +5,7 @@ import { ReceiveInvoiceSchema, StockInvoiceDto } from '@lanyard/contracts';
 
 import { Button, Spinner, cn } from '@/components/ui';
 import { ProductCombobox, type ComboboxProduct } from '@/components/ProductCombobox';
+import { VendorPicker } from '@/components/inventory/VendorPicker';
 
 /** One line of the goods-received (invoice) form. Money fields are naira strings. */
 type InvoiceLineForm = {
@@ -20,6 +21,7 @@ type InvoiceLineForm = {
 };
 
 type InvoiceFormState = {
+  vendorId?: string;
   vendorName: string;
   invoiceNo: string;
   invoiceDate: string;
@@ -41,6 +43,7 @@ const emptyLine = (): InvoiceLineForm => ({
 });
 
 const emptyForm = (): InvoiceFormState => ({
+  vendorId: undefined,
   vendorName: '',
   invoiceNo: '',
   invoiceDate: '',
@@ -53,6 +56,7 @@ const emptyForm = (): InvoiceFormState => ({
 /** Rebuild the editable form from a stored draft invoice (Resume). */
 function formFromInvoice(invoice: StockInvoiceDto): InvoiceFormState {
   return {
+    vendorId: invoice.vendorId,
     vendorName: invoice.vendorName,
     invoiceNo: invoice.invoiceNo,
     invoiceDate: invoice.invoiceDate.slice(0, 10),
@@ -150,6 +154,7 @@ export function InvoiceReceiveForm({
   function buildPayload(asDraft: boolean) {
     const lines = form.lines.filter((line) => line.productId);
     return ReceiveInvoiceSchema.safeParse({
+      vendorId: form.vendorId,
       vendorName: form.vendorName,
       invoiceNo: form.invoiceNo,
       invoiceDate: form.invoiceDate,
@@ -261,16 +266,18 @@ export function InvoiceReceiveForm({
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
-          <label className={labelClass} htmlFor="invoice-vendor">
+          <label className={labelClass}>
             Vendor <span className="text-rose-500">*</span>
           </label>
-          <input
-            id="invoice-vendor"
-            value={form.vendorName}
-            onChange={(e) => setForm((c) => ({ ...c, vendorName: e.target.value }))}
-            className={cn(inputClass, isRequired('vendorName') && 'border-rose-400')}
-            placeholder="e.g. Emzor Distribution"
-          />
+          <div className="mt-1">
+            <VendorPicker
+              value={{ id: form.vendorId, name: form.vendorName }}
+              onChange={(vendor) =>
+                setForm((c) => ({ ...c, vendorId: vendor.id, vendorName: vendor.name }))
+              }
+              invalid={isRequired('vendorName')}
+            />
+          </div>
         </div>
         <div>
           <label className={labelClass} htmlFor="invoice-no">
