@@ -24,6 +24,7 @@ import { InventoryItem, StockInvoice, StockMovement } from '../infrastructure/in
 import { Product } from '../../catalog/infrastructure/catalog.schemas';
 import { StaffUser } from '../../identity/infrastructure/identity.schemas';
 import { PriceEntry, PricingService } from '../../pricing/application/pricing.service';
+import { Vendor } from '../../vendor/infrastructure/vendor.schema';
 import { DomainError } from '../../../core/errors/domain-error';
 import { AuditService } from '../../../core/platform/audit.service';
 import { StorageService } from '../../../core/storage/storage.service';
@@ -96,6 +97,7 @@ export class InventoryService {
     private readonly audit: AuditService,
     private readonly tx: TransactionService,
     private readonly storage: StorageService,
+    @InjectModel(Vendor.name) private readonly vendorModel: Model<Vendor>,
   ) {}
 
   async listBranchInventory(branchId: string): Promise<BranchInventoryItemDto[]> {
@@ -298,6 +300,7 @@ export class InventoryService {
     actorId: string,
     input: ReceiveInvoiceInput,
   ): Promise<StockInvoiceDto> {
+    input = await this.normalizeInvoiceVendor(input);
     const asDraft = input.asDraft === true;
     // Drafts snapshot names + validate products exist, but skip the visible-without-price
     // guard (nothing is applied yet) and never touch stock/prices.
@@ -359,10 +362,12 @@ export class InventoryService {
       throw new DomainError(ErrorCode.CONFLICT, 'Only draft invoices can be edited');
     }
 
+    input = await this.normalizeInvoiceVendor(input);
     const { nameById } = await this.resolveInvoiceProducts(branchId, input, {
       requirePriceForVisible: false,
     });
     const doc = this.buildInvoiceDoc(branchId, actorId, input, nameById, 'draft');
+    invoice.vendorId = doc.vendorId;
     invoice.vendorName = doc.vendorName;
     invoice.invoiceNo = doc.invoiceNo;
     invoice.invoiceDate = doc.invoiceDate;
@@ -427,6 +432,15 @@ export class InventoryService {
       throw new DomainError(ErrorCode.CONFLICT, 'Only draft invoices can be deleted');
     }
     await this.invoiceModel.deleteOne({ _id: invoice._id });
+    if (invoice.attachmentKey) {
+      try {
+        await this.storage.deleteObject(invoice.attachmentKey);
+      } catch (error) {
+        this.logger.error(
+          `Could not delete invoice attachment: key=${invoice.attachmentKey} reason=${error instanceof Error ? error.message : 'unknown error'}`,
+        );
+      }
+    }
     await this.recordInvoiceAudit(
       branchId,
       actorId,
@@ -477,10 +491,25 @@ export class InventoryService {
     });
     if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
 
+    const previousObjectKey = invoice.attachmentKey;
     const objectKey = `invoices/${branchId}/${id}/${randomUUID()}.${file.ext}`;
     await this.storage.putObject(objectKey, file.buffer, file.mime);
     invoice.attachmentKey = objectKey;
-    await invoice.save();
+    try {
+      await invoice.save();
+    } catch (error) {
+      await this.storage.deleteObject(objectKey).catch(() => undefined);
+      throw error;
+    }
+    if (previousObjectKey) {
+      try {
+        await this.storage.deleteObject(previousObjectKey);
+      } catch (error) {
+        this.logger.error(
+          `Could not delete replaced invoice attachment: key=${previousObjectKey} reason=${error instanceof Error ? error.message : 'unknown error'}`,
+        );
+      }
+    }
 
     await this.recordInvoiceAudit(
       branchId,
@@ -508,6 +537,22 @@ export class InventoryService {
   }
 
   /* ── invoice helpers ── */
+
+  private async normalizeInvoiceVendor(input: ReceiveInvoiceInput): Promise<ReceiveInvoiceInput> {
+    if (!input.vendorId) return input;
+    const vendor = await this.vendorModel
+      .findOne({
+        _id: new Types.ObjectId(input.vendorId),
+        isActive: true,
+        deletedAt: { $exists: false },
+      })
+      .select('name')
+      .lean<{ name: string } | null>();
+    if (!vendor) {
+      throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Select an active vendor');
+    }
+    return { ...input, vendorName: vendor.name };
+  }
 
   /** Resolve product names, existing prices, and validate lines before persisting. */
   private async resolveInvoiceProducts(

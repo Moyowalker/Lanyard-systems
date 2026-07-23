@@ -42,6 +42,7 @@ export class VendorService {
     try {
       const vendor = await this.vendorModel.create({
         name: input.name,
+        normalizedName: this.normalizeName(input.name),
         contactName: input.contactName,
         phone: input.phone,
         email: input.email,
@@ -59,21 +60,27 @@ export class VendorService {
   }
 
   async update(id: string, input: UpdateVendorInput): Promise<VendorDto> {
-    const update: Record<string, unknown> = {};
-    for (const key of [
-      'name',
-      'contactName',
-      'phone',
-      'email',
-      'address',
-      'note',
-      'isActive',
-    ] as const) {
-      if (input[key] !== undefined) update[key] = input[key];
+    const set: Record<string, unknown> = {};
+    const unset: Record<string, 1> = {};
+    if (input.name !== undefined) {
+      set.name = input.name;
+      set.normalizedName = this.normalizeName(input.name);
+    }
+    if (input.isActive !== undefined) set.isActive = input.isActive;
+    for (const key of ['contactName', 'phone', 'email', 'address', 'note'] as const) {
+      if (input[key] === null) unset[key] = 1;
+      else if (input[key] !== undefined) set[key] = input[key];
     }
     let vendor: VendorDocument | null;
     try {
-      vendor = await this.vendorModel.findByIdAndUpdate(id, { $set: update }, { new: true });
+      vendor = await this.vendorModel.findByIdAndUpdate(
+        id,
+        {
+          ...(Object.keys(set).length > 0 ? { $set: set } : {}),
+          ...(Object.keys(unset).length > 0 ? { $unset: unset } : {}),
+        },
+        { new: true },
+      );
     } catch (err) {
       if (this.isDuplicateKey(err)) {
         throw new DomainError(ErrorCode.CONFLICT, `Vendor "${input.name}" already exists`);
@@ -86,6 +93,10 @@ export class VendorService {
 
   private isDuplicateKey(err: unknown): boolean {
     return typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000;
+  }
+
+  private normalizeName(name: string): string {
+    return name.trim().toLocaleLowerCase('en-US');
   }
 
   private toDto(row: {

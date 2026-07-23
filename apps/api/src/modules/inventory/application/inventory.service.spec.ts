@@ -64,6 +64,7 @@ describe('InventoryService', () => {
       audit as never,
       transaction as never,
       { putObject: jest.fn(), getSignedDownloadUrl: jest.fn(), signedUrlTtl: 300 } as never,
+      { findOne: jest.fn() } as never,
     );
   });
 
@@ -398,6 +399,7 @@ describe('InventoryService.receiveInvoice', () => {
       { record: auditRecord } as never,
       transaction as never,
       { putObject: jest.fn(), getSignedDownloadUrl: jest.fn(), signedUrlTtl: 300 } as never,
+      { findOne: jest.fn() } as never,
     );
     return { service, invoiceCreate, movementCreate, auditRecord, upsertPrice, invoiceId };
   }
@@ -561,6 +563,7 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
       { record: auditRecord } as never,
       transaction as never,
       { putObject: jest.fn(), getSignedDownloadUrl: jest.fn(), signedUrlTtl: 300 } as never,
+      { findOne: jest.fn() } as never,
     );
     return { service, invoiceCreate, invoiceDeleteOne, movementCreate, auditRecord, invoiceId };
   }
@@ -691,6 +694,7 @@ describe('InventoryService invoice attachments', () => {
         audit as never,
         transaction as never,
         storage as never,
+        { findOne: jest.fn() } as never,
       ),
     };
   }
@@ -715,7 +719,12 @@ describe('InventoryService invoice attachments', () => {
     };
     const invoiceModel = { findOne: jest.fn().mockResolvedValue(doc) };
     const putObject = jest.fn().mockResolvedValue(undefined);
-    const storage = { putObject, getSignedDownloadUrl: jest.fn(), signedUrlTtl: 300 };
+    const storage = {
+      putObject,
+      deleteObject: jest.fn().mockResolvedValue(undefined),
+      getSignedDownloadUrl: jest.fn(),
+      signedUrlTtl: 300,
+    };
     const { service, audit } = baseArgs(invoiceModel, storage);
 
     const result = await service.attachInvoiceScan(branchId, actorId, invoiceId.toString(), {
@@ -731,6 +740,67 @@ describe('InventoryService invoice attachments', () => {
     expect(audit.record.mock.calls.at(-1)?.[0].action).toBe('inventory.invoice_attachment');
   });
 
+  it('removes the previous object after replacing a scan', async () => {
+    const invoiceId = new Types.ObjectId();
+    const doc: Record<string, unknown> = {
+      _id: invoiceId,
+      branchId: new Types.ObjectId(branchId),
+      vendorName: 'Emzor',
+      invoiceNo: 'INV-1',
+      invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+      receivedByStaffId: new Types.ObjectId(actorId),
+      status: 'received',
+      paymentStatus: 'paid',
+      lines: [],
+      attachmentKey: 'invoices/old.pdf',
+      save: jest.fn().mockResolvedValue(undefined),
+      toObject() {
+        return this;
+      },
+    };
+    const deleteObject = jest.fn().mockResolvedValue(undefined);
+    const { service } = baseArgs(
+      { findOne: jest.fn().mockResolvedValue(doc) },
+      { putObject: jest.fn(), deleteObject, signedUrlTtl: 300 },
+    );
+
+    await service.attachInvoiceScan(branchId, actorId, invoiceId.toString(), {
+      buffer: Buffer.from('pdf'),
+      mime: 'application/pdf',
+      ext: 'pdf',
+    });
+
+    expect(deleteObject).toHaveBeenCalledWith('invoices/old.pdf');
+  });
+
+  it('removes a newly uploaded object when saving its key fails', async () => {
+    const invoiceId = new Types.ObjectId();
+    const doc: Record<string, unknown> = {
+      _id: invoiceId,
+      vendorName: 'Emzor',
+      invoiceNo: 'INV-1',
+      status: 'received',
+      paymentStatus: 'paid',
+      lines: [],
+      save: jest.fn().mockRejectedValue(new Error('database unavailable')),
+    };
+    const deleteObject = jest.fn().mockResolvedValue(undefined);
+    const { service } = baseArgs(
+      { findOne: jest.fn().mockResolvedValue(doc) },
+      { putObject: jest.fn(), deleteObject, signedUrlTtl: 300 },
+    );
+
+    await expect(
+      service.attachInvoiceScan(branchId, actorId, invoiceId.toString(), {
+        buffer: Buffer.from('pdf'),
+        mime: 'application/pdf',
+        ext: 'pdf',
+      }),
+    ).rejects.toThrow('database unavailable');
+
+    expect(deleteObject).toHaveBeenCalledWith(expect.stringContaining(`/invoices/`.slice(1)));
+  });
+
   it('returns a signed URL for the attachment', async () => {
     const invoiceModel = {
       findOne: jest.fn().mockReturnValue({
@@ -739,6 +809,7 @@ describe('InventoryService invoice attachments', () => {
     };
     const storage = {
       putObject: jest.fn(),
+      deleteObject: jest.fn(),
       getSignedDownloadUrl: jest.fn().mockResolvedValue('https://signed.example/z.pdf'),
       signedUrlTtl: 300,
     };

@@ -242,15 +242,12 @@ export class PrescriptionService {
 
     // Enrich with dispute context: the customer and the orders this Rx is linked to.
     const [customer, orders] = await Promise.all([
-      this.customerModel
-        .findById(rx.customerId)
-        .select('firstName lastName phone')
-        .lean<{
-          _id: Types.ObjectId;
-          firstName?: string;
-          lastName?: string;
-          phone: string;
-        } | null>(),
+      this.customerModel.findById(rx.customerId).select('firstName lastName phone').lean<{
+        _id: Types.ObjectId;
+        firstName?: string;
+        lastName?: string;
+        phone: string;
+      } | null>(),
       rx.linkedOrderIds.length
         ? this.orderModel
             .find({ _id: { $in: rx.linkedOrderIds } })

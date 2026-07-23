@@ -24,7 +24,18 @@ export const CreateVendorSchema = z.object({
 });
 export type CreateVendorInput = z.infer<typeof CreateVendorSchema>;
 
-export const UpdateVendorSchema = CreateVendorSchema.partial();
+export const UpdateVendorSchema = CreateVendorSchema.partial().extend({
+  contactName: z.string().trim().max(160).nullable().optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(E164, 'phone must be in international format, e.g. +2348012345678')
+    .nullable()
+    .optional(),
+  email: z.string().trim().email().max(200).nullable().optional(),
+  address: z.string().trim().max(300).nullable().optional(),
+  note: z.string().trim().max(500).nullable().optional(),
+});
 export type UpdateVendorInput = z.infer<typeof UpdateVendorSchema>;
 
 /** Vendor list query — pagination plus a case-insensitive name search. */

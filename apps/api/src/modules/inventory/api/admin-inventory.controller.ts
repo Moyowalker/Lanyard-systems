@@ -56,6 +56,16 @@ const INVOICE_SCAN_MIME_EXT: Record<string, string> = {
 };
 const MAX_INVOICE_SCAN_BYTES = 10 * 1024 * 1024;
 
+function hasInvoiceScanSignature(mime: string, buffer: Buffer): boolean {
+  const signatures: Record<string, number[]> = {
+    'application/pdf': [0x25, 0x50, 0x44, 0x46, 0x2d],
+    'image/jpeg': [0xff, 0xd8, 0xff],
+    'image/png': [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+  };
+  const signature = signatures[mime];
+  return Boolean(signature?.every((byte, index) => buffer[index] === byte));
+}
+
 @ApiTags('admin')
 @ApiBearerAuth()
 @Controller('admin/branches/:branchId/inventory')
@@ -194,6 +204,9 @@ export class AdminInventoryController {
     const ext = INVOICE_SCAN_MIME_EXT[file.mimetype];
     if (!ext) {
       throw new BadRequestException('Unsupported file type — upload a PDF, JPG, or PNG');
+    }
+    if (!hasInvoiceScanSignature(file.mimetype, file.buffer)) {
+      throw new BadRequestException('File contents do not match the selected file type');
     }
     return {
       data: await this.inventory.attachInvoiceScan(branchId, user.sub, id, {

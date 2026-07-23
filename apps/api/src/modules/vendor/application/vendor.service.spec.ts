@@ -34,6 +34,44 @@ describe('VendorService', () => {
     });
   });
 
+  it('stores a normalized name for case-insensitive uniqueness', async () => {
+    const vendor = {
+      toObject: () => ({
+        _id: new Types.ObjectId(),
+        name: 'Emzor',
+        isActive: true,
+        createdAt: new Date(),
+      }),
+    };
+    const create = jest.fn().mockResolvedValue(vendor);
+    const service = new VendorService({ create } as never);
+
+    await service.create({ name: ' Emzor ', isActive: true });
+
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ normalizedName: 'emzor' }));
+  });
+
+  it('unsets optional fields when an update explicitly clears them', async () => {
+    const vendor = {
+      toObject: () => ({
+        _id: new Types.ObjectId(),
+        name: 'Emzor',
+        isActive: true,
+        createdAt: new Date(),
+      }),
+    };
+    const findByIdAndUpdate = jest.fn().mockResolvedValue(vendor);
+    const service = new VendorService({ findByIdAndUpdate } as never);
+
+    await service.update(new Types.ObjectId().toString(), { phone: null, note: null });
+
+    expect(findByIdAndUpdate).toHaveBeenCalledWith(
+      expect.any(String),
+      { $unset: { phone: 1, note: 1 } },
+      { new: true },
+    );
+  });
+
   it('rejects updating a vendor that does not exist', async () => {
     const findByIdAndUpdate = jest.fn().mockResolvedValue(null);
     const service = new VendorService({ findByIdAndUpdate } as never);

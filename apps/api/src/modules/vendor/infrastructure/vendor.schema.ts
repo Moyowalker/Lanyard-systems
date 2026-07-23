@@ -12,8 +12,11 @@ export type VendorDocument = HydratedDocument<Vendor>;
 
 @Schema({ ...baseSchemaOptions, collection: 'vendors' })
 export class Vendor {
-  @Prop({ required: true, trim: true, maxlength: 160, unique: true })
+  @Prop({ required: true, trim: true, maxlength: 160 })
   name: string;
+
+  @Prop({ required: true, unique: true, select: false })
+  normalizedName: string;
 
   @Prop({ type: String, trim: true, maxlength: 160 })
   contactName?: string;

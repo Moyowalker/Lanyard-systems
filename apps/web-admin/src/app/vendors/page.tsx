@@ -74,11 +74,11 @@ export default function VendorsPage() {
     mutationFn: async (payload: VendorForm) => {
       const body = {
         name: payload.name,
-        contactName: payload.contactName || undefined,
-        phone: payload.phone || undefined,
-        email: payload.email || undefined,
-        address: payload.address || undefined,
-        note: payload.note || undefined,
+        contactName: payload.contactName || (payload.id ? null : undefined),
+        phone: payload.phone || (payload.id ? null : undefined),
+        email: payload.email || (payload.id ? null : undefined),
+        address: payload.address || (payload.id ? null : undefined),
+        note: payload.note || (payload.id ? null : undefined),
         isActive: payload.isActive,
       };
       const schema = payload.id ? UpdateVendorSchema : CreateVendorSchema;
