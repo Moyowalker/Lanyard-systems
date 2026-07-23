@@ -15,7 +15,7 @@ export function BranchSelector({
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="relative min-w-[15.5rem]" aria-busy={pending}>
+    <div className="relative min-w-0 flex-1 sm:min-w-[15.5rem]" aria-busy={pending}>
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"

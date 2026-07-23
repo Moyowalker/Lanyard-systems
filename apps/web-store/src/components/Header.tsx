@@ -52,10 +52,12 @@ export async function Header() {
             <SearchBar />
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex min-w-0 flex-1 items-center gap-2 lg:flex-none">
             <BranchSelector branches={branches} selectedId={selected?.id} />
             <AccountMenu />
-            <CartLink />
+            <div className="hidden lg:block">
+              <CartLink />
+            </div>
           </div>
         </div>
 

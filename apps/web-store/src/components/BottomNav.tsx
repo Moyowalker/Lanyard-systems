@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { useCart } from '@/lib/client';
 
 type Item = { href: string; label: string; icon: ReactNode; match: (p: string) => boolean };
 
@@ -72,6 +73,9 @@ const items: Item[] = [
 
 export function BottomNav() {
   const pathname = usePathname() ?? '/';
+  const { data: cart } = useCart();
+  const cartCount = cart?.items.reduce((total, item) => total + item.quantity, 0) ?? 0;
+  const displayCartCount = cartCount > 99 ? '99+' : String(cartCount);
 
   return (
     <nav
@@ -85,21 +89,29 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              aria-label={item.href === '/cart' ? `Cart, ${cartCount} items` : undefined}
               aria-current={active ? 'page' : undefined}
               className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[0.66rem] font-medium transition-colors ${
                 active ? 'text-brand-700' : 'text-ink-900/55'
               }`}
             >
-              <svg
-                viewBox="0 0 24 24"
-                className="h-[22px] w-[22px]"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                aria-hidden="true"
-              >
-                {item.icon}
-              </svg>
+              <span className="relative flex h-[22px] w-[22px] items-center justify-center">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-[22px] w-[22px]"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  aria-hidden="true"
+                >
+                  {item.icon}
+                </svg>
+                {item.href === '/cart' && cartCount > 0 ? (
+                  <span className="tnum absolute -right-3 -top-2 flex h-[1.1rem] min-w-[1.1rem] items-center justify-center rounded-full bg-brand-700 px-1 text-[0.58rem] font-bold leading-none text-white ring-2 ring-white">
+                    {displayCartCount}
+                  </span>
+                ) : null}
+              </span>
               {item.label}
             </Link>
           );
