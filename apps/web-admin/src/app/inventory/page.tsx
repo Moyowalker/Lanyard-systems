@@ -47,6 +47,11 @@ const selectClass =
 const EXPIRING_SOON_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const INVENTORY_COLSPAN = 10;
+const compactNumber = new Intl.NumberFormat('en-NG', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+const exactNumber = new Intl.NumberFormat('en-NG');
 
 function stockTone(row: BranchInventoryItemDto): 'success' | 'warn' | 'danger' {
   if (row.available <= 0) return 'danger';
@@ -351,7 +356,13 @@ export default function InventoryPage() {
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
             <StatCard label="Tracked SKUs" value={rows.length} icon={IconInventory} tone="brand" />
-            <StatCard label="Available units" value={totalAvailable} icon={IconCheck} tone="sky" />
+            <StatCard
+              label="Available units"
+              value={compactNumber.format(totalAvailable)}
+              hint={`${exactNumber.format(totalAvailable)} exact`}
+              icon={IconCheck}
+              tone="sky"
+            />
             <StatCard label="Reserved units" value={totalReserved} icon={IconClock} tone="amber" />
             <StatCard label="Low stock items" value={lowStockCount} icon={IconAlert} tone="rose" />
             <StatCard

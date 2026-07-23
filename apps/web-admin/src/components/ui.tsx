@@ -109,13 +109,13 @@ export function StatCard({
     slate: 'bg-slate-100 text-slate-700',
   };
   return (
-    <Card className="group p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200/70 hover:shadow-card-hover">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-500">{label}</span>
+    <Card className="group min-w-0 overflow-hidden p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200/70 hover:shadow-card-hover">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <span className="min-w-0 text-sm font-medium text-slate-500">{label}</span>
         {Icon && (
           <span
             className={cn(
-              'flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-inset ring-black/[0.03] transition-transform duration-200 group-hover:scale-105',
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ring-black/[0.03] transition-transform duration-200 group-hover:scale-105',
               tones[tone],
             )}
           >
@@ -123,10 +123,10 @@ export function StatCard({
           </span>
         )}
       </div>
-      <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900 [font-variant-numeric:tabular-nums]">
+      <div className="mt-3 min-w-0 overflow-hidden text-ellipsis text-3xl font-bold tracking-tight text-slate-900 [font-variant-numeric:tabular-nums]">
         {value}
       </div>
-      <div className="mt-1.5 flex items-center gap-2">
+      <div className="mt-1.5 flex min-w-0 items-center gap-2">
         {delta && (
           <span
             className={cn(
@@ -141,7 +141,7 @@ export function StatCard({
             {delta.value}
           </span>
         )}
-        {hint && <span className="text-xs text-slate-400">{hint}</span>}
+        {hint && <span className="min-w-0 break-words text-xs text-slate-400">{hint}</span>}
       </div>
     </Card>
   );
