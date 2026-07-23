@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,9 +11,12 @@ import {
   Put,
   Query,
   StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import {
   AdjustInventoryInput,
   AdjustInventorySchema,
@@ -44,6 +48,13 @@ import { AuthPrincipal } from '../../../core/auth/principal';
 import { BranchScopeGuard, PermissionsGuard, RealmGuard } from '../../../core/auth/authz.guards';
 import { ZodValidationPipe } from '../../../core/validation/zod-validation.pipe';
 import { InventoryService } from '../application/inventory.service';
+
+const INVOICE_SCAN_MIME_EXT: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+};
+const MAX_INVOICE_SCAN_BYTES = 10 * 1024 * 1024;
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -166,6 +177,38 @@ export class AdminInventoryController {
     @CurrentUser() user: AuthPrincipal,
   ) {
     await this.inventory.deleteInvoice(branchId, user.sub, id);
+  }
+
+  /** Upload (or replace) the scanned invoice document — an audit artefact. */
+  @Post('invoices/:id/attachment')
+  @RequirePermissions('inventory:receive')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_INVOICE_SCAN_BYTES } }))
+  async attachInvoiceScan(
+    @Param('branchId') branchId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthPrincipal,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('A file is required');
+    const ext = INVOICE_SCAN_MIME_EXT[file.mimetype];
+    if (!ext) {
+      throw new BadRequestException('Unsupported file type — upload a PDF, JPG, or PNG');
+    }
+    return {
+      data: await this.inventory.attachInvoiceScan(branchId, user.sub, id, {
+        buffer: file.buffer,
+        mime: file.mimetype,
+        ext,
+      }),
+    };
+  }
+
+  /** Short-lived signed URL for the scanned invoice attachment. */
+  @Get('invoices/:id/attachment/url')
+  @RequirePermissions('inventory:read')
+  async invoiceAttachmentUrl(@Param('branchId') branchId: string, @Param('id') id: string) {
+    return this.inventory.getInvoiceAttachmentUrl(branchId, id);
   }
 
   @Post('receive')

@@ -71,6 +71,7 @@ export const NAV: NavSection[] = [
         icon: 'inventory',
         permission: 'inventory:adjust',
       },
+      { label: 'Vendors', href: '/vendors', icon: 'vendor', permission: 'vendor:read' },
     ],
   },
   {

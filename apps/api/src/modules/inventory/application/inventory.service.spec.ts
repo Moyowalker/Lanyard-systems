@@ -63,6 +63,7 @@ describe('InventoryService', () => {
       { getPriceMap: jest.fn().mockResolvedValue(new Map()), upsertPrice: jest.fn() } as never,
       audit as never,
       transaction as never,
+      { putObject: jest.fn(), getSignedDownloadUrl: jest.fn(), signedUrlTtl: 300 } as never,
     );
   });
 
@@ -396,6 +397,7 @@ describe('InventoryService.receiveInvoice', () => {
       } as never,
       { record: auditRecord } as never,
       transaction as never,
+      { putObject: jest.fn(), getSignedDownloadUrl: jest.fn(), signedUrlTtl: 300 } as never,
     );
     return { service, invoiceCreate, movementCreate, auditRecord, upsertPrice, invoiceId };
   }
@@ -558,6 +560,7 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
       } as never,
       { record: auditRecord } as never,
       transaction as never,
+      { putObject: jest.fn(), getSignedDownloadUrl: jest.fn(), signedUrlTtl: 300 } as never,
     );
     return { service, invoiceCreate, invoiceDeleteOne, movementCreate, auditRecord, invoiceId };
   }
@@ -664,5 +667,86 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
     const entry = auditRecord.mock.calls.at(-1)?.[0];
     expect(entry.action).toBe('inventory.invoice_paid');
     expect(entry.summary).toContain('marked paid');
+  });
+});
+
+describe('InventoryService invoice attachments', () => {
+  const branchId = new Types.ObjectId().toString();
+  const actorId = new Types.ObjectId().toString();
+
+  function baseArgs(invoiceModel: unknown, storage: unknown) {
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const transaction = {
+      run: jest.fn(async (work: (session: object) => Promise<unknown>) => work({})),
+    };
+    return {
+      audit,
+      service: new InventoryService(
+        { findOne: jest.fn() } as never,
+        { create: jest.fn() } as never,
+        invoiceModel as never,
+        { find: jest.fn() } as never,
+        { find: jest.fn() } as never,
+        { getPriceMap: jest.fn(), upsertPrice: jest.fn() } as never,
+        audit as never,
+        transaction as never,
+        storage as never,
+      ),
+    };
+  }
+
+  it('uploads the scan, stores the key, and audits it', async () => {
+    const invoiceId = new Types.ObjectId();
+    const save = jest.fn().mockResolvedValue(undefined);
+    const doc: Record<string, unknown> = {
+      _id: invoiceId,
+      branchId: new Types.ObjectId(branchId),
+      vendorName: 'Emzor',
+      invoiceNo: 'INV-1',
+      invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+      receivedByStaffId: new Types.ObjectId(actorId),
+      status: 'received',
+      paymentStatus: 'paid',
+      lines: [],
+      save,
+      toObject() {
+        return this;
+      },
+    };
+    const invoiceModel = { findOne: jest.fn().mockResolvedValue(doc) };
+    const putObject = jest.fn().mockResolvedValue(undefined);
+    const storage = { putObject, getSignedDownloadUrl: jest.fn(), signedUrlTtl: 300 };
+    const { service, audit } = baseArgs(invoiceModel, storage);
+
+    const result = await service.attachInvoiceScan(branchId, actorId, invoiceId.toString(), {
+      buffer: Buffer.from('pdf'),
+      mime: 'application/pdf',
+      ext: 'pdf',
+    });
+
+    expect(putObject).toHaveBeenCalledTimes(1);
+    expect(doc.attachmentKey).toContain(`invoices/${branchId}/${invoiceId.toString()}/`);
+    expect(save).toHaveBeenCalled();
+    expect(result.hasAttachment).toBe(true);
+    expect(audit.record.mock.calls.at(-1)?.[0].action).toBe('inventory.invoice_attachment');
+  });
+
+  it('returns a signed URL for the attachment', async () => {
+    const invoiceModel = {
+      findOne: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ attachmentKey: 'invoices/x/y/z.pdf' }),
+      }),
+    };
+    const storage = {
+      putObject: jest.fn(),
+      getSignedDownloadUrl: jest.fn().mockResolvedValue('https://signed.example/z.pdf'),
+      signedUrlTtl: 300,
+    };
+    const { service } = baseArgs(invoiceModel, storage);
+
+    const result = await service.getInvoiceAttachmentUrl(branchId, new Types.ObjectId().toString());
+
+    expect(result.url).toBe('https://signed.example/z.pdf');
+    expect(result.expiresInSeconds).toBe(300);
   });
 });

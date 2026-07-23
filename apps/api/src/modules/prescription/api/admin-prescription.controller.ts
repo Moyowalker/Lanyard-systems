@@ -3,6 +3,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   PaginationQuery,
   PaginationQuerySchema,
+  PrescriptionAdminSearchQuery,
+  PrescriptionAdminSearchQuerySchema,
   RequestPrescriptionInfoInput,
   RequestPrescriptionInfoSchema,
   VerifyPrescriptionInput,
@@ -31,6 +33,17 @@ export class AdminPrescriptionController {
     @Query(new ZodValidationPipe(PaginationQuerySchema)) query: PaginationQuery,
   ) {
     return this.prescriptions.queue(user.branchScope, query);
+  }
+
+  /** Recall search for disputes — by customer phone or order number, across all statuses. */
+  @Get('search')
+  @RequirePermissions('rx:read')
+  search(
+    @CurrentUser() user: AuthPrincipal,
+    @Query(new ZodValidationPipe(PrescriptionAdminSearchQuerySchema))
+    query: PrescriptionAdminSearchQuery,
+  ) {
+    return this.prescriptions.searchAdmin(user.branchScope, query);
   }
 
   @Get(':id')

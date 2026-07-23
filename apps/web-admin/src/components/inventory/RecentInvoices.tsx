@@ -72,6 +72,27 @@ function RecentInvoicesInner({
 
   const base = `/api/admin/branches/${branchId}/inventory/invoices`;
 
+  async function uploadScan(id: string, file: File) {
+    setBusyId(id);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch(`${base}/${id}/attachment`, { method: 'POST', body });
+      if (!res.ok) return;
+      await invoicesQ.refetch();
+      onChanged();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function viewScan(id: string) {
+    const res = await fetch(`${base}/${id}/attachment/url`);
+    if (!res.ok) return;
+    const body = (await res.json()) as { url?: string };
+    if (body.url) window.open(body.url, '_blank', 'noopener');
+  }
+
   return (
     <div>
       <div className="mb-3 flex gap-2">
@@ -191,6 +212,35 @@ function RecentInvoicesInner({
                           Mark paid
                         </Button>
                       ) : null}
+
+                      {/* Scanned invoice attachment (audit) — available on any invoice. */}
+                      {invoice.hasAttachment ? (
+                        <button
+                          type="button"
+                          onClick={() => viewScan(invoice.id)}
+                          className="rounded-lg px-3 py-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-50"
+                        >
+                          View scan
+                        </button>
+                      ) : null}
+                      <label className="cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">
+                        {busyId === invoice.id
+                          ? 'Uploading…'
+                          : invoice.hasAttachment
+                            ? 'Replace scan'
+                            : 'Attach scan'}
+                        <input
+                          type="file"
+                          accept="application/pdf,image/jpeg,image/png"
+                          className="hidden"
+                          disabled={busyId === invoice.id}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void uploadScan(invoice.id, file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
                     </div>
                   </div>
                 </details>

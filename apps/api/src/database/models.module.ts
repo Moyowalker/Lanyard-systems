@@ -18,6 +18,7 @@ import {
   RoleSchema,
 } from '../modules/authz/infrastructure/authz.schemas';
 import { Branch, BranchSchema } from '../modules/branch/infrastructure/branch.schema';
+import { Vendor, VendorSchema } from '../modules/vendor/infrastructure/vendor.schema';
 import {
   Category,
   CategorySchema,
@@ -88,6 +89,7 @@ const MODELS = [
   { name: Permission.name, schema: PermissionSchema },
   { name: Role.name, schema: RoleSchema },
   { name: Branch.name, schema: BranchSchema },
+  { name: Vendor.name, schema: VendorSchema },
   { name: Category.name, schema: CategorySchema },
   { name: Product.name, schema: ProductSchema },
   { name: PriceList.name, schema: PriceListSchema },

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AvScanStatus, RxStatus, VerificationDecision } from '../enums';
+import { PaginationQuerySchema } from './common';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
 
@@ -83,4 +84,32 @@ export interface PrescriptionDto {
 export interface SignedFileUrlDto {
   url: string;
   expiresInSeconds: number;
+}
+
+/* ── Staff prescription recall (dispute lookup) ──
+ * Unlike the pharmacist work queue, this searches ALL statuses (including verified
+ * and rejected) so a fulfilled order's prescription can be recalled during a dispute.
+ * Images stay gated behind phi:view; this surfaces linkage + metadata only. */
+
+export const PrescriptionAdminSearchQuerySchema = PaginationQuerySchema.extend({
+  /** Free-text: a customer phone (E.164) or an order number. */
+  q: z.string().trim().max(120).optional(),
+  status: z.nativeEnum(RxStatus).optional(),
+});
+export type PrescriptionAdminSearchQuery = z.infer<typeof PrescriptionAdminSearchQuerySchema>;
+
+export interface PrescriptionAdminListItemDto {
+  id: string;
+  status: RxStatus;
+  customerName?: string;
+  customerPhone?: string;
+  orderNos: string[];
+  fileCount: number;
+  createdAt: string;
+}
+
+/** Admin prescription detail — the customer-realm DTO plus staff dispute context. */
+export interface AdminPrescriptionDetailDto extends PrescriptionDto {
+  customer?: { id: string; name: string; phone: string };
+  orders?: Array<{ id: string; orderNo: string; status: string; createdAt: string }>;
 }

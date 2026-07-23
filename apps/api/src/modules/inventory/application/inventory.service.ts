@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import * as XLSX from 'xlsx';
 import {
   ActorType,
@@ -11,6 +12,7 @@ import {
   Paginated,
   ReceiveInventoryInput,
   ReceiveInvoiceInput,
+  SignedFileUrlDto,
   StockInvoiceDto,
   StockInvoiceQuery,
   StockMovementDto,
@@ -24,8 +26,16 @@ import { StaffUser } from '../../identity/infrastructure/identity.schemas';
 import { PriceEntry, PricingService } from '../../pricing/application/pricing.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { AuditService } from '../../../core/platform/audit.service';
+import { StorageService } from '../../../core/storage/storage.service';
 import { TransactionService } from '../../../core/platform/transaction.service';
 import { cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
+
+/** A validated scanned-invoice file from the multipart upload. */
+export interface UploadedInvoiceScan {
+  buffer: Buffer;
+  mime: string;
+  ext: string;
+}
 
 type InventorySnapshot = {
   _id: Types.ObjectId;
@@ -85,6 +95,7 @@ export class InventoryService {
     private readonly pricing: PricingService,
     private readonly audit: AuditService,
     private readonly tx: TransactionService,
+    private readonly storage: StorageService,
   ) {}
 
   async listBranchInventory(branchId: string): Promise<BranchInventoryItemDto[]> {
@@ -453,6 +464,49 @@ export class InventoryService {
     return this.toInvoiceDto(invoice.toObject(), undefined);
   }
 
+  /** Attach (or replace) the scanned invoice document — an audit artefact. */
+  async attachInvoiceScan(
+    branchId: string,
+    actorId: string,
+    id: string,
+    file: UploadedInvoiceScan,
+  ): Promise<StockInvoiceDto> {
+    const invoice = await this.invoiceModel.findOne({
+      _id: new Types.ObjectId(id),
+      branchId: new Types.ObjectId(branchId),
+    });
+    if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
+
+    const objectKey = `invoices/${branchId}/${id}/${randomUUID()}.${file.ext}`;
+    await this.storage.putObject(objectKey, file.buffer, file.mime);
+    invoice.attachmentKey = objectKey;
+    await invoice.save();
+
+    await this.recordInvoiceAudit(
+      branchId,
+      actorId,
+      id,
+      'inventory.invoice_attachment',
+      `Scanned invoice attached to ${invoice.invoiceNo} from ${invoice.vendorName}`,
+    );
+    return this.toInvoiceDto(invoice.toObject(), undefined);
+  }
+
+  /** Signed URL for the scanned invoice attachment (short-lived). */
+  async getInvoiceAttachmentUrl(branchId: string, id: string): Promise<SignedFileUrlDto> {
+    const invoice = await this.invoiceModel
+      .findOne({ _id: new Types.ObjectId(id), branchId: new Types.ObjectId(branchId) })
+      .lean<{ attachmentKey?: string } | null>();
+    if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
+    if (!invoice.attachmentKey) {
+      throw new DomainError(ErrorCode.NOT_FOUND, 'No scanned invoice attached');
+    }
+    return {
+      url: await this.storage.getSignedDownloadUrl(invoice.attachmentKey),
+      expiresInSeconds: this.storage.signedUrlTtl,
+    };
+  }
+
   /* ── invoice helpers ── */
 
   /** Resolve product names, existing prices, and validate lines before persisting. */
@@ -504,6 +558,7 @@ export class InventoryService {
   ) {
     return {
       branchId: new Types.ObjectId(branchId),
+      vendorId: input.vendorId ? new Types.ObjectId(input.vendorId) : undefined,
       vendorName: input.vendorName,
       invoiceNo: input.invoiceNo,
       invoiceDate: input.invoiceDate,
@@ -528,6 +583,7 @@ export class InventoryService {
 
   /** Reconstruct a ReceiveInvoiceInput from a stored invoice document (for publish). */
   private invoiceDocToInput(invoice: {
+    vendorId?: Types.ObjectId;
     vendorName: string;
     invoiceNo: string;
     invoiceDate: Date;
@@ -546,6 +602,7 @@ export class InventoryService {
     }>;
   }): ReceiveInvoiceInput {
     return {
+      vendorId: invoice.vendorId?.toString(),
       vendorName: invoice.vendorName,
       invoiceNo: invoice.invoiceNo,
       invoiceDate: invoice.invoiceDate,
@@ -738,6 +795,7 @@ export class InventoryService {
     row: {
       _id: Types.ObjectId;
       branchId: Types.ObjectId;
+      vendorId?: Types.ObjectId;
       vendorName: string;
       invoiceNo: string;
       invoiceDate: Date;
@@ -745,6 +803,7 @@ export class InventoryService {
       status?: 'draft' | 'received';
       paymentStatus?: 'paid' | 'unpaid';
       paymentDueDate?: Date;
+      attachmentKey?: string;
       receivedByStaffId: Types.ObjectId;
       lines: Array<{
         productId: Types.ObjectId;
@@ -764,6 +823,7 @@ export class InventoryService {
     return {
       id: row._id.toString(),
       branchId: row.branchId.toString(),
+      vendorId: row.vendorId?.toString(),
       vendorName: row.vendorName,
       invoiceNo: row.invoiceNo,
       invoiceDate: row.invoiceDate.toISOString(),
@@ -771,6 +831,7 @@ export class InventoryService {
       status: row.status ?? 'received',
       paymentStatus: row.paymentStatus ?? 'unpaid',
       paymentDueDate: row.paymentDueDate?.toISOString(),
+      hasAttachment: Boolean(row.attachmentKey),
       receivedById: row.receivedByStaffId.toString(),
       receivedByName: receivedByName || undefined,
       totalUnits: row.lines.reduce((sum, line) => sum + line.quantity, 0),
