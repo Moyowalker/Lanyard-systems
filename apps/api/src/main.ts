@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { setDefaultResultOrder } from 'node:dns';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -7,6 +8,8 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './core/errors/all-exceptions.filter';
+
+setDefaultResultOrder('ipv4first');
 
 async function bootstrap(): Promise<void> {
   // rawBody: true preserves the unparsed request body so payment webhook signatures

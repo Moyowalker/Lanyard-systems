@@ -13,6 +13,8 @@ import {
 import { Notification } from '../infrastructure/notification.schema';
 import { Order } from '../../order/infrastructure/order.schema';
 import { Prescription } from '../../prescription/infrastructure/prescription.schema';
+import { EmailChannel } from './channels/email.channel';
+import { SmsChannel } from './channels/sms.channel';
 import { NOTIFICATION_QUEUE, NotificationJobData } from '../../../core/queue/queue.constants';
 import { renderTemplate } from './templates';
 
@@ -30,6 +32,8 @@ export class NotificationService {
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
     @InjectModel(Prescription.name) private readonly rxModel: Model<Prescription>,
     @InjectQueue(NOTIFICATION_QUEUE) private readonly queue: Queue<NotificationJobData>,
+    private readonly email: EmailChannel,
+    private readonly sms: SmsChannel,
   ) {}
 
   async notifyOrderEvent(orderId: string, template: string): Promise<void> {
@@ -68,19 +72,12 @@ export class NotificationService {
       code,
       ttlMinutes: Math.max(1, Math.ceil(ttlSeconds / 60)),
     });
-
-    await this.queue.add(
-      'send-direct',
-      {
-        direct: {
-          channel,
-          to: target,
-          subject: rendered.subject,
-          text: rendered.text,
-        },
-      },
-      { removeOnComplete: true, attempts: 3, backoff: { type: 'exponential', delay: 2000 } },
-    );
+    const transport = channel === NotificationChannel.EMAIL ? this.email : this.sms;
+    await transport.send({
+      to: target,
+      subject: rendered.subject,
+      text: rendered.text,
+    });
   }
 
   private async enqueue(

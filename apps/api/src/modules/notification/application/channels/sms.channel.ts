@@ -16,6 +16,10 @@ function errorMessageWithCause(error: unknown): string {
   const cause = (error as Error & { cause?: unknown }).cause;
   if (!cause) return error.message;
 
+  if (cause instanceof AggregateError) {
+    const details = cause.errors.map(errorMessageWithCause).filter(Boolean).join('; ');
+    return details ? `${error.message}: ${details}` : error.message;
+  }
   if (cause instanceof Error) return `${error.message}: ${cause.message}`;
   if (typeof cause === 'object' && cause !== null) {
     const details = cause as { code?: string; message?: string };
