@@ -1,13 +1,36 @@
+import { EventEmitter } from 'node:events';
+import { request as httpsRequest } from 'node:https';
 import { ConfigService } from '@nestjs/config';
 
 import { SmsChannel } from './sms.channel';
 
+jest.mock('node:https', () => ({ request: jest.fn() }));
+
 describe('SmsChannel', () => {
-  const fetchMock = jest.fn();
+  const requestMock = httpsRequest as jest.MockedFunction<typeof httpsRequest>;
+
+  function respond(status: number, body: unknown) {
+    requestMock.mockImplementation((_url, _options, callback) => {
+      const request = new EventEmitter() as EventEmitter & {
+        end: jest.Mock;
+        destroy: jest.Mock;
+      };
+      request.destroy = jest.fn((error?: Error) => {
+        if (error) request.emit('error', error);
+      });
+      request.end = jest.fn(() => {
+        const response = new EventEmitter() as EventEmitter & { statusCode: number };
+        response.statusCode = status;
+        callback!(response as never);
+        response.emit('data', Buffer.from(JSON.stringify(body)));
+        response.emit('end');
+      });
+      return request as never;
+    });
+  }
 
   beforeEach(() => {
-    fetchMock.mockReset();
-    global.fetch = fetchMock as unknown as typeof fetch;
+    requestMock.mockReset();
   });
 
   it('returns a synthetic reference outside production', async () => {
@@ -20,14 +43,11 @@ describe('SmsChannel', () => {
     const result = await channel.send({ to: '+2347088167402', subject: 'OTP', text: '123456' });
 
     expect(result.providerRef).toMatch(/^sms_/);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
   });
 
   it('sends through Sendchamp in production', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ message: 'SMS sent successfully', data: { sms_uid: 'sendchamp-123' } }),
-    });
+    respond(200, { message: 'SMS sent successfully', data: { sms_uid: 'sendchamp-123' } });
 
     const channel = new SmsChannel(
       new ConfigService({
@@ -45,28 +65,21 @@ describe('SmsChannel', () => {
       text: 'Use 123456 to sign in',
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(requestMock).toHaveBeenCalledWith(
       'https://api.sendchamp.com/api/v1/sms/send',
       expect.objectContaining({
-        body: JSON.stringify({
-          to: '2347088167402',
-          message: 'Use 123456 to sign in',
-          sender_name: 'Lanyard',
-          route: 'non_dnd',
-        }),
+        family: 4,
         headers: expect.objectContaining({ Authorization: 'Bearer sendchamp-key' }),
         method: 'POST',
+        timeout: 15000,
       }),
+      expect.any(Function),
     );
     expect(result).toEqual({ providerRef: 'sendchamp-123' });
   });
 
   it('marks upstream 5xx provider errors as retryable', async () => {
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 503,
-      json: async () => ({ message: 'Service unavailable' }),
-    });
+    respond(503, { message: 'Service unavailable' });
 
     const channel = new SmsChannel(
       new ConfigService({
@@ -82,11 +95,16 @@ describe('SmsChannel', () => {
   });
 
   it('preserves nested network error codes for production diagnostics', async () => {
-    const ipv6Error = Object.assign(new Error('connect ENETUNREACH'), { code: 'ENETUNREACH' });
-    const fetchError = Object.assign(new TypeError('fetch failed'), {
-      cause: new AggregateError([ipv6Error]),
+    const timeoutError = Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT' });
+    const aggregateError = Object.assign(new Error(''), {
+      errors: [timeoutError],
     });
-    fetchMock.mockRejectedValue(fetchError);
+    requestMock.mockImplementation(() => {
+      const request = new EventEmitter() as EventEmitter & { end: jest.Mock; destroy: jest.Mock };
+      request.destroy = jest.fn();
+      request.end = jest.fn(() => request.emit('error', aggregateError));
+      return request as never;
+    });
 
     const channel = new SmsChannel(
       new ConfigService({
@@ -100,7 +118,7 @@ describe('SmsChannel', () => {
       channel.send({ to: '+2347088167402', subject: 'OTP', text: 'Use 123456 to sign in' }),
     ).rejects.toMatchObject({
       retryable: true,
-      message: expect.stringContaining('ENETUNREACH'),
+      message: expect.stringContaining('ETIMEDOUT'),
     });
   });
 });

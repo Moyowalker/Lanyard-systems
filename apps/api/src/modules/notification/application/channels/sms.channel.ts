@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import { request as httpsRequest } from 'node:https';
 
 import {
   ChannelSendInput,
@@ -13,20 +14,72 @@ import {
 function errorMessageWithCause(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
 
+  const code = (error as NodeJS.ErrnoException).code;
+  const ownMessage = error.message || code || error.name;
   const cause = (error as Error & { cause?: unknown }).cause;
-  if (!cause) return error.message;
-
-  if (cause instanceof AggregateError) {
-    const details = cause.errors.map(errorMessageWithCause).filter(Boolean).join('; ');
-    return details ? `${error.message}: ${details}` : error.message;
+  const aggregateErrors = (error as Error & { errors?: unknown[] }).errors;
+  if (Array.isArray(aggregateErrors)) {
+    const details = aggregateErrors.map(errorMessageWithCause).filter(Boolean).join('; ');
+    return details ? `${ownMessage}: ${details}` : ownMessage;
   }
-  if (cause instanceof Error) return `${error.message}: ${cause.message}`;
+  if (!cause) return code && !ownMessage.includes(code) ? `${ownMessage} (${code})` : ownMessage;
+
+  const causeErrors = (cause as { errors?: unknown[] } | null)?.errors;
+  if (Array.isArray(causeErrors)) {
+    const details = causeErrors.map(errorMessageWithCause).filter(Boolean).join('; ');
+    return details ? `${ownMessage}: ${details}` : ownMessage;
+  }
+  if (cause instanceof Error) return `${ownMessage}: ${errorMessageWithCause(cause)}`;
   if (typeof cause === 'object' && cause !== null) {
     const details = cause as { code?: string; message?: string };
-    return `${error.message}: ${details.code ?? details.message ?? JSON.stringify(details)}`;
+    return `${ownMessage}: ${details.code ?? details.message ?? JSON.stringify(details)}`;
   }
 
-  return `${error.message}: ${String(cause)}`;
+  return `${ownMessage}: ${String(cause)}`;
+}
+
+function postJsonOverIpv4(
+  url: string,
+  headers: Record<string, string>,
+  body: Record<string, string>,
+): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const payload = Buffer.from(JSON.stringify(body));
+    const request = httpsRequest(
+      url,
+      {
+        method: 'POST',
+        family: 4,
+        timeout: 15_000,
+        headers: {
+          ...headers,
+          'Content-Length': String(payload.byteLength),
+        },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer | string) => chunks.push(Buffer.from(chunk)));
+        response.on('error', reject);
+        response.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          let responseBody: unknown = null;
+          try {
+            responseBody = text ? JSON.parse(text) : null;
+          } catch {
+            responseBody = null;
+          }
+          resolve({ status: response.statusCode ?? 0, body: responseBody });
+        });
+      },
+    );
+    request.on('timeout', () => {
+      request.destroy(
+        Object.assign(new Error('Sendchamp connection timed out'), { code: 'ETIMEDOUT' }),
+      );
+    });
+    request.on('error', reject);
+    request.end(payload);
+  });
 }
 
 /**
@@ -57,6 +110,9 @@ export class SmsChannel implements NotificationChannelPort {
       .get<string>('SENDCHAMP_BASE_URL', 'https://api.sendchamp.com/api/v1')
       .trim();
     const route = this.config.get<string>('SENDCHAMP_SMS_ROUTE', 'non_dnd').trim();
+    if (!accessKey || !senderName) {
+      throw new NotificationDeliveryError('Sendchamp credentials are not configured', false);
+    }
     const to = input.to.replace(/^\+/, '');
     const url = `${baseUrl.replace(/\/+$/, '')}/sms/send`;
 
@@ -64,29 +120,29 @@ export class SmsChannel implements NotificationChannelPort {
       `Sending SMS via Sendchamp: destination=${toMasked} route=${route} host=${new URL(url).host}`,
     );
 
-    let response: Response;
+    let response: { status: number; body: unknown };
     try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
+      response = await postJsonOverIpv4(
+        url,
+        {
           Accept: 'application/json',
           Authorization: `Bearer ${accessKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+        {
           to,
           message: input.text,
           sender_name: senderName,
           route,
-        }),
-      });
+        },
+      );
     } catch (err) {
       const message = errorMessageWithCause(err);
       this.logger.error(`SMS provider network failure: destination=${toMasked} message=${message}`);
       throw new NotificationDeliveryError(message, true);
     }
 
-    const body = (await response.json().catch(() => null)) as {
+    const body = response.body as {
       message?: string;
       data?: {
         id?: string;
@@ -96,7 +152,7 @@ export class SmsChannel implements NotificationChannelPort {
       };
     } | null;
 
-    if (!response.ok) {
+    if (response.status < 200 || response.status >= 300) {
       const message = body?.message || `SMS provider request failed with status ${response.status}`;
       this.logger.error(
         `SMS delivery failed: destination=${toMasked} status=${response.status} message=${message}`,
