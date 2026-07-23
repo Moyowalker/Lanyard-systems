@@ -1,8 +1,11 @@
 import 'reflect-metadata';
+import { setDefaultResultOrder } from 'node:dns';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './app.module';
+
+setDefaultResultOrder('ipv4first');
 
 /**
  * Worker entrypoint. Boots the SAME AppModule (so all services/repositories are

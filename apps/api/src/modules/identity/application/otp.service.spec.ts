@@ -18,7 +18,7 @@ describe('OtpService', () => {
     (notifications.notifyOtp as jest.Mock).mockReset();
   });
 
-  it('enqueues OTP delivery and returns devCode outside production', async () => {
+  it('requests OTP delivery and returns devCode outside production', async () => {
     create.mockResolvedValue({ _id: new Types.ObjectId() });
     (notifications.notifyOtp as jest.Mock).mockResolvedValue(undefined);
 
@@ -62,7 +62,7 @@ describe('OtpService', () => {
     );
   });
 
-  it('removes the challenge and throws when OTP delivery cannot be enqueued', async () => {
+  it('removes the challenge and throws when OTP delivery is rejected', async () => {
     const id = new Types.ObjectId();
     create.mockResolvedValue({ _id: id });
     (notifications.notifyOtp as jest.Mock).mockRejectedValue(new Error('queue unavailable'));

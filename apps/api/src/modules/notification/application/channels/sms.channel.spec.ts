@@ -80,4 +80,27 @@ describe('SmsChannel', () => {
       channel.send({ to: '+2347088167402', subject: 'OTP', text: 'Use 123456 to sign in' }),
     ).rejects.toMatchObject({ retryable: true });
   });
+
+  it('preserves nested network error codes for production diagnostics', async () => {
+    const ipv6Error = Object.assign(new Error('connect ENETUNREACH'), { code: 'ENETUNREACH' });
+    const fetchError = Object.assign(new TypeError('fetch failed'), {
+      cause: new AggregateError([ipv6Error]),
+    });
+    fetchMock.mockRejectedValue(fetchError);
+
+    const channel = new SmsChannel(
+      new ConfigService({
+        NODE_ENV: 'production',
+        SENDCHAMP_ACCESS_KEY: 'sendchamp-key',
+        SENDCHAMP_SENDER_NAME: 'Lanyard',
+      }),
+    );
+
+    await expect(
+      channel.send({ to: '+2347088167402', subject: 'OTP', text: 'Use 123456 to sign in' }),
+    ).rejects.toMatchObject({
+      retryable: true,
+      message: expect.stringContaining('ENETUNREACH'),
+    });
+  });
 });

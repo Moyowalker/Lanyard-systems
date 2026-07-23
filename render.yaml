@@ -7,7 +7,7 @@ services:
     plan: starter
     region: frankfurt
     ipAllowList: []
-    maxmemoryPolicy: allkeys-lru
+    maxmemoryPolicy: noeviction
 
   - type: web
     name: lanyard-api
