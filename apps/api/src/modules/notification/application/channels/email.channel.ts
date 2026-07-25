@@ -97,7 +97,8 @@ export class EmailChannel implements NotificationChannelPort {
       return { providerRef: result.id };
     } catch (err) {
       const cause = err as Error & { responseCode?: number };
-      const retryable = !cause.responseCode || cause.responseCode === 429 || cause.responseCode >= 500;
+      const retryable =
+        !cause.responseCode || cause.responseCode === 429 || cause.responseCode >= 500;
       this.logger.error(
         `Email delivery failed: destination=${toMasked} provider=resend code=${cause.responseCode ?? 'network'} message=${cause.message}`,
       );

@@ -120,7 +120,9 @@ export const envSchema = z
       });
     }
 
-    const hasResend = Boolean(value.RESEND_API_KEY && value.RESEND_FROM_EMAIL && value.RESEND_FROM_NAME);
+    const hasResend = Boolean(
+      value.RESEND_API_KEY && value.RESEND_FROM_EMAIL && value.RESEND_FROM_NAME,
+    );
     const hasSmtp = Boolean(value.SMTP_HOST && value.SMTP_PORT && value.SMTP_FROM);
     if (!hasResend && !hasSmtp) {
       ctx.addIssue({
