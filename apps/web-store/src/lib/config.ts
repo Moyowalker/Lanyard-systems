@@ -9,17 +9,22 @@ function resolveApiUrl(): string {
     return `http://${internalHostport}/${prefix}`;
   }
 
+  if (process.env.LANYARD_REQUIRE_EXPLICIT_CONFIG === 'true') {
+    throw new Error('API_URL or API_HOSTPORT is required in production');
+  }
   return 'http://localhost:4000/api/v1';
 }
 
 export const API_URL = resolveApiUrl();
 
 function resolveStoreUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    process.env.SITE_URL?.trim() ||
-    (process.env.RENDER ? 'https://lanyard-web-store.onrender.com' : 'http://localhost:3000')
-  ).replace(/\/+$/, '');
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || process.env.SITE_URL?.trim();
+  if (configuredUrl) return configuredUrl.replace(/\/+$/, '');
+
+  if (process.env.LANYARD_REQUIRE_EXPLICIT_CONFIG === 'true') {
+    throw new Error('NEXT_PUBLIC_SITE_URL or SITE_URL is required in production');
+  }
+  return 'http://localhost:3000';
 }
 
 export const STORE_URL = resolveStoreUrl();

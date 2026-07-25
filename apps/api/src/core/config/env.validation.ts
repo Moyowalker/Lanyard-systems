@@ -65,20 +65,44 @@ export const envSchema = z
     SENDCHAMP_BASE_URL: z.string().url().default('https://api.sendchamp.com/api/v1'),
     SENDCHAMP_SMS_ROUTE: z.string().default('non_dnd'),
 
-    // Email delivery (Resend)
+    // Email delivery (SMTP relay)
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().positive().optional(),
+    SMTP_FROM: z.string().email().optional(),
+    SMTP_SECURE: z.coerce.boolean().default(false),
+    SMTP_REQUIRE_TLS: z.coerce.boolean().default(false),
+    SMTP_TLS_REJECT_UNAUTHORIZED: z.coerce.boolean().default(true),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
     RESEND_FROM_EMAIL: z.string().email().optional(),
-    RESEND_FROM_NAME: z.string().default('Lanyard Pharmacy'),
+    RESEND_FROM_NAME: z.string().optional(),
 
-    // Payments
-    PAYMENT_PROVIDER: z.enum(['paystack', 'flutterwave']).default('paystack'),
+    // Payments (Paystack at MVP)
     PAYSTACK_SECRET_KEY: z.string().optional(),
-    FLUTTERWAVE_SECRET_KEY: z.string().optional(),
-    FLUTTERWAVE_WEBHOOK_SECRET: z.string().optional(),
+    PAYSTACK_WEBHOOK_SECRET: z.string().optional(),
     ENABLE_DEV_PAYMENT_CONFIRM: z.coerce.boolean().default(false),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;
+
+    if (!value.REDIS_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['REDIS_URL'],
+        message: 'REDIS_URL is required in production',
+      });
+    }
+
+    for (const key of ['S3_ACCESS_KEY', 'S3_SECRET_KEY', 'S3_BUCKET'] as const) {
+      if (!value[key]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} is required in production`,
+        });
+      }
+    }
 
     if (!value.SENDCHAMP_ACCESS_KEY) {
       ctx.addIssue({
@@ -96,45 +120,38 @@ export const envSchema = z
       });
     }
 
-    if (!value.RESEND_API_KEY) {
+    const hasResend = Boolean(value.RESEND_API_KEY && value.RESEND_FROM_EMAIL && value.RESEND_FROM_NAME);
+    const hasSmtp = Boolean(value.SMTP_HOST && value.SMTP_PORT && value.SMTP_FROM);
+    if (!hasResend && !hasSmtp) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['RESEND_API_KEY'],
-        message: 'RESEND_API_KEY is required in production',
+        message:
+          'Production requires RESEND_API_KEY, RESEND_FROM_EMAIL, and RESEND_FROM_NAME, or a complete SMTP configuration',
       });
     }
 
-    if (!value.RESEND_FROM_EMAIL) {
+    if ((value.SMTP_USER && !value.SMTP_PASS) || (!value.SMTP_USER && value.SMTP_PASS)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['RESEND_FROM_EMAIL'],
-        message: 'RESEND_FROM_EMAIL is required in production',
+        path: ['SMTP_USER'],
+        message: 'SMTP_USER and SMTP_PASS must be provided together',
       });
     }
 
-    if (value.PAYMENT_PROVIDER === 'paystack' && !value.PAYSTACK_SECRET_KEY) {
+    if (!value.PAYSTACK_SECRET_KEY?.startsWith('sk_')) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['PAYSTACK_SECRET_KEY'],
-        message: 'PAYSTACK_SECRET_KEY is required in production when PAYMENT_PROVIDER=paystack',
+        message: 'PAYSTACK_SECRET_KEY must be a Paystack secret key beginning with sk_',
       });
     }
 
-    if (value.PAYMENT_PROVIDER === 'flutterwave' && !value.FLUTTERWAVE_SECRET_KEY) {
+    if (!value.PAYSTACK_WEBHOOK_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['FLUTTERWAVE_SECRET_KEY'],
-        message:
-          'FLUTTERWAVE_SECRET_KEY is required in production when PAYMENT_PROVIDER=flutterwave',
-      });
-    }
-
-    if (value.PAYMENT_PROVIDER === 'flutterwave' && !value.FLUTTERWAVE_WEBHOOK_SECRET) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['FLUTTERWAVE_WEBHOOK_SECRET'],
-        message:
-          'FLUTTERWAVE_WEBHOOK_SECRET is required in production when PAYMENT_PROVIDER=flutterwave',
+        path: ['PAYSTACK_WEBHOOK_SECRET'],
+        message: 'PAYSTACK_WEBHOOK_SECRET is required in production',
       });
     }
   });
@@ -151,14 +168,11 @@ export function validateEnv(config: Record<string, unknown>): Env {
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
 
-  if (
-    String(config.RENDER).toLowerCase() === 'true' &&
-    usesLocalMongoHost(parsed.data.MONGODB_URI)
-  ) {
+  if (parsed.data.NODE_ENV === 'production' && usesLocalMongoHost(parsed.data.MONGODB_URI)) {
     throw new Error(
       'Invalid environment configuration:\n' +
-        '  - MONGODB_URI: points to localhost, which is unreachable from Render. ' +
-        'Set this to a MongoDB Atlas or other external replica-set URI in the Render service environment.',
+        '  - MONGODB_URI: production cannot use localhost. ' +
+        'Set this to a MongoDB Atlas or other external replica-set URI.',
     );
   }
 

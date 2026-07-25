@@ -188,7 +188,7 @@ data model. Closes the gap with CVS/Amazon credibility cues.
   read to include a verified-by summary (already on the prescription DTO).
 - **Persistent support channel:** phone / WhatsApp / hours in the store header or footer
   ([layout.tsx](../apps/web-store/src/app/layout.tsx)) on every page. Baseline added using
-  `NEXT_PUBLIC_SUPPORT_*` env values declared in [render.yaml](../render.yaml).
+  `NEXT_PUBLIC_SUPPORT_*` build values declared in the protected GitHub production environment.
 - **Policy pages:** returns/refund policy + NDPA data-privacy page (marketing app already has
   the patterns: [web-marketing](../apps/web-marketing/src/app)); link them from checkout and
   footer. Baseline added at `/returns` and `/privacy`.

@@ -68,13 +68,12 @@ and integration tests.
 
 Swagger UI is exposed at `http://localhost:4000/api/v1/docs` in local development.
 
-For the latest backend readiness assessment, Render deployment notes, and shareable
-Swagger URL patterns, see [docs/architecture/11-render-readiness.md](docs/architecture/11-render-readiness.md).
+For the production topology, Hostinger VPS deployment and rollback procedure, and
+shareable Swagger URL patterns, see
+[docs/architecture/11-hostinger-readiness.md](docs/architecture/11-hostinger-readiness.md).
 
-The repository now includes a Render Blueprint at [render.yaml](render.yaml) for a
-temporary staging deployment of the API, worker, Redis, and the three Next.js apps.
-You still need to provide an external MongoDB replica-set URI (for example MongoDB
-Atlas) during the first Render sync.
+Production runs the API, worker, Redis, Caddy, and three Next.js apps on a Hostinger VPS.
+MongoDB Atlas and the private S3-compatible object store remain external managed services.
 
 Overall product scope and launch sequencing still follow
 [docs/architecture/09-mvp-definition.md](docs/architecture/09-mvp-definition.md).

@@ -58,8 +58,8 @@ Do not launch with mock or unverified provider behavior.
 - [ ] Enable automated backups.
 - [ ] Enable point-in-time recovery.
 - [ ] Run and document a restore drill.
-- [ ] Choose `PAYMENT_PROVIDER` (`paystack` or `flutterwave`) and add matching credentials.
-- [ ] Configure the selected provider webhook URL.
+- [ ] Add Paystack credentials.
+- [ ] Configure the Paystack webhook URL.
 - [ ] Add Sendchamp SMS credentials.
 - [ ] Add SMTP/email credentials.
 - [ ] Add S3-compatible storage credentials.
@@ -69,15 +69,16 @@ Do not launch with mock or unverified provider behavior.
 
 ### How to achieve it
 
-Use [render.yaml](../render.yaml) as the deployment baseline, then manually verify that
-the live Render services match the file. Run the staging payment checklist in
+Use [docker-compose.prod.yml](../infra/docker/docker-compose.prod.yml) and the
+[Hostinger runbook](architecture/11-hostinger-readiness.md) as the deployment baseline.
+Manually verify the live containers and protected VPS environment. Run the staging payment checklist in
 [staging-payment-checklist.md](staging-payment-checklist.md) before any real traffic.
 
 ### Minimum proof required
 
-- Render environment variables present, without exposing secret values.
-- Selected provider webhook configured.
-- Test order paid through selected provider.
+- Required VPS environment variables present, without exposing secret values.
+- Paystack webhook configured.
+- Test order paid through Paystack.
 - Webhook received and order marked paid.
 - Duplicate webhook handled safely.
 - MongoDB restore drill documented with date, owner, recovery time, and result.
@@ -447,14 +448,15 @@ This phase blocks real prescriptions, real customers, and real money.
 
 ### How to Achieve It
 
-Use [../render.yaml](../render.yaml) as the infrastructure starting point, but manually
-verify the live Render environment. The file is not proof that the deployed services are
-configured correctly.
+Use [docker-compose.prod.yml](../infra/docker/docker-compose.prod.yml) and the
+[Hostinger runbook](architecture/11-hostinger-readiness.md) as the infrastructure starting
+point, but manually verify the live containers and protected VPS environment. Committed
+configuration is not proof that the deployed services are configured correctly.
 
 Minimum evidence:
 
-- Render services synced from the blueprint.
-- Required env vars present in Render without exposing secret values.
+- All expected containers run the approved commit SHA.
+- Required env vars are present on the VPS without exposing secret values.
 - Paystack webhook configured and reachable.
 - Test order paid through Paystack.
 - Webhook received and order marked paid.

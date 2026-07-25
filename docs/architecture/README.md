@@ -30,20 +30,20 @@ platform handling **money, medicines, and protected health information (PHI)**.
 
 ## 2. Reading order
 
-| Doc                               | Title                          | Read if you care about…                               |
-| --------------------------------- | ------------------------------ | ----------------------------------------------------- |
-| [01](01-system-architecture.md)   | System Architecture            | How the whole thing fits together                     |
-| [02](02-repository-structure.md)  | Repository Structure           | Monorepo layout, shared packages                      |
-| [03](03-backend-module-design.md) | Backend Module Design          | NestJS modules, boundaries, lifecycle                 |
-| [04](04-frontend-structure.md)    | Frontend Application Structure | Next.js apps, shared UI, state                        |
-| [05](05-database-schema.md)       | Database Schema Design         | MongoDB collections, indexes, branch scoping          |
-| [06](06-api-design.md)            | API Design                     | REST conventions, key endpoints, errors               |
-| [07](07-auth-rbac.md)             | Authentication & RBAC          | Tokens, roles, branch-scoped authz                    |
-| [08](08-infrastructure.md)        | Infrastructure Architecture    | Docker, CI/CD, environments, observability            |
-| [09](09-mvp-definition.md)        | MVP Definition                 | What ships first, and what does not                   |
-| [10](10-risks-mitigation.md)      | Engineering Risks & Mitigation | What can hurt us and the plan                         |
-| [11](11-render-readiness.md)      | Render Readiness               | Backend validation status, Render setup, Swagger URLs |
-| [12](12-compliance-readiness.md)  | Compliance Readiness           | Go-live checklist for PCN, NDPA, and NAFDAC controls  |
+| Doc                               | Title                          | Read if you care about…                              |
+| --------------------------------- | ------------------------------ | ---------------------------------------------------- |
+| [01](01-system-architecture.md)   | System Architecture            | How the whole thing fits together                    |
+| [02](02-repository-structure.md)  | Repository Structure           | Monorepo layout, shared packages                     |
+| [03](03-backend-module-design.md) | Backend Module Design          | NestJS modules, boundaries, lifecycle                |
+| [04](04-frontend-structure.md)    | Frontend Application Structure | Next.js apps, shared UI, state                       |
+| [05](05-database-schema.md)       | Database Schema Design         | MongoDB collections, indexes, branch scoping         |
+| [06](06-api-design.md)            | API Design                     | REST conventions, key endpoints, errors              |
+| [07](07-auth-rbac.md)             | Authentication & RBAC          | Tokens, roles, branch-scoped authz                   |
+| [08](08-infrastructure.md)        | Infrastructure Architecture    | Docker, CI/CD, environments, observability           |
+| [09](09-mvp-definition.md)        | MVP Definition                 | What ships first, and what does not                  |
+| [10](10-risks-mitigation.md)      | Engineering Risks & Mitigation | What can hurt us and the plan                        |
+| [11](11-hostinger-readiness.md)   | Hostinger Deployment           | VPS topology, deployment, rollback, and operations   |
+| [12](12-compliance-readiness.md)  | Compliance Readiness           | Go-live checklist for PCN, NDPA, and NAFDAC controls |
 
 ---
 
@@ -93,5 +93,5 @@ for the full register.
 - The **MVP scope** ([09](09-mvp-definition.md)) is a contract with Product. Scope
   changes are explicit, not implicit.
 - Some documents describe target-state architecture while others now capture validated
-  implementation status. Use [11](11-render-readiness.md) when you need the current
+  implementation status. Use [11](11-hostinger-readiness.md) when you need the current
   backend readiness snapshot.

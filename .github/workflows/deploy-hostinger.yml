@@ -1,0 +1,137 @@
+name: Deploy Hostinger
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: hostinger-production
+  cancel-in-progress: false
+
+env:
+  IMAGE_REGISTRY: ghcr.io/moyowalker/lanyard-systems
+  RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+
+jobs:
+  images:
+    name: Build ${{ matrix.image }}
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: infra/docker/api.Dockerfile
+            app: ''
+          - image: web-store
+            dockerfile: infra/docker/web.Dockerfile
+            app: web-store
+          - image: web-admin
+            dockerfile: infra/docker/web.Dockerfile
+            app: web-admin
+          - image: web-marketing
+            dockerfile: infra/docker/web.Dockerfile
+            app: web-marketing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.IMAGE_REGISTRY }}/${{ matrix.image }}:${{ env.RELEASE_SHA }}
+          build-args: |
+            APP=${{ matrix.app }}
+            NEXT_PUBLIC_SITE_URL=${{ matrix.app == 'web-store' && 'https://store.lanyardpharmacy.com' || matrix.app == 'web-marketing' && 'https://lanyardpharmacy.com' || '' }}
+            NEXT_PUBLIC_STORE_URL=${{ matrix.app == 'web-marketing' && 'https://store.lanyardpharmacy.com' || '' }}
+            NEXT_PUBLIC_GA_ID=${{ vars.NEXT_PUBLIC_GA_ID }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+            NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+            NEXT_PUBLIC_POSTHOG_KEY=${{ vars.NEXT_PUBLIC_POSTHOG_KEY }}
+            NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
+            NEXT_PUBLIC_SUPPORT_PHONE_E164=${{ vars.NEXT_PUBLIC_SUPPORT_PHONE_E164 }}
+            NEXT_PUBLIC_SUPPORT_PHONE_DISPLAY=${{ vars.NEXT_PUBLIC_SUPPORT_PHONE_DISPLAY }}
+            NEXT_PUBLIC_SUPPORT_WHATSAPP_URL=${{ vars.NEXT_PUBLIC_SUPPORT_WHATSAPP_URL }}
+            NEXT_PUBLIC_SUPPORT_HOURS=${{ vars.NEXT_PUBLIC_SUPPORT_HOURS }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    name: Deploy production
+    needs: images
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Upload release manifests
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          DEPLOY_ROOT: ${{ vars.VPS_DEPLOY_ROOT }}
+        run: |
+          tar -czf deployment.tgz infra/docker/docker-compose.prod.yml infra/caddy/Caddyfile scripts/deploy/hostinger.sh
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "mkdir -p '$DEPLOY_ROOT/releases/$RELEASE_SHA'"
+          scp -P "$VPS_PORT" deployment.tgz "$VPS_USER@$VPS_HOST:$DEPLOY_ROOT/releases/$RELEASE_SHA/"
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "tar -xzf '$DEPLOY_ROOT/releases/$RELEASE_SHA/deployment.tgz' -C '$DEPLOY_ROOT/releases/$RELEASE_SHA'"
+
+      - name: Deploy release
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          DEPLOY_ROOT: ${{ vars.VPS_DEPLOY_ROOT }}
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' sh '$DEPLOY_ROOT/releases/$RELEASE_SHA/scripts/deploy/hostinger.sh' '$RELEASE_SHA'"
+
+      - name: Verify public endpoints
+        id: public-health
+        run: |
+          curl --fail --retry 12 --retry-all-errors --retry-delay 10 https://api.lanyardpharmacy.com/api/v1/health/ready
+          curl --fail --retry 6 --retry-all-errors --retry-delay 10 https://lanyardpharmacy.com
+          curl --fail --retry 6 --retry-all-errors --retry-delay 10 https://store.lanyardpharmacy.com
+          curl --fail --retry 6 --retry-all-errors --retry-delay 10 https://admin.lanyardpharmacy.com/login
+
+      - name: Roll back failed public release
+        if: failure() && steps.public-health.outcome == 'failure'
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          DEPLOY_ROOT: ${{ vars.VPS_DEPLOY_ROOT }}
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' sh '$DEPLOY_ROOT/releases/$RELEASE_SHA/scripts/deploy/hostinger.sh' --rollback"

@@ -22,6 +22,7 @@ import { Category, Product } from '../src/modules/catalog/infrastructure/catalog
 import { PriceList } from '../src/modules/pricing/infrastructure/price-list.schema';
 import { InventoryItem } from '../src/modules/inventory/infrastructure/inventory.schemas';
 import { StorageService } from '../src/core/storage/storage.service';
+import { EmailChannel } from '../src/modules/notification/application/channels/email.channel';
 
 /**
  * In-memory storage stub. The real S3/MinIO transport is verified separately (Phase 3b);
@@ -36,6 +37,9 @@ const fakeStorage = {
   getObjectBuffer: async (key: string) => blobStore.get(key) ?? Buffer.alloc(0),
   getSignedDownloadUrl: async (key: string) => `https://test.local/${key}`,
   signedUrlTtl: 300,
+};
+const fakeEmailChannel = {
+  send: async () => ({ providerRef: 'integration-test-email' }),
 };
 
 const PHONE = '+2348090000001';
@@ -55,6 +59,8 @@ describe('Lanyard API integration flows', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(StorageService)
       .useValue(fakeStorage)
+      .overrideProvider(EmailChannel)
+      .useValue(fakeEmailChannel)
       .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalFilters(new AllExceptionsFilter());

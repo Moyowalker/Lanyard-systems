@@ -1,7 +1,7 @@
 # Production Readiness Checklist — Lanyard Pharmacy
 
 **Status: NOT production-ready.** This branch now closes several repo-controlled P0s,
-but the live Render environment still needs to be synced, provisioned, and smoke-tested.
+but the live Hostinger VPS still needs to be provisioned, configured, and smoke-tested.
 The remaining blocker list below must be fully closed before any real customer, real
 prescription, or real money touches the system.
 
@@ -15,13 +15,13 @@ prescription, or real money touches the system.
 
 | Area                  | State                                                              | Worst severity |
 | --------------------- | ------------------------------------------------------------------ | -------------- |
-| Environment variables | ⚠️ Blueprint now production; provider secrets pending              | **P0**         |
+| Environment variables | ⚠️ Production contract exists; provider secrets pending            | **P0**         |
 | Secrets management    | ⚠️ JWT auto-gen OK; MFA secret stored plaintext                    | **P0**         |
 | Logging               | ⚠️ Default logger only; OTP PII leak fixed                         | **P1**         |
 | Monitoring            | ❌ No metrics, no uptime, no alerting                              | **P1**         |
 | Error tracking        | ❌ None (no Sentry/equivalent)                                     | **P1**         |
 | Database backups      | ❌ Not provisioned/verified                                        | **P0**         |
-| SSL/TLS               | ✅ Render-managed; ⚠️ no HSTS/redirect proof                       | **P2**         |
+| SSL/TLS               | ✅ Caddy-configured; ⚠️ live certificate/redirect proof pending    | **P2**         |
 | Rate limiting         | ✅ In-app throttles on auth/leads; add distributed store if scaled | **P2**         |
 | API security          | ⚠️ Good bones; gaps (CSRF, headers)                                | **P1**         |
 | Authentication        | ⚠️ OTP leak in dev mode; staff MFA off                             | **P0**         |
@@ -29,24 +29,24 @@ prescription, or real money touches the system.
 | File uploads          | ⚠️ Validated; AV scanner is a stub                                 | **P0**         |
 | Payment integration   | ⚠️ Dev-confirm gated; mock provider until secrets; refund saga gap | **P0**         |
 | Notifications         | ⚠️ Real adapters exist; off in dev mode                            | **P1**         |
-| Render deployment     | ⚠️ Blueprint on starter/prod; live sync required                   | **P0**         |
+| Hostinger deployment  | ⚠️ Compose/CD implemented; live VPS provisioning required          | **P0**         |
 
 ---
 
 ## 2. Critical blockers (P0) — do not launch until all are closed
 
-- [x] **Flip `NODE_ENV` to `production` on API + worker.** `render.yaml` now sets the API
-      to `NODE_ENV=production`, and the worker inherits it. Confirm the live Render services
-      are synced before launch.
+- [x] **Set `NODE_ENV=production` on API + worker.** The production Compose stack sets
+      both processes to production. Confirm the live containers use the protected production
+      environment before launch.
 - [x] **Stop returning OTP codes to production clients.** `OtpService.issue()` only includes
-      `devCode` outside production; the Render blueprint now boots production mode, so live
+      `devCode` outside production; the production containers boot production mode, so live
       clients should not receive OTP codes. Keep the non-prod dev code path for local QA only.
 - [x] **Disable the dev payment-confirm endpoint.** `/payments/dev/confirm/:intentId` now
-      requires both non-production mode and explicit `ENABLE_DEV_PAYMENT_CONFIRM=true`; Render
-      sets the flag to `false`.
-- [ ] **Provision real provider secrets** (Paystack live, Sendchamp, SMTP) so payments and
-      notifications actually work. `render.yaml` now declares the required secret placeholders,
-      but values must be entered in Render before the production boot check will pass.
+      requires both non-production mode and explicit `ENABLE_DEV_PAYMENT_CONFIRM=true`; the
+      production environment does not enable it.
+- [ ] **Provision real provider secrets** (Paystack live, Sendchamp, Resend or SMTP) so payments and
+      notifications actually work. The Hostinger environment template declares the required
+      placeholders, but real values must be installed on the VPS before boot validation passes.
 - [x] **Add rate limiting.** `@nestjs/throttler` is now globally enabled, with stricter limits
       on customer OTP request/verify, staff login/MFA, `/auth/refresh`, customer registration,
       and the public lead endpoint. Add Redis-backed throttler storage before horizontal scale.
@@ -62,9 +62,9 @@ prescription, or real money touches the system.
       (operator-supplied). Backups are described only as intent in
       [08-infrastructure.md](architecture/08-infrastructure.md) — confirm Atlas automated
       backups + point-in-time recovery are enabled and run one restore drill.
-- [x] **Move off Render free plans in the blueprint.** API + all three web apps now use
-      `plan: starter` in [render.yaml](../render.yaml). Confirm billing/plan changes after
-      the Blueprint sync.
+- [x] **Define paid always-on production compute.** API, worker, Redis, Caddy, and all three
+      web apps now have a Hostinger Compose deployment path. Confirm the VPS plan, backups,
+      and resource headroom after provisioning.
 
 ---
 
@@ -87,7 +87,7 @@ prescription, or real money touches the system.
       ([jwt-auth.guard.ts](../apps/api/src/core/auth/jwt-auth.guard.ts) never checks session state).
 - [ ] **No CSRF defense beyond `sameSite=lax`.** Acceptable for same-origin fetch today, but add a
       token for money-moving routes.
-- [ ] **Notifications hard-depend on dev fallback.** Real Sendchamp/SMTP adapters exist but only fire
+- [ ] **Notifications hard-depend on dev fallback.** Real Sendchamp and Resend/SMTP adapters exist but only fire
       in production with secrets set; validate deliverability end-to-end before launch.
 - [ ] **CI doesn't run integration or E2E.** [ci.yml](../.github/workflows/ci.yml) builds,
       typechecks, unit-tests, and format-checks only. The transactional money/stock invariants
@@ -97,7 +97,7 @@ prescription, or real money touches the system.
 
 ## 4. Medium-priority issues (P2)
 
-- [ ] **HTTPS hardening unproven.** Render terminates TLS, and `helmet()` is enabled
+- [ ] **HTTPS hardening unproven.** Caddy terminates TLS, and `helmet()` is enabled
       ([main.ts:24](../apps/api/src/main.ts)), but confirm HSTS, HTTP→HTTPS redirect, and that
       web apps set secure cookies (`secure` is already gated on `NODE_ENV==='production'`).
 - [ ] **JWT is symmetric HS256, single secret, no rotation, no `aud` enforcement**
@@ -112,8 +112,8 @@ prescription, or real money touches the system.
 - [ ] **Queue processors run in the web process too** — both web API and worker boot the same
       `AppModule`, so the web dyno also runs BullMQ processors (Redis locks prevent double-exec,
       but it's wasteful/risky). See [worker.ts](../apps/api/src/worker.ts).
-- [ ] **CORS allowlist is hard-coded** to `*.onrender.com` URLs in `render.yaml`; move to env per
-      environment and confirm no wildcard.
+- [x] **CORS allowlist is environment-driven** and the production template lists only the
+      marketing, store, and admin origins. Confirm the live value has no wildcard.
 - [ ] **License-expiry alerting missing** — index exists, no job; relies on verify-time blocking only.
 - [ ] **Compliance `gap` items** from [12-compliance-readiness.md](architecture/12-compliance-readiness.md):
       branch activation doesn't enforce in-date `isSuperintendent`; registration captures only
@@ -140,14 +140,14 @@ prescription, or real money touches the system.
 
 - [x] Typed + validated at boot via Zod; fails fast
       ([env.validation.ts](../apps/api/src/core/config/env.validation.ts)).
-- [x] Production branch requires Sendchamp/SMTP/Paystack secrets (`superRefine`).
-- [x] Guard rejects localhost Mongo on Render.
-- [x] **P0:** Render blueprint runs the API in `production`; confirm the live services are synced.
-- [ ] **P2:** CORS origins hard-coded in `render.yaml` rather than env-driven.
+- [x] Production branch requires Sendchamp, Resend or SMTP, and Paystack secrets (`superRefine`).
+- [x] Guard rejects localhost Mongo in production.
+- [x] **P0:** Production Compose runs the API and worker in `production`; confirm the live stack.
+- [x] **P2:** CORS origins are supplied by the protected VPS environment.
 
 ### Secrets management — ⚠️
 
-- [x] `JWT_SECRET` auto-generated by Render (`generateValue: true`); `MONGODB_URI` is `sync:false`.
+- [x] `JWT_SECRET` and `MONGODB_URI` are required in the protected VPS environment file.
 - [x] Passwords hashed with Argon2 ([password.service.ts]) ; OTP/refresh stored as SHA-256.
 - [ ] **P0:** TOTP `mfaSecretRef` stored as the raw secret, not a secrets-manager handle.
 - [ ] **P3:** no secret scanning in CI; rotate the seeded staff password before go-live.
@@ -173,7 +173,7 @@ prescription, or real money touches the system.
 
 ### SSL/TLS — ✅/⚠️
 
-- [x] Render-managed certs; `helmet()` security headers enabled.
+- [x] Caddy-managed certs and redirects are configured; `helmet()` security headers are enabled.
 - [x] Web cookies `httpOnly` + `secure` (gated on production) + `sameSite=lax`.
 - [ ] **P2:** confirm HSTS + HTTP→HTTPS redirect.
 
@@ -219,15 +219,16 @@ prescription, or real money touches the system.
 
 ### Notifications — ⚠️
 
-- [x] Real Sendchamp (SMS) + SMTP (email) adapters; queue-backed; destination masking.
+- [x] Real Sendchamp (SMS) + Resend/SMTP (email) adapters; queue-backed; destination masking.
 - [ ] **P1:** only active in production with secrets; verify deliverability before launch.
 
-### Render deployment — ⚠️
+### Hostinger deployment — ⚠️
 
-- [x] **P0:** blueprint moves API + 3 web apps to `plan: starter` and API `NODE_ENV=production`.
-- [ ] **P0:** sync the Blueprint in Render and verify the live service env/plan match the file.
-- [x] Build filters, health-check path, worker `maxShutdownDelaySeconds`, Redis `keyvalue`
-      service, autodeploy-on-commit all configured sensibly ([render.yaml](../render.yaml)).
+- [x] **P0:** Compose defines API, worker, Redis, Caddy, and three web applications with
+      production mode, health checks, persistence, and graceful shutdown periods.
+- [ ] **P0:** provision the VPS and verify the live environment, images, backups, and firewall.
+- [x] CI-success image builds, protected production approval, immutable SHA deployment, and
+      rollback are defined in [deploy-hostinger.yml](../.github/workflows/deploy-hostinger.yml).
 
 ---
 
@@ -240,8 +241,8 @@ Goal: the deployed environment is no longer a public dev build.
 1. Set `NODE_ENV=production` on `lanyard-api` and `lanyard-api-worker`.
 2. Provision MongoDB Atlas (replica set) with automated backups + PITR enabled; set
    `MONGODB_URI`; run one restore drill and record RPO/RTO.
-3. Add live payment-provider, Sendchamp, and SMTP secrets; confirm the real payment provider is
-   selected and the dev-confirm route 404s.
+3. Add Paystack live, Sendchamp, and Resend or SMTP secrets; confirm the real Paystack provider is selected
+   and the dev-confirm route 404s.
 4. Smoke test: OTP no longer returned in responses; a real test charge settles via webhook only.
    **Exit criteria:** no auth bypass, no free-payment path, data is recoverable.
 
@@ -252,7 +253,7 @@ Goal: the deployed environment is no longer a public dev build.
 2. Build staff MFA enrollment; move the TOTP secret to a secrets manager; enforce MFA for
    `phi:view`/`refund:create`; rotate the seeded password; add staff login lockout.
 3. Replace AV stub with ClamAV/clamd (or cloud malware API) behind the existing interface.
-4. Move API + web apps to paid Render plans with ≥1 always-on instance.
+4. Provision the 4 vCPU/8 GB Hostinger VPS, encrypted backups, firewall, and uptime checks.
    **Exit criteria:** abuse-resistant auth, malware actually scanned, no cold starts.
 
 ### Phase 2 — Observability & money integrity (3–5 days)

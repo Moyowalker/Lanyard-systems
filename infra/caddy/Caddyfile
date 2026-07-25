@@ -1,0 +1,36 @@
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+lanyardpharmacy.com {
+	import security_headers
+	reverse_proxy web-marketing:3000
+}
+
+www.lanyardpharmacy.com {
+	redir https://lanyardpharmacy.com{uri} permanent
+}
+
+store.lanyardpharmacy.com {
+	import security_headers
+	reverse_proxy web-store:3000
+}
+
+admin.lanyardpharmacy.com {
+	import security_headers
+	reverse_proxy web-admin:3000
+}
+
+api.lanyardpharmacy.com {
+	import security_headers
+	reverse_proxy api:4000
+}

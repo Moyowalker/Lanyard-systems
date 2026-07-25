@@ -22,7 +22,7 @@ RUN pnpm --filter @lanyard/contracts build \
  && pnpm --filter @lanyard/api build
 
 # Produce a pruned, production-only deployment of the API.
-RUN pnpm --filter @lanyard/api deploy --prod /app
+RUN pnpm --filter @lanyard/api deploy --legacy --prod /app
 
 # ---------- runtime ----------
 FROM node:20-alpine AS runtime
