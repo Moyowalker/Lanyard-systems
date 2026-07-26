@@ -68,7 +68,10 @@ export const envSchema = z
     // Email delivery (SMTP relay)
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: z.coerce.number().int().positive().optional(),
-    SMTP_FROM: z.string().email().optional(),
+    SMTP_FROM: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().email().optional(),
+    ),
     SMTP_SECURE: z.coerce.boolean().default(false),
     SMTP_REQUIRE_TLS: z.coerce.boolean().default(false),
     SMTP_TLS_REJECT_UNAUTHORIZED: z.coerce.boolean().default(true),
