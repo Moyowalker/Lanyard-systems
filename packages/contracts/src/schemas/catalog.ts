@@ -85,6 +85,17 @@ export const BulkMedicineImportRowSchema = CreateProductSchema.omit({
   .extend({
     rowNumber: z.coerce.number().int().min(1),
     categoryIds: z.array(objectId).default([]),
+    // Imports must classify every medicine EXPLICITLY. CreateProductSchema defaults to OTC,
+    // which is safe for a human filling the admin form but not for a bulk file: a blank or
+    // mistyped class would silently make a prescription-only medicine sellable without a
+    // pharmacist check. No default here — the importer rejects the row instead.
+    regulatoryClass: z.nativeEnum(RegulatoryClass, {
+      required_error: 'regulatoryClass is required (OTC, POM or CONTROLLED)',
+      invalid_type_error: 'regulatoryClass must be one of OTC, POM or CONTROLLED',
+    }),
+    // Imported rows land hidden so staff review price and classification before customers
+    // can see them. CreateProductSchema keeps its PUBLISHED default for the admin form.
+    status: z.nativeEnum(ProductStatus).default(ProductStatus.DRAFT),
     priceKobo: z.coerce.number().int().min(0),
     costKobo: z.coerce.number().int().min(0).optional(),
     compareAtKobo: z.coerce.number().int().min(0).optional(),

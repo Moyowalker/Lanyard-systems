@@ -574,9 +574,11 @@ export default function ProductsPage() {
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 Required columns: <strong>name</strong>, <strong>form</strong>,{' '}
-                <strong>price</strong> or <strong>priceKobo</strong>. Useful optional columns:{' '}
-                genericName, brand, strength, packSize, regulatoryClass, nafdacRegNo, manufacturer,
-                openingQuantity, reorderLevel, batchNo, expiry.
+                <strong>regulatoryClass</strong> (OTC, POM or CONTROLLED), and{' '}
+                <strong>price</strong> or <strong>priceKobo</strong>. Useful optional columns:
+                genericName, brand, strength, packSize, category, nafdacRegNo, manufacturer,
+                openingQuantity, reorderLevel, batchNo, expiry. Rows import as{' '}
+                <strong>draft</strong> — review and publish them afterwards.
               </div>
 
               <InlineNotice message={bulkMessage} />

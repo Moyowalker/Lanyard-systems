@@ -46,6 +46,12 @@ const IMAGE_MIME_EXT: Record<string, string> = {
 };
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+/**
+ * Gate imports on file extension rather than MIME: browsers and OSes disagree wildly on the
+ * content type for spreadsheets (Excel files often arrive as application/octet-stream), so
+ * the extension is the only dependable signal here.
+ */
+const IMPORT_EXTENSIONS = ['.csv', '.xls', '.xlsx'];
 
 /** Catalog administration. Products/categories are GLOBAL → not branch-scoped. */
 @ApiTags('admin')
@@ -85,6 +91,13 @@ export class AdminCatalogController {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_FAILED,
         message: 'CSV or Excel import file is required',
+      });
+    }
+    const name = (file.originalname ?? '').toLowerCase();
+    if (!IMPORT_EXTENSIONS.some((ext) => name.endsWith(ext))) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `Unsupported file type — upload a ${IMPORT_EXTENSIONS.join(', ')} file`,
       });
     }
     return this.bulkImport.importFile(branchId, user.sub, {
