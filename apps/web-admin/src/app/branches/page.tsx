@@ -261,6 +261,13 @@ export default function BranchesPage() {
       });
       return;
     }
+    if (!form.superintendentStaffId) {
+      setMessage({
+        tone: 'danger',
+        text: 'Search for and select the superintendent pharmacist before creating the branch.',
+      });
+      return;
+    }
 
     const basePayload = {
       name: form.name,
@@ -456,7 +463,7 @@ export default function BranchesPage() {
                       placeholder="Search by name, email, phone, or PCN license"
                     />
                     <p className="mt-1 text-xs text-slate-500">
-                      The selected pharmacist id is saved automatically once you choose a result.
+                      Type at least 2 characters, then choose a pharmacist from the results.
                     </p>
 
                     {form.superintendentStaffId ? (

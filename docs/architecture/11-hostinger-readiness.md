@@ -55,6 +55,75 @@ SHA for API and all three web images. Do not deploy or roll back with `latest`.
    `/opt/lanyard/shared/production.env`, replace every placeholder, and set mode `0600`.
 8. Allow only the VPS static egress IP through the Atlas network policy.
 
+### 3.1 SSH access as the deploy user
+
+Use the `deploy` account for interactive access and deployments. The intent is that you
+can log in, inspect releases, edit files when needed, and run the release script without
+becoming root.
+
+1. Add your public key to `/home/deploy/.ssh/authorized_keys` on the VPS.
+2. Confirm the `deploy` user is in the Docker group so it can run `docker` and
+   `docker compose` without `sudo`.
+3. Keep `PermitRootLogin no` and password login disabled; SSH should be key-only.
+4. Record the VPS host key in `VPS_SSH_KNOWN_HOSTS` before any GitHub Actions deploys.
+5. Connect from your machine with:
+
+   ```bash
+   ssh deploy@<vps-hostname-or-ip>
+   ```
+
+6. After login, check the release root and current deployment state:
+
+   ```bash
+   cd /opt/lanyard
+   ls -la
+   cat current-release
+   ```
+
+7. Make changes in the checked-out release tree only if you understand the impact; for
+   long-lived edits, update the source repo and redeploy instead of patching a live
+   release in place.
+8. Deploy the current commit SHA from the VPS with the release script:
+
+   ```bash
+   DEPLOY_ROOT=/opt/lanyard sh /opt/lanyard/releases/<full-git-sha>/scripts/deploy/hostinger.sh
+   ```
+
+9. Roll back to the previous release with:
+
+   ```bash
+   DEPLOY_ROOT=/opt/lanyard sh /opt/lanyard/releases/<current-sha>/scripts/deploy/hostinger.sh --rollback
+   ```
+
+If you need shell history or ad hoc inspection, prefer the `deploy` user over root and
+only escalate with `sudo` for OS-level maintenance.
+
+### 3.2 Troubleshooting `Permission denied (publickey)`
+
+This error means the VPS reached your SSH client, but it did not accept any of the keys
+presented by your machine. The usual causes are a missing public key on the server, the
+wrong private key on your laptop, or incorrect permissions on the server account.
+
+1. Try the connection with an explicit key and verbose logging:
+
+   ```bash
+   ssh -vvv -i ~/.ssh/id_ed25519 deploy@187.124.166.172
+   ```
+
+2. Make sure the matching public key is in `/home/deploy/.ssh/authorized_keys` on the
+   VPS, not just on the `root` account or another user.
+3. Confirm the server-side permissions are strict:
+
+   ```bash
+   chmod 700 /home/deploy/.ssh
+   chmod 600 /home/deploy/.ssh/authorized_keys
+   chown -R deploy:deploy /home/deploy/.ssh
+   ```
+
+4. If you have multiple keys on Windows, point SSH at the correct one instead of relying
+   on auto-discovery.
+5. If the key was newly added, try a fresh session after saving `authorized_keys`.
+
 The production environment must include Atlas, Redis, JWT, CORS, S3, Sendchamp, Resend
 (or SMTP), Paystack, and ACME values. API validation intentionally rejects missing Redis/S3/provider
 configuration and localhost MongoDB in production.
