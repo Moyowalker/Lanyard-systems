@@ -31,8 +31,9 @@ import {
 } from '../application/staff-directory.service';
 
 const StaffLookupQuerySchema = z.object({
-  q: z.string().trim().min(2).max(80),
-  limit: z.coerce.number().int().min(1).max(20).default(8),
+  // Optional: with no query the picker populates on open with the first `limit` staff.
+  q: z.string().trim().min(1).max(80).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
 });
 
 @ApiTags('admin')
@@ -46,11 +47,11 @@ export class AdminStaffController {
     private readonly staffAdmin: StaffAdminService,
   ) {}
 
-  /** Pharmacist typeahead for branch assignment (declared before :id). */
+  /** Staff picker for branch assignment (declared before :id). */
   @Get('lookup')
   @RequirePermissions('branch:write')
   async lookup(@Query(new ZodValidationPipe(StaffLookupQuerySchema)) query: StaffLookupQuery) {
-    return { data: await this.staffDirectory.lookupPharmacists(query) };
+    return { data: await this.staffDirectory.lookupStaff(query) };
   }
 
   @Get()

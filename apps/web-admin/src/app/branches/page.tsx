@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useDeferredValue, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BranchStatus,
@@ -173,8 +173,6 @@ export default function BranchesPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<BranchFormState>(EMPTY_BRANCH_FORM);
   const [message, setMessage] = useState<FormMessage>();
-  const [superintendentQuery, setSuperintendentQuery] = useState('');
-  const deferredSuperintendentQuery = useDeferredValue(superintendentQuery);
 
   const branchesQ = useQuery({
     queryKey: ['admin-branches', 'list'],
@@ -189,18 +187,13 @@ export default function BranchesPage() {
   const selectedBranch = useMemo(() => rows.find((row) => row.id === form.id), [form.id, rows]);
   const activeCount = rows.filter((row) => row.status === BranchStatus.ACTIVE).length;
   const deliveryCount = rows.filter((row) => row.fulfillment?.delivery).length;
-  const shouldLookupSuperintendent =
-    deferredSuperintendentQuery.trim().length >= 2 ||
-    /^[a-f\d]{24}$/i.test(deferredSuperintendentQuery.trim());
-
+  // Populated on load with every active staff member — no typing required. Staff without a PCN
+  // licence are listed too (and labelled), so the picker is never mysteriously empty.
   const staffLookupQ = useQuery({
-    queryKey: ['admin-staff-lookup', deferredSuperintendentQuery],
-    enabled: shouldLookupSuperintendent,
+    queryKey: ['admin-staff-lookup'],
     queryFn: async () => {
-      const res = await fetch(
-        `/api/admin/staff/lookup?q=${encodeURIComponent(deferredSuperintendentQuery.trim())}`,
-      );
-      if (!res.ok) throw new Error('Failed to lookup pharmacists');
+      const res = await fetch('/api/admin/staff/lookup');
+      if (!res.ok) throw new Error('Failed to load staff');
       return (await res.json()) as { data: StaffLookupResult[] };
     },
   });
@@ -209,6 +202,8 @@ export default function BranchesPage() {
   const selectedSuperintendent = staffOptions.find(
     (staff) => staff.id === form.superintendentStaffId,
   );
+  const staffLabel = (staff: StaffLookupResult) =>
+    `${staff.fullName || staff.email}${staff.pcnLicenseNo ? ` · PCN ${staff.pcnLicenseNo}` : ' · no PCN license'}`;
 
   const branchMutation = useMutation({
     mutationFn: async (payload: { mode: 'create' | 'update'; body: unknown; id?: string }) => {
@@ -231,7 +226,6 @@ export default function BranchesPage() {
       });
       if (variables.mode === 'create') {
         setForm(EMPTY_BRANCH_FORM);
-        setSuperintendentQuery('');
       }
       await queryClient.invalidateQueries({ queryKey: ['admin-branches', 'list'] });
     },
@@ -264,7 +258,7 @@ export default function BranchesPage() {
     if (!form.superintendentStaffId) {
       setMessage({
         tone: 'danger',
-        text: 'Search for and select the superintendent pharmacist before creating the branch.',
+        text: 'Select the superintendent staff member before creating the branch.',
       });
       return;
     }
@@ -328,7 +322,6 @@ export default function BranchesPage() {
             variant="secondary"
             onClick={() => {
               setForm(EMPTY_BRANCH_FORM);
-              setSuperintendentQuery('');
               setMessage(undefined);
             }}
           >
@@ -452,93 +445,61 @@ export default function BranchesPage() {
                     <label className={labelClass} htmlFor="branch-superintendent">
                       Superintendent pharmacist
                     </label>
-                    <input
-                      id="branch-superintendent"
-                      value={superintendentQuery}
-                      onChange={(event) => {
-                        setSuperintendentQuery(event.target.value);
-                        setForm((current) => ({ ...current, superintendentStaffId: '' }));
-                      }}
-                      className={inputClass}
-                      placeholder="Search by name, email, phone, or PCN license"
-                    />
-                    <p className="mt-1 text-xs text-slate-500">
-                      Type at least 2 characters, then choose a pharmacist from the results.
-                    </p>
+                    {staffLookupQ.isLoading ? (
+                      <div className="flex items-center gap-2 py-2 text-sm text-slate-500">
+                        <Spinner /> Loading staff...
+                      </div>
+                    ) : staffLookupQ.isError ? (
+                      <div className="py-2 text-sm text-rose-600">Could not load staff.</div>
+                    ) : (
+                      <select
+                        id="branch-superintendent"
+                        value={form.superintendentStaffId}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            superintendentStaffId: event.target.value,
+                          }))
+                        }
+                        className={inputClass}
+                      >
+                        <option value="">Select a staff member…</option>
+                        {staffOptions.map((staff) => (
+                          <option key={staff.id} value={staff.id}>
+                            {staffLabel(staff)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
 
-                    {form.superintendentStaffId ? (
-                      <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                        <div className="font-semibold">
-                          {(selectedSuperintendent?.fullName ?? superintendentQuery) ||
-                            form.superintendentStaffId}
-                        </div>
-                        <div className="mt-0.5 text-xs text-emerald-700/90">
-                          {selectedSuperintendent?.email ?? form.superintendentStaffId}
-                          {selectedSuperintendent?.pcnLicenseNo
-                            ? ` · PCN ${selectedSuperintendent.pcnLicenseNo}`
-                            : ''}
-                          {selectedSuperintendent?.isSuperintendent
-                            ? ' · Current superintendent'
-                            : ''}
-                        </div>
+                    {!staffLookupQ.isLoading && staffOptions.length === 0 ? (
+                      <p className="mt-1 text-xs text-amber-700">
+                        No active staff yet — create a staff member first under Staff &amp; Access.
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Any staff member can be assigned. Add a PCN license on the staff record to
+                        show them as a licensed pharmacist.
+                      </p>
+                    )}
+
+                    {selectedSuperintendent && !selectedSuperintendent.pcnLicenseNo ? (
+                      <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <span className="font-semibold">
+                          {selectedSuperintendent.fullName || selectedSuperintendent.email}
+                        </span>{' '}
+                        has no PCN license on file. PCN rules expect a premises superintendent to be
+                        a registered pharmacist — add their license under Staff &amp; Access.
                       </div>
                     ) : null}
 
-                    {superintendentQuery.trim().length > 0 ? (
-                      <div className="mt-2 rounded-lg border border-slate-200 bg-white shadow-sm">
-                        {staffLookupQ.isLoading ? (
-                          <div className="flex items-center gap-2 px-3 py-2 text-sm text-slate-500">
-                            <Spinner /> Searching pharmacists...
-                          </div>
-                        ) : staffLookupQ.isError ? (
-                          <div className="px-3 py-2 text-sm text-rose-600">
-                            Could not load pharmacist suggestions.
-                          </div>
-                        ) : !shouldLookupSuperintendent ? (
-                          <div className="px-3 py-2 text-sm text-slate-500">
-                            Type at least 2 characters to search.
-                          </div>
-                        ) : staffOptions.length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-slate-500">
-                            No matching pharmacists found.
-                          </div>
-                        ) : (
-                          <div className="divide-y divide-slate-100">
-                            {staffOptions.map((staff) => (
-                              <button
-                                key={staff.id}
-                                type="button"
-                                className={cn(
-                                  'w-full px-3 py-2 text-left transition-colors hover:bg-slate-50',
-                                  form.superintendentStaffId === staff.id && 'bg-brand-50',
-                                )}
-                                onClick={() => {
-                                  setForm((current) => ({
-                                    ...current,
-                                    superintendentStaffId: staff.id,
-                                  }));
-                                  setSuperintendentQuery(staff.fullName);
-                                }}
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div>
-                                    <div className="font-medium text-slate-900">
-                                      {staff.fullName}
-                                    </div>
-                                    <div className="text-xs text-slate-500">
-                                      {staff.email}
-                                      {staff.phone ? ` · ${staff.phone}` : ''}
-                                      {staff.pcnLicenseNo ? ` · PCN ${staff.pcnLicenseNo}` : ''}
-                                    </div>
-                                  </div>
-                                  {staff.isSuperintendent ? (
-                                    <Badge tone="info">Superintendent</Badge>
-                                  ) : null}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                    {selectedSuperintendent?.pcnLicenseNo ? (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                        <span className="font-semibold">{selectedSuperintendent.fullName}</span>
+                        <span>PCN {selectedSuperintendent.pcnLicenseNo}</span>
+                        {selectedSuperintendent.isSuperintendent ? (
+                          <Badge tone="info">Superintendent</Badge>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -886,7 +847,6 @@ export default function BranchesPage() {
                         )}
                         onClick={() => {
                           setForm(toBranchForm(row));
-                          setSuperintendentQuery(row.license?.superintendentStaffId ?? '');
                           setMessage(undefined);
                         }}
                       >

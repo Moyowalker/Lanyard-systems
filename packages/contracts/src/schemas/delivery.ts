@@ -1,14 +1,13 @@
 import { z } from 'zod';
 import { DeliveryStatus } from '../enums';
+import { optionalPhoneSchema } from './phone';
 
 // Staff delivery dispatch. MVP = manual dispatch + status updates (no rider app / GPS).
 // Status actions drive the order through its existing state machine on the server.
 
-const phone = z.string().regex(/^\+[1-9]\d{6,14}$/, 'phone must be E.164, e.g. +2348012345678');
-
 export const DispatchDeliverySchema = z.object({
   riderName: z.string().trim().min(1).max(80),
-  riderPhone: phone.optional(),
+  riderPhone: optionalPhoneSchema,
   vehicle: z.string().trim().max(60).optional(),
   note: z.string().trim().max(280).optional(),
 });

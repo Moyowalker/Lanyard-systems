@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PaymentChannel } from '../enums';
+import { phoneSchema } from './phone';
 
 // Point-of-sale (counter) sales. A cashier rings up a walk-in customer in the admin
 // console; the sale is recorded as a normal order (fulfillment type "counter") that is
@@ -7,7 +8,6 @@ import { PaymentChannel } from '../enums';
 // same inventory ledger and reports as online orders.
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
-const phone = z.string().regex(/^\+[1-9]\d{6,14}$/, 'phone must be E.164, e.g. +2348012345678');
 
 /** A real yyyy-mm-dd calendar date (rejects e.g. 2026-99-99, not just the wrong shape). */
 const isoDate = z
@@ -99,7 +99,7 @@ export const PosCreateSaleSchema = z.object({
   /** Optional walk-in customer capture — links the sale to a customer account by phone. */
   customer: z
     .object({
-      phone,
+      phone: phoneSchema,
       firstName: z.string().trim().min(1).max(80).optional(),
       lastName: z.string().trim().min(1).max(80).optional(),
     })

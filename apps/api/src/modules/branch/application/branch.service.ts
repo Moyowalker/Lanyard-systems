@@ -133,13 +133,22 @@ export class BranchService {
     return branch;
   }
 
+  /**
+   * The superintendent must be a real, live staff member. It is NOT required to be a licensed
+   * pharmacist: that gate was removed at the client's explicit request so branches could be
+   * created before PCN licences are on file.
+   *
+   * Worth knowing if this is ever revisited — PCN rules expect a premises superintendent to be
+   * a registered pharmacist, so the console surfaces each candidate's licence status at the
+   * point of selection to keep it a visible, deliberate choice rather than a silent one.
+   */
   private async assertSuperintendent(staffId: string): Promise<void> {
     const staff = await this.staffModel.findById(staffId).lean();
-    if (!staff || !staff.pharmacist) {
+    if (!staff || staff.deletedAt) {
       throw new DomainError(
         ErrorCode.VALIDATION_FAILED,
-        'superintendentStaffId must reference a pharmacist staff member',
-        [{ field: 'superintendentStaffId', issue: 'not a pharmacist' }],
+        'superintendentStaffId must reference an existing staff member',
+        [{ field: 'superintendentStaffId', issue: 'staff member not found' }],
       );
     }
   }

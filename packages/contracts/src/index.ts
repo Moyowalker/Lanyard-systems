@@ -5,6 +5,7 @@
 export * from './enums';
 export * from './errors';
 export * from './schemas/common';
+export * from './schemas/phone';
 export * from './schemas/auth';
 export * from './schemas/identity';
 export * from './schemas/staff';

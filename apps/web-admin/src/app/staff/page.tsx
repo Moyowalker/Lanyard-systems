@@ -185,6 +185,17 @@ function StaffForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
+  // Pharmacist (PCN) profile. Optional, but a branch superintendent should have one — and
+  // without it nothing in the console could ever record a licence.
+  const [isPharmacist, setIsPharmacist] = useState(Boolean(initial?.pharmacist));
+  const [pcnLicenseNo, setPcnLicenseNo] = useState(initial?.pharmacist?.pcnLicenseNo ?? '');
+  const [licenseExpiry, setLicenseExpiry] = useState(
+    initial?.pharmacist?.licenseExpiry ? initial.pharmacist.licenseExpiry.slice(0, 10) : '',
+  );
+  const [isSuperintendent, setIsSuperintendent] = useState(
+    initial?.pharmacist?.isSuperintendent ?? false,
+  );
+
   function toggle(list: string[], setList: (v: string[]) => void, id: string) {
     setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   }
@@ -196,6 +207,9 @@ function StaffForm({
     if (scope.length === 0) return setError('Assign at least one branch (or All branches).');
     if (!editing && password.length < 12)
       return setError('Password must be at least 12 characters.');
+    if (isPharmacist && !pcnLicenseNo.trim())
+      return setError('Enter the PCN license number, or untick "Licensed pharmacist".');
+    if (isPharmacist && !licenseExpiry) return setError('Enter the PCN license expiry date.');
 
     setBusy(true);
     const body: Record<string, unknown> = {
@@ -204,6 +218,13 @@ function StaffForm({
       phone: phone.trim() || undefined,
       roleIds,
       branchScope: scope,
+      pharmacist: isPharmacist
+        ? {
+            pcnLicenseNo: pcnLicenseNo.trim(),
+            licenseExpiry: new Date(licenseExpiry).toISOString(),
+            isSuperintendent,
+          }
+        : undefined,
     };
     if (editing) body.status = status;
     else {
@@ -337,6 +358,52 @@ function StaffForm({
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <input
+            type="checkbox"
+            checked={isPharmacist}
+            onChange={(e) => setIsPharmacist(e.target.checked)}
+          />
+          Licensed pharmacist (PCN)
+        </label>
+        <p className="mt-1 text-xs text-slate-500">
+          Required to appear as a licensed pharmacist when assigning a branch superintendent.
+        </p>
+        {isPharmacist && (
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>PCN license number</label>
+              <input
+                value={pcnLicenseNo}
+                onChange={(e) => setPcnLicenseNo(e.target.value)}
+                placeholder="PCN/2024/12345"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>License expiry</label>
+              <input
+                value={licenseExpiry}
+                onChange={(e) => setLicenseExpiry(e.target.value)}
+                type="date"
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={isSuperintendent}
+                  onChange={(e) => setIsSuperintendent(e.target.checked)}
+                />
+                Superintendent pharmacist
+              </label>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-5">

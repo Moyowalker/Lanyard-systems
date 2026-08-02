@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { AccountStatus } from '../enums';
+import { optionalPhoneSchema } from './phone';
 
 // Staff & access administration (admin console). Staff CRUD requires staff:read/write;
 // role CRUD requires role:read/write (super-admin only, per seed).
 
-const phone = z.string().regex(/^\+[1-9]\d{6,14}$/, 'phone must be E.164, e.g. +2348012345678');
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a valid id');
 /** A branch id, or the literal "ALL" for cross-branch staff. */
 const branchScopeEntry = z.union([z.literal('ALL'), objectId]);
@@ -20,7 +20,7 @@ export const CreateStaffSchema = z.object({
   email: z.string().email().max(120),
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
-  phone: phone.optional(),
+  phone: optionalPhoneSchema,
   password: z.string().min(12).max(200),
   roleIds: z.array(objectId).min(1, 'Assign at least one role'),
   branchScope: z.array(branchScopeEntry).min(1, 'Assign at least one branch (or ALL)'),
@@ -32,7 +32,7 @@ export const UpdateStaffSchema = z
   .object({
     firstName: z.string().trim().min(1).max(80).optional(),
     lastName: z.string().trim().min(1).max(80).optional(),
-    phone: phone.optional(),
+    phone: optionalPhoneSchema,
     roleIds: z.array(objectId).min(1).optional(),
     branchScope: z.array(branchScopeEntry).min(1).optional(),
     status: z.nativeEnum(AccountStatus).optional(),

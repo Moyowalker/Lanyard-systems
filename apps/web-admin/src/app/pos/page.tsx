@@ -58,6 +58,29 @@ function channelLabel(channel: string): string {
   return PAYMENT_OPTIONS.find((o) => o.value === channel)?.label ?? channel;
 }
 
+/** Channels the customer settles themselves, as opposed to HMO cover. */
+const OUT_OF_POCKET: ReadonlySet<string> = new Set(['cash', 'pos_terminal', 'bank_transfer']);
+
+type PaymentLike = { channel: string; amountKobo?: number };
+
+/**
+ * An HMO line alongside anything the customer pays themselves IS a copay — that is the term
+ * the pharmacy uses. There is no separate `copay` channel; it is the shape of the split.
+ */
+function isCopay(payments: PaymentLike[]): boolean {
+  return (
+    payments.some((p) => p.channel === 'hmo') && payments.some((p) => OUT_OF_POCKET.has(p.channel))
+  );
+}
+
+/** Short description of how a sale was, or is about to be, paid. */
+function paymentSummary(payments: PaymentLike[]): string {
+  if (payments.length === 0) return '—';
+  if (payments.length === 1) return channelLabel(payments[0].channel);
+  const joined = payments.map((p) => channelLabel(p.channel)).join(' + ');
+  return `${isCopay(payments) ? 'Copay' : 'Split'} · ${joined}`;
+}
+
 const inputClass =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
 
@@ -158,16 +181,32 @@ function Receipt({
               <span>Total</span>
               <span>{formatKobo(sale.totals.totalKobo)}</span>
             </div>
-            {sale.payments.map((payment, index) => (
-              <div key={index} className="mt-1 flex justify-between text-slate-500">
-                <span>{sale.payments.length > 1 ? 'Paid via (split)' : 'Paid via'}</span>
-                <span className="font-medium">
-                  {channelLabel(payment.channel)}
-                  {sale.payments.length > 1 ? ` · ${formatKobo(payment.amountKobo)}` : ''}
+            {/* Payment method is the thing cashiers most often need to re-check, so it gets a
+                high-contrast block of its own rather than blending into the meta rows below. */}
+            <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+                  {isCopay(sale.payments)
+                    ? 'Paid via · Copay'
+                    : sale.payments.length > 1
+                      ? 'Paid via · Split'
+                      : 'Paid via'}
                 </span>
               </div>
-            ))}
-            <div className="mt-1 flex justify-between text-slate-500">
+              <div className="mt-1 space-y-0.5">
+                {sale.payments.map((payment, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between text-sm font-semibold text-brand-900"
+                  >
+                    <span>{channelLabel(payment.channel)}</span>
+                    {/* Always show the amount — previously single payments showed none. */}
+                    <span>{formatKobo(payment.amountKobo)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-2 flex justify-between text-slate-500">
               <span>Served by</span>
               <span>{sale.cashier.name ?? 'Staff'}</span>
             </div>
@@ -781,7 +820,9 @@ export default function PosPage() {
       <div>
         <PageHeader
           title={viewingPastSale ? 'Receipt' : 'Sale recorded'}
-          subtitle={viewingPastSale ? 'A past counter sale' : 'Hand the customer their receipt'}
+          subtitle={`${viewingPastSale ? 'A past counter sale' : 'Hand the customer their receipt'} · Paid by ${paymentSummary(
+            completedSale.payments,
+          )}`}
         />
         <Receipt
           sale={completedSale}
@@ -1096,6 +1137,16 @@ export default function PosPage() {
                   </span>
                 </div>
               ) : null}
+              {/* Keeps the chosen method on screen while ringing up, not just inside the
+                  Payment panel further down the page. */}
+              {lines.length > 0 ? (
+                <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                  <span className="text-sm font-medium text-slate-500">Paying by</span>
+                  <span className="text-sm font-semibold text-brand-700">
+                    {paymentSummary(payments)}
+                  </span>
+                </div>
+              ) : null}
             </div>
           </Panel>
 
@@ -1239,7 +1290,9 @@ export default function PosPage() {
                   <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Recording sale…
                 </>
               ) : (
-                <>Charge {formatKobo(totalKobo)}</>
+                <>
+                  Charge {formatKobo(totalKobo)} · {paymentSummary(payments)}
+                </>
               )}
             </Button>
           </Panel>

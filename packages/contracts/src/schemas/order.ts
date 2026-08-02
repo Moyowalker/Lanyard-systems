@@ -1,20 +1,9 @@
 import { z } from 'zod';
 import { FulfillmentType, OrderStatus } from '../enums';
 import type { CartDto } from './cart';
+import { optionalPhoneSchema } from './phone';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
-
-/**
- * Normalize a phone number to E.164 before validation: strip spaces/dashes/parens
- * and convert local Nigerian numbers (0XXXXXXXXXX) to +234. Saved addresses may
- * carry legacy formats that would otherwise fail the strict Mongoose match.
- */
-function normalizePhone(value: unknown): unknown {
-  if (typeof value !== 'string') return value;
-  const stripped = value.replace(/[\s\-().]/g, '');
-  if (/^0\d{10}$/.test(stripped)) return `+234${stripped.slice(1)}`;
-  return stripped === '' ? undefined : stripped;
-}
 
 const fulfillmentSchema = z.object({
   type: z.nativeEnum(FulfillmentType),
@@ -27,13 +16,7 @@ const fulfillmentSchema = z.object({
       city: z.string().trim().min(1),
       state: z.string().trim().min(1),
       country: z.string().trim().default('NG'),
-      contactPhone: z.preprocess(
-        normalizePhone,
-        z
-          .string()
-          .regex(/^\+[1-9]\d{6,14}$/, 'contact phone must be a valid international number')
-          .optional(),
-      ),
+      contactPhone: optionalPhoneSchema,
     })
     .optional(),
 });

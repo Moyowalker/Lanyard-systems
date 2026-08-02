@@ -5,8 +5,131 @@ import {
   buildConsumption,
   buildLowStock,
   buildExpiring,
+  buildPaymentBreakdown,
+  OrderForPaymentBreakdown,
   OrderForReport,
 } from './reports.service';
+
+describe('buildPaymentBreakdown', () => {
+  const channel = (rows: ReturnType<typeof buildPaymentBreakdown>, key: string) =>
+    rows.find((r) => r.channel === key);
+
+  function sale(partial: Partial<OrderForPaymentBreakdown>): OrderForPaymentBreakdown {
+    return {
+      totals: { totalKobo: 100000 },
+      payment: { status: OrderPaymentStatus.PAID },
+      ...partial,
+    };
+  }
+
+  it('buckets a single-channel counter sale', () => {
+    const rows = buildPaymentBreakdown([
+      sale({
+        counterSale: {
+          paymentChannel: 'cash',
+          payments: [{ channel: 'cash', amountKobo: 100000 }],
+        },
+      }),
+    ]);
+    expect(channel(rows, 'cash')).toEqual({ channel: 'cash', totalKobo: 100000, orders: 1 });
+  });
+
+  it('buckets an order with no counter sale as online', () => {
+    const rows = buildPaymentBreakdown([sale({})]);
+    expect(channel(rows, 'online')).toEqual({ channel: 'online', totalKobo: 100000, orders: 1 });
+  });
+
+  // Regression: an HMO+cash copay used to count 1 cash order and 0 HMO orders.
+  it('counts a split sale once against EVERY channel it used', () => {
+    const rows = buildPaymentBreakdown([
+      sale({
+        totals: { totalKobo: 100000 },
+        counterSale: {
+          paymentChannel: 'hmo',
+          payments: [
+            { channel: 'hmo', amountKobo: 70000 },
+            { channel: 'cash', amountKobo: 30000 },
+          ],
+        },
+      }),
+    ]);
+    expect(channel(rows, 'hmo')).toEqual({ channel: 'hmo', totalKobo: 70000, orders: 1 });
+    expect(channel(rows, 'cash')).toEqual({ channel: 'cash', totalKobo: 30000, orders: 1 });
+  });
+
+  it('counts a channel once even when it appears twice in one split', () => {
+    const rows = buildPaymentBreakdown([
+      sale({
+        counterSale: {
+          paymentChannel: 'cash',
+          payments: [
+            { channel: 'cash', amountKobo: 60000 },
+            { channel: 'cash', amountKobo: 40000 },
+          ],
+        },
+      }),
+    ]);
+    expect(channel(rows, 'cash')).toEqual({ channel: 'cash', totalKobo: 100000, orders: 1 });
+  });
+
+  // Regression: refunded orders were dropped entirely, overstating takings.
+  it('nets a fully refunded order down to zero but still counts it', () => {
+    const rows = buildPaymentBreakdown([
+      sale({
+        payment: { status: OrderPaymentStatus.REFUNDED },
+        counterSale: {
+          paymentChannel: 'cash',
+          payments: [{ channel: 'cash', amountKobo: 100000 }],
+        },
+      }),
+    ]);
+    expect(channel(rows, 'cash')).toEqual({ channel: 'cash', totalKobo: 0, orders: 1 });
+  });
+
+  it('nets a partially returned counter sale down by the refunded amount', () => {
+    const rows = buildPaymentBreakdown([
+      sale({
+        counterSale: {
+          paymentChannel: 'cash',
+          payments: [{ channel: 'cash', amountKobo: 100000 }],
+          returns: [{ refundKobo: 25000 }],
+        },
+      }),
+    ]);
+    expect(channel(rows, 'cash')).toEqual({ channel: 'cash', totalKobo: 75000, orders: 1 });
+  });
+
+  it('spreads a refund across split tenders in proportion to each share', () => {
+    const rows = buildPaymentBreakdown([
+      sale({
+        totals: { totalKobo: 100000 },
+        counterSale: {
+          paymentChannel: 'hmo',
+          payments: [
+            { channel: 'hmo', amountKobo: 80000 },
+            { channel: 'cash', amountKobo: 20000 },
+          ],
+          returns: [{ refundKobo: 50000 }],
+        },
+      }),
+    ]);
+    // 50% refunded → each tender halves.
+    expect(channel(rows, 'hmo')?.totalKobo).toBe(40000);
+    expect(channel(rows, 'cash')?.totalKobo).toBe(10000);
+  });
+
+  it('sorts channels by value, highest first', () => {
+    const rows = buildPaymentBreakdown([
+      sale({
+        counterSale: { paymentChannel: 'cash', payments: [{ channel: 'cash', amountKobo: 5000 }] },
+      }),
+      sale({
+        counterSale: { paymentChannel: 'hmo', payments: [{ channel: 'hmo', amountKobo: 90000 }] },
+      }),
+    ]);
+    expect(rows.map((r) => r.channel)).toEqual(['hmo', 'cash']);
+  });
+});
 
 describe('summarizeSales', () => {
   const from = new Date('2026-06-01T00:00:00.000Z');

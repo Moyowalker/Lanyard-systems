@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BranchStatus, FulfillmentType } from '../enums';
+import { optionalPhoneSchema } from './phone';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
 
@@ -53,7 +54,7 @@ export const CreateBranchSchema = z.object({
   status: z.nativeEnum(BranchStatus).default(BranchStatus.INACTIVE),
   address: addressSchema,
   contact: z
-    .object({ phone: z.string().optional(), email: z.string().email().optional() })
+    .object({ phone: optionalPhoneSchema, email: z.string().email().optional() })
     .optional(),
   superintendentStaffId: objectId,
   pcnPremisesNo: z.string().trim().min(1),

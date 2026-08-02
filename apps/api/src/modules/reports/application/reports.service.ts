@@ -38,6 +38,80 @@ function naira(kobo?: number): number {
   return Math.round(kobo ?? 0) / 100;
 }
 
+/** Minimal order shape the payment breakdown needs (plain data — no Mongoose). */
+export interface OrderForPaymentBreakdown {
+  totals: { totalKobo: number };
+  payment?: { status?: string };
+  counterSale?: {
+    paymentChannel?: string;
+    payments?: Array<{ channel: string; amountKobo: number }>;
+    returns?: Array<{ refundKobo?: number }>;
+  };
+}
+
+/**
+ * Revenue grouped by payment channel, net of refunds.
+ *
+ * Counter sales report their till channels — a split contributes to each channel it used.
+ * Online orders bucket as 'online'. Refunds reduce each tender in proportion to its share of
+ * the sale, so a partially-returned counter sale nets down rather than showing full value.
+ */
+export function buildPaymentBreakdown(
+  orders: OrderForPaymentBreakdown[],
+): PaymentChannelBreakdownRow[] {
+  const buckets = new Map<string, { totalKobo: number; orders: number }>();
+  const add = (channel: string, amountKobo: number, countOrder: boolean) => {
+    const bucket = buckets.get(channel) ?? { totalKobo: 0, orders: 0 };
+    bucket.totalKobo += amountKobo;
+    if (countOrder) bucket.orders += 1;
+    buckets.set(channel, bucket);
+  };
+
+  for (const order of orders) {
+    const counter = order.counterSale;
+    const orderTotal = order.totals?.totalKobo ?? 0;
+
+    // Tender lines: the split when present, otherwise the whole sale on its primary channel.
+    const lines = counter?.payments?.length
+      ? counter.payments.map((p) => ({ channel: p.channel, amountKobo: p.amountKobo }))
+      : [{ channel: counter?.paymentChannel ?? 'online', amountKobo: orderTotal }];
+
+    const returned = (counter?.returns ?? []).reduce((sum, r) => sum + (r.refundKobo ?? 0), 0);
+    // An order marked REFUNDED with no itemised returns was reversed in full.
+    const refundedKobo =
+      returned > 0
+        ? Math.min(returned, orderTotal)
+        : order.payment?.status === OrderPaymentStatus.REFUNDED
+          ? orderTotal
+          : 0;
+
+    const gross = lines.reduce((sum, l) => sum + l.amountKobo, 0) || 1;
+    // Each DISTINCT channel counts the order once — previously only the first split line did,
+    // so an HMO+cash sale showed as 1 cash order and 0 HMO orders.
+    const counted = new Set<string>();
+    for (const line of lines) {
+      const net = line.amountKobo - Math.round(refundedKobo * (line.amountKobo / gross));
+      add(line.channel, net, !counted.has(line.channel));
+      counted.add(line.channel);
+    }
+  }
+
+  return [...buckets.entries()]
+    .map(([channel, bucket]) => ({ channel, ...bucket }))
+    .sort((a, b) => b.totalKobo - a.totalKobo);
+}
+
+/** Human labels for exported payment channels — mirrors the console's CHANNEL_LABEL. */
+const CHANNEL_EXPORT_LABEL: Record<string, string> = {
+  cash: 'Cash',
+  pos_terminal: 'Card (terminal)',
+  card: 'Card',
+  bank_transfer: 'Bank transfer',
+  ussd: 'USSD',
+  hmo: 'HMO',
+  online: 'Online',
+};
+
 /** Minimal order shape the pure aggregator needs (plain data — no Mongoose). */
 export interface OrderForReport {
   createdAt: Date | string;
@@ -512,44 +586,19 @@ export class ReportsService {
     const orders = await this.orderModel
       .find({
         createdAt: { $gte: from, $lte: to },
-        'payment.status': OrderPaymentStatus.PAID,
+        // REFUNDED orders are included so their reversal can be netted out. Filtering to PAID
+        // alone silently dropped them, which overstated takings.
+        'payment.status': {
+          $in: [OrderPaymentStatus.PAID, OrderPaymentStatus.REFUNDED],
+        },
         ...this.branchFilter(branchScope, branchId),
       })
-      .select('totals.totalKobo counterSale.paymentChannel counterSale.payments')
-      .lean<
-        Array<{
-          totals: { totalKobo: number };
-          counterSale?: {
-            paymentChannel?: string;
-            payments?: Array<{ channel: string; amountKobo: number }>;
-          };
-        }>
-      >();
+      .select(
+        'totals.totalKobo payment.status counterSale.paymentChannel counterSale.payments counterSale.returns',
+      )
+      .lean<OrderForPaymentBreakdown[]>();
 
-    const buckets = new Map<string, { totalKobo: number; orders: number }>();
-    const add = (channel: string, amountKobo: number, countOrder: boolean) => {
-      const bucket = buckets.get(channel) ?? { totalKobo: 0, orders: 0 };
-      bucket.totalKobo += amountKobo;
-      if (countOrder) bucket.orders += 1;
-      buckets.set(channel, bucket);
-    };
-
-    for (const order of orders) {
-      const counter = order.counterSale;
-      if (counter?.payments?.length) {
-        counter.payments.forEach((payment, index) =>
-          add(payment.channel, payment.amountKobo, index === 0),
-        );
-      } else if (counter?.paymentChannel) {
-        add(counter.paymentChannel, order.totals?.totalKobo ?? 0, true);
-      } else {
-        add('online', order.totals?.totalKobo ?? 0, true);
-      }
-    }
-
-    return [...buckets.entries()]
-      .map(([channel, bucket]) => ({ channel, ...bucket }))
-      .sort((a, b) => b.totalKobo - a.totalKobo);
+    return buildPaymentBreakdown(orders);
   }
 
   /** Items at/below their reorder threshold across the caller's branch scope. */
@@ -834,7 +883,18 @@ export class ReportsService {
       'Value at cost (NGN)': r.valueAtCostKobo != null ? naira(r.valueAtCostKobo) : '',
       'Margin (NGN)': r.marginKobo != null ? naira(r.marginKobo) : '',
     }));
-    return toSpreadsheet(records, {
+
+    // The payment breakdown is shown on screen but used to be dropped from the download
+    // entirely. Append it below the drug rows under its OWN columns (json_to_sheet unions the
+    // keys across rows, so these stay blank for the drug rows) rather than overloading the
+    // product columns, which would misread.
+    const paymentRows = report.paymentBreakdown.map((row) => ({
+      'Payment method': CHANNEL_EXPORT_LABEL[row.channel] ?? row.channel,
+      'Payment orders': row.orders,
+      'Payment total (NGN)': naira(row.totalKobo),
+    }));
+
+    return toSpreadsheet([...records, ...(paymentRows.length > 0 ? [{}, ...paymentRows] : [])], {
       sheetName: 'Consumption',
       filenameBase: 'consumption',
       format,
