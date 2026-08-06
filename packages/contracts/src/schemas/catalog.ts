@@ -137,6 +137,12 @@ export interface BulkMedicineImportRowResult {
   productCreated: boolean;
   priceUpdated: boolean;
   inventoryReceived: boolean;
+  /**
+   * Values the importer had to interpret rather than take literally — a defaulted dosage form,
+   * a century-corrected expiry, stock skipped because the batch had already expired. The row
+   * imported, but a human should look at it. Surfaced in the admin import result.
+   */
+  warnings?: string[];
 }
 
 export interface BulkMedicineImportRowError {
@@ -154,6 +160,8 @@ export interface BulkMedicineImportResultDto {
   createdProducts: number;
   updatedPrices: number;
   receivedInventory: number;
+  /** Total warnings across all imported rows (see BulkMedicineImportRowResult.warnings). */
+  warningCount: number;
   succeeded: BulkMedicineImportRowResult[];
   failed: BulkMedicineImportRowError[];
 }

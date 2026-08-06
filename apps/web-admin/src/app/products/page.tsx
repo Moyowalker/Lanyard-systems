@@ -611,14 +611,37 @@ export default function ProductsPage() {
                   </div>
                   {bulkResult.failed.length > 0 ? (
                     <div className="md:col-span-4">
-                      <div className={labelClass}>Rows to fix</div>
-                      <ul className="mt-2 max-h-40 space-y-1 overflow-auto rounded-lg bg-rose-50 px-3 py-2 text-rose-700">
-                        {bulkResult.failed.slice(0, 12).map((error, index) => (
+                      <div className={labelClass}>Rows to fix ({bulkResult.failed.length})</div>
+                      <ul className="mt-2 max-h-60 space-y-1 overflow-auto rounded-lg bg-rose-50 px-3 py-2 text-rose-700">
+                        {bulkResult.failed.map((error, index) => (
                           <li key={`${error.rowNumber}-${index}`}>
                             Row {error.rowNumber}: {error.field ? `${error.field} - ` : ''}
                             {error.message}
                           </li>
                         ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {/*
+                    Imported rows go live at the status the sheet asks for, so anything the
+                    importer had to interpret — a defaulted dosage form, a corrected expiry,
+                    stock it refused to receive — is listed here as the review queue.
+                  */}
+                  {bulkResult.warningCount > 0 ? (
+                    <div className="md:col-span-4">
+                      <div className={labelClass}>
+                        Imported, but check these ({bulkResult.warningCount})
+                      </div>
+                      <ul className="mt-2 max-h-60 space-y-1 overflow-auto rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+                        {bulkResult.succeeded
+                          .filter((row) => row.warnings?.length)
+                          .map((row) =>
+                            (row.warnings ?? []).map((warning, index) => (
+                              <li key={`${row.rowNumber}-${index}`}>
+                                Row {row.rowNumber} ({row.name}): {warning}
+                              </li>
+                            )),
+                          )}
                       </ul>
                     </div>
                   ) : null}

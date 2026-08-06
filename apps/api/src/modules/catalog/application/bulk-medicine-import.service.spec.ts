@@ -183,8 +183,11 @@ describe('BulkMedicineImportService', () => {
       expect(result.failed.map((f) => f.field)).toEqual(['expiry', 'expiry', 'expiry']);
     });
 
-    it('requires batchNo and expiry together', async () => {
-      const { service } = makeService();
+    // Client stock sheets routinely fill one of the pair. Losing the whole medicine over a
+    // missing batch number is worse than tracking its stock without a batch, so the orphan is
+    // dropped with a warning — but an item is never left holding a batch with no expiry.
+    it('drops a batchNo with no expiry and warns, rather than rejecting the row', async () => {
+      const { service, inventory } = makeService();
 
       const result = await run(
         service,
@@ -194,9 +197,139 @@ describe('BulkMedicineImportService', () => {
         ),
       );
 
-      expect(result.ok).toBe(false);
-      expect(result.failed.map((f) => f.field).sort()).toEqual(['batchNo', 'expiry']);
+      expect(result.ok).toBe(true);
+      const received = inventory.receive.mock.calls[0][2];
+      expect(received.batchNo).toBeUndefined();
+      expect(received.expiry).toBeUndefined();
+      expect(received.quantity).toBe(5);
+      expect(result.succeeded[0].warnings?.join(' ')).toMatch(/BATCH-1.*no expiry/);
     });
+
+    it('drops an expiry with no batchNo and warns', async () => {
+      const { service, inventory } = makeService();
+
+      const result = await run(
+        service,
+        csv(
+          'name,form,regulatoryClass,price,openingQuantity,expiry',
+          'A,tablet,OTC,100,5,2027-12-31',
+        ),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(inventory.receive.mock.calls[0][2].expiry).toBeUndefined();
+      expect(result.succeeded[0].warnings?.join(' ')).toMatch(/no batch number/);
+    });
+
+    // Excel's two-digit year window turns a "mmm-yy" column into 1930s dates. Without this the
+    // row imports stock that is a century expired.
+    it('corrects a pre-2000 expiry to the intended century', async () => {
+      const { service, inventory } = makeService();
+
+      const result = await run(
+        service,
+        csv(
+          'name,form,regulatoryClass,price,openingQuantity,batchNo,expiry',
+          'A,tablet,OTC,100,5,BATCH-1,1930-11-01',
+        ),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(inventory.receive.mock.calls[0][2].expiry.toISOString().slice(0, 10)).toBe(
+        '2030-11-01',
+      );
+      expect(result.succeeded[0].warnings?.join(' ')).toMatch(/two-digit year/);
+    });
+
+    // Expired stock must never become reservable. The catalog entry is still correct, so the
+    // product and its price are created — only the stale count is withheld.
+    it('creates the product but receives no stock when the expiry has already passed', async () => {
+      const { service, catalog, pricing, inventory } = makeService();
+
+      const result = await run(
+        service,
+        csv(
+          'name,form,regulatoryClass,price,openingQuantity,batchNo,expiry',
+          'A,tablet,OTC,100,5,BATCH-1,2020-01-31',
+        ),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(catalog.createProduct).toHaveBeenCalledTimes(1);
+      expect(pricing.upsertPrice).toHaveBeenCalledTimes(1);
+      expect(inventory.receive).not.toHaveBeenCalled();
+      expect(result.succeeded[0].inventoryReceived).toBe(false);
+      expect(result.receivedInventory).toBe(0);
+      expect(result.succeeded[0].warnings?.join(' ')).toMatch(/already passed/);
+    });
+  });
+
+  describe('dosage form', () => {
+    it.each([
+      ['TAB', 'tablet'],
+      ['TBLET', 'tablet'],
+      ['CAP', 'capsule'],
+      ['SOFTGEL', 'capsule'],
+      ['SUSP', 'suspension'],
+      ['INJESCTION', 'injection'],
+      ['EYE/ EAR DROP', 'drops'],
+      ['SUPP', 'suppository'],
+      ['NEEDLE', 'device'],
+      ['tablet', 'tablet'],
+    ])('reads %s as %s', async (value, expected) => {
+      const { service, catalog } = makeService();
+
+      const result = await run(
+        service,
+        csv('name,form,regulatoryClass,price', `A,"${value}",OTC,100`),
+      );
+
+      expect(result.failed).toHaveLength(0);
+      expect(catalog.createProduct.mock.calls[0][0].form).toBe(expected);
+    });
+
+    it('defaults a blank form to other and warns', async () => {
+      const { service, catalog } = makeService();
+
+      const result = await run(service, csv('name,form,regulatoryClass,price', 'A,,OTC,100'));
+
+      expect(result.ok).toBe(true);
+      expect(catalog.createProduct.mock.calls[0][0].form).toBe('other');
+      expect(result.succeeded[0].warnings?.join(' ')).toMatch(/form was blank/);
+    });
+
+    // A genuine typo must stay visible — the fallback to "other" is for blanks, not for
+    // anything the aliases fail to recognise.
+    it('rejects an unrecognised form instead of falling back to other', async () => {
+      const { service, catalog } = makeService();
+
+      const result = await run(
+        service,
+        csv('name,form,regulatoryClass,price', 'A,nebuliser,OTC,100'),
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.failed[0]).toEqual(expect.objectContaining({ field: 'form' }));
+      expect(catalog.createProduct).not.toHaveBeenCalled();
+    });
+  });
+
+  // Imported rows go live at the status the sheet asks for, so a ₦0 price would be a free sale.
+  it('imports a zero-priced medicine as unavailable to buy', async () => {
+    const { service, pricing } = makeService();
+
+    const result = await run(
+      service,
+      csv('name,form,regulatoryClass,price,status', 'A,tablet,OTC,0,published'),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(pricing.upsertPrice).toHaveBeenCalledWith(
+      'branch-1',
+      expect.objectContaining({ priceKobo: 0, isAvailable: false }),
+    );
+    expect(result.warningCount).toBeGreaterThan(0);
+    expect(result.succeeded[0].warnings?.join(' ')).toMatch(/₦0/);
   });
 
   describe('category resolution', () => {

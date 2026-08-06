@@ -8,6 +8,7 @@ import {
   BulkMedicineImportRowSchema,
   CreateProductInput,
   ErrorCode,
+  ProductForm,
   ProductStatus,
   RegulatoryClass,
   UpsertPriceInput,
@@ -41,6 +42,62 @@ interface RowFieldError {
 
 const REGULATORY_CLASSES = Object.values(RegulatoryClass);
 const PRODUCT_STATUSES = Object.values(ProductStatus);
+const PRODUCT_FORMS = Object.values(ProductForm);
+
+/**
+ * Real pharmacy stock sheets abbreviate the dosage form ("TAB", "SUSP", "EYE/EAR DROP") and
+ * misspell it ("INJESCTION", "TBLET"), so an exact enum match rejects most of a client file.
+ *
+ * Aliasing is safe HERE and nowhere else in this importer: `form` is descriptive, it does not
+ * gate dispensing. `regulatoryClass` gets no equivalent map on purpose — guessing there would
+ * put a prescription-only medicine on open sale.
+ *
+ * Keys are matched through `normalizeHeader`, so case, spaces and punctuation are irrelevant
+ * ("EYE/ EAR DROP" and "eye ear drop" collapse to the same key).
+ */
+const FORM_ALIASES: Record<string, ProductForm> = {
+  tab: ProductForm.TABLET,
+  tabs: ProductForm.TABLET,
+  tablets: ProductForm.TABLET,
+  tblet: ProductForm.TABLET,
+  tav: ProductForm.TABLET,
+  caplet: ProductForm.CAPLETS,
+  cap: ProductForm.CAPSULE,
+  caps: ProductForm.CAPSULE,
+  capsules: ProductForm.CAPSULE,
+  softgel: ProductForm.CAPSULE,
+  susp: ProductForm.SUSPENSION,
+  tonic: ProductForm.SYRUP,
+  syr: ProductForm.SYRUP,
+  inj: ProductForm.INJECTION,
+  injesction: ProductForm.INJECTION,
+  infusion: ProductForm.INJECTION,
+  pow: ProductForm.POWDER,
+  sachet: ProductForm.POWDER,
+  sachets: ProductForm.POWDER,
+  drop: ProductForm.DROPS,
+  eyedrop: ProductForm.DROPS,
+  eyedrops: ProductForm.DROPS,
+  eardrop: ProductForm.DROPS,
+  eardrops: ProductForm.DROPS,
+  eyeeardrop: ProductForm.DROPS,
+  eyeeardrops: ProductForm.DROPS,
+  eyeointment: ProductForm.OINTMENT,
+  supp: ProductForm.SUPPOSITORY,
+  supps: ProductForm.SUPPOSITORY,
+  sups: ProductForm.SUPPOSITORY,
+  suppositories: ProductForm.SUPPOSITORY,
+  pessaries: ProductForm.PESSARY,
+  water: ProductForm.SOLUTION,
+  needle: ProductForm.DEVICE,
+  needles: ProductForm.DEVICE,
+  set: ProductForm.DEVICE,
+  syringe: ProductForm.DEVICE,
+  others: ProductForm.OTHER,
+  gel: ProductForm.OTHER,
+  patch: ProductForm.OTHER,
+  patches: ProductForm.OTHER,
+};
 
 @Injectable()
 export class BulkMedicineImportService {
@@ -77,7 +134,7 @@ export class BulkMedicineImportService {
       const rowNumber = index + 2;
       const rowName = this.asText(this.pick(rawRow, ['name', 'medicine', 'product'])) || undefined;
 
-      const { values, errors } = this.normalizeRow(
+      const { values, errors, warnings } = this.normalizeRow(
         rawRow,
         typedRows[index] ?? rawRow,
         rowNumber,
@@ -111,7 +168,7 @@ export class BulkMedicineImportService {
       }
 
       try {
-        const result = await this.importRow(branchId, actorId, parsed.data);
+        const result = await this.importRow(branchId, actorId, parsed.data, warnings);
         succeeded.push(result);
       } catch (err) {
         failed.push(this.toRowError(rowNumber, parsed.data.name, err));
@@ -125,6 +182,7 @@ export class BulkMedicineImportService {
       createdProducts: succeeded.filter((row) => row.productCreated).length,
       updatedPrices: succeeded.filter((row) => row.priceUpdated).length,
       receivedInventory: succeeded.filter((row) => row.inventoryReceived).length,
+      warningCount: succeeded.reduce((total, row) => total + (row.warnings?.length ?? 0), 0),
       succeeded,
       failed,
     };
@@ -134,16 +192,26 @@ export class BulkMedicineImportService {
     branchId: string,
     actorId: string,
     row: BulkMedicineImportRowInput,
+    warnings: string[] = [],
   ): Promise<BulkMedicineImportRowResult> {
+    const rowWarnings = [...warnings];
     const product = await this.catalog.createProduct(this.toProductInput(row));
     const productId = product._id.toString();
+
+    // A ₦0 price is a gap in the client's sheet, not a giveaway. Imported rows go live at the
+    // status the sheet asks for, so leaving one available would put it on open sale for free.
+    // Create it, price it, but hold it back until staff enter the real price.
+    const unpriced = row.priceKobo === 0;
+    if (unpriced) {
+      rowWarnings.push('price is ₦0, so the medicine was imported as unavailable to buy');
+    }
 
     const price: UpsertPriceInput = {
       productId,
       priceKobo: row.priceKobo,
       costKobo: row.costKobo,
       compareAtKobo: row.compareAtKobo,
-      isAvailable: row.isAvailable,
+      isAvailable: unpriced ? false : row.isAvailable,
     };
     await this.pricing.upsertPrice(branchId, price);
 
@@ -168,6 +236,7 @@ export class BulkMedicineImportService {
       productCreated: true,
       priceUpdated: true,
       inventoryReceived,
+      warnings: rowWarnings.length > 0 ? rowWarnings : undefined,
     };
   }
 
@@ -228,21 +297,42 @@ export class BulkMedicineImportService {
     typedRow: RawImportRow,
     rowNumber: number,
     categoryLookup: Map<string, string>,
-  ): { values: Record<string, unknown>; errors: RowFieldError[] } {
+  ): { values: Record<string, unknown>; errors: RowFieldError[]; warnings: string[] } {
     const errors: RowFieldError[] = [];
+    const warnings: string[] = [];
 
     const regulatoryClass = this.parseRegulatoryClass(
       this.pick(row, ['regulatoryClass', 'regulatory_class', 'class']),
       errors,
     );
     const status = this.parseStatus(this.pick(row, ['status']), errors);
+    const form = this.parseForm(
+      this.pick(row, ['form', 'dosageForm', 'dosage_form']),
+      errors,
+      warnings,
+    );
     // Typed view first so a real date cell arrives as a Date, not a US-formatted string.
     const expiryKeys = ['expiry', 'expiryDate', 'expiry_date'];
     const expiry = this.parseExpiry(
       this.pick(typedRow, expiryKeys) ?? this.pick(row, expiryKeys),
       errors,
+      warnings,
     );
     const categoryIds = this.resolveCategories(row, categoryLookup, errors);
+
+    // batchNo and expiry are all-or-nothing downstream (the schema's superRefine enforces it, and
+    // every later stock mutation must supply both once an item has a batch). Client sheets often
+    // fill only one. Drop the orphan and import the row with untracked stock rather than losing
+    // the medicine entirely — a missing batch is recoverable, a missing product is not.
+    let batchNo = this.optionalText(this.pick(row, ['batchNo', 'batch_no', 'batch']));
+    let batchExpiry = expiry;
+    if (batchNo && !batchExpiry) {
+      warnings.push(`batch "${batchNo}" has no expiry date, so stock was received without a batch`);
+      batchNo = undefined;
+    } else if (!batchNo && batchExpiry) {
+      warnings.push('expiry date has no batch number, so stock was received without a batch');
+      batchExpiry = undefined;
+    }
 
     const priceKobo = this.moneyToKobo(
       this.pick(row, ['priceKobo', 'price_kobo', 'priceInKobo', 'price_in_kobo']),
@@ -264,6 +354,31 @@ export class BulkMedicineImportService {
       true,
     );
 
+    // Stock that is already expired must never enter inventory — it would be reservable and
+    // dispensable to a patient. The product and its price are still created (the catalog entry
+    // is correct, only the count is stale), so staff receive real stock through the normal flow.
+    // Checked against the ORIGINAL expiry, before the batch-pairing fixup above can drop it.
+    let openingQuantity = this.pick(row, [
+      'openingQuantity',
+      'opening_quantity',
+      'quantity',
+      'stock',
+      'openingStock',
+      'opening_stock',
+    ]);
+    if (
+      expiry &&
+      expiry.getTime() < Date.now() &&
+      (this.optionalNumber(openingQuantity) ?? 0) > 0
+    ) {
+      warnings.push(
+        `expiry ${expiry.toISOString().slice(0, 10)} has already passed, so no opening stock was received`,
+      );
+      openingQuantity = 0;
+      batchNo = undefined;
+      batchExpiry = undefined;
+    }
+
     return {
       values: {
         rowNumber,
@@ -274,7 +389,7 @@ export class BulkMedicineImportService {
         genericName: this.optionalText(this.pick(row, ['genericName', 'generic_name', 'generic'])),
         brand: this.optionalText(this.pick(row, ['brand'])),
         description: this.optionalText(this.pick(row, ['description'])),
-        form: this.normalizeLower(this.pick(row, ['form', 'dosageForm', 'dosage_form'])),
+        form,
         strength: this.optionalText(this.pick(row, ['strength'])),
         packSize: this.optionalText(this.pick(row, ['packSize', 'pack_size', 'pack'])),
         categoryIds,
@@ -290,20 +405,14 @@ export class BulkMedicineImportService {
         isAvailable: this.booleanValue(
           this.pick(row, ['isAvailable', 'is_available', 'available']),
         ),
-        openingQuantity: this.pick(row, [
-          'openingQuantity',
-          'opening_quantity',
-          'quantity',
-          'stock',
-          'openingStock',
-          'opening_stock',
-        ]),
+        openingQuantity,
         reorderLevel: this.optionalNumber(this.pick(row, ['reorderLevel', 'reorder_level'])),
-        batchNo: this.optionalText(this.pick(row, ['batchNo', 'batch_no', 'batch'])),
-        expiry,
+        batchNo,
+        expiry: batchExpiry,
         reason: this.optionalText(this.pick(row, ['reason', 'note'])),
       },
       errors,
+      warnings,
     };
   }
 
@@ -320,11 +429,6 @@ export class BulkMedicineImportService {
 
   private normalizeHeader(value: string): string {
     return value.toLowerCase().replace(/[^a-z0-9]/g, '');
-  }
-
-  private normalizeLower(value: unknown): string | undefined {
-    const text = this.optionalText(value);
-    return text?.toLowerCase();
   }
 
   /**
@@ -371,12 +475,60 @@ export class BulkMedicineImportService {
   }
 
   /**
+   * Dosage form is descriptive, not safety-bearing, so it is forgiving where regulatoryClass is
+   * strict: known abbreviations resolve via FORM_ALIASES, and a blank column defaults to `other`
+   * with a warning rather than losing the medicine. A value that is neither an enum member nor a
+   * known alias still REJECTS the row — a real typo must stay visible, not silently become
+   * "other". The one exception is a cell with no letters at all (a strength like "80/480" typed
+   * into the wrong column), which is treated as blank.
+   */
+  private parseForm(value: unknown, errors: RowFieldError[], warnings: string[]): ProductForm {
+    const text = this.optionalText(value);
+    if (!text || !/[a-z]/i.test(text)) {
+      if (text) {
+        warnings.push(`form "${text}" is not a dosage form — imported as "${ProductForm.OTHER}"`);
+      } else {
+        warnings.push(`form was blank — imported as "${ProductForm.OTHER}"`);
+      }
+      return ProductForm.OTHER;
+    }
+
+    const key = this.normalizeHeader(text);
+    const exact = PRODUCT_FORMS.find((form) => this.normalizeHeader(form) === key);
+    if (exact) return exact;
+
+    const alias = FORM_ALIASES[key];
+    if (alias) {
+      warnings.push(`form "${text}" was read as "${alias}"`);
+      return alias;
+    }
+
+    errors.push({
+      field: 'form',
+      message: `"${text}" is not a valid form — use one of ${PRODUCT_FORMS.join(', ')}`,
+    });
+    return ProductForm.OTHER;
+  }
+
+  /**
    * Sheets arrive with `raw: false`, so dates are already locale-formatted strings by the time
    * we see them — `new Date('30/12/2028')` is Invalid Date. Parse the formats a Nigerian
    * pharmacy actually types, plus Excel serial numbers, and reject anything else loudly.
    */
-  private parseExpiry(value: unknown, errors: RowFieldError[]): Date | undefined {
-    if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value;
+  private parseExpiry(
+    value: unknown,
+    errors: RowFieldError[],
+    warnings: string[],
+  ): Date | undefined {
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) return undefined;
+      // A date cell arrives as an instant in local time, so a cell displaying "Nov-30" can land
+      // on 1930-10-31T23:00Z. Read the LOCAL calendar date, then rebuild it at UTC midnight.
+      return this.correctCentury(
+        this.utcDate(value.getFullYear(), value.getMonth() + 1, value.getDate(), '', errors),
+        warnings,
+      );
+    }
 
     const text = this.optionalText(value);
     if (!text) return undefined;
@@ -384,18 +536,18 @@ export class BulkMedicineImportService {
     // ISO first: YYYY-MM-DD (also accepts a trailing time component).
     const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
     if (iso) {
-      return this.utcDate(Number(iso[1]), Number(iso[2]), Number(iso[3]), text, errors);
+      return this.correctCentury(
+        this.utcDate(Number(iso[1]), Number(iso[2]), Number(iso[3]), text, errors),
+        warnings,
+      );
     }
 
     // Day-first: DD/MM/YYYY or DD-MM-YYYY.
     const dayFirst = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(text);
     if (dayFirst) {
-      return this.utcDate(
-        Number(dayFirst[3]),
-        Number(dayFirst[2]),
-        Number(dayFirst[1]),
-        text,
-        errors,
+      return this.correctCentury(
+        this.utcDate(Number(dayFirst[3]), Number(dayFirst[2]), Number(dayFirst[1]), text, errors),
+        warnings,
       );
     }
 
@@ -403,7 +555,17 @@ export class BulkMedicineImportService {
     if (/^\d+(\.\d+)?$/.test(text)) {
       const serial = Number(text);
       if (serial > 0 && serial < 100000) {
-        return new Date(Math.round((serial - 25569) * 86400 * 1000));
+        const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+        return this.correctCentury(
+          this.utcDate(
+            date.getUTCFullYear(),
+            date.getUTCMonth() + 1,
+            date.getUTCDate(),
+            text,
+            errors,
+          ),
+          warnings,
+        );
       }
     }
 
@@ -435,6 +597,22 @@ export class BulkMedicineImportService {
       return undefined;
     }
     return date;
+  }
+
+  /**
+   * Excel's two-digit year window sends anything from "30" upwards to the 1900s, so a stock sheet
+   * whose expiry column is formatted "mmm-yy" turns "Nov-30" into November 1930. No pharmacy
+   * stocks a medicine that expired in the 1930s, so a pre-2000 expiry is always this bug: add the
+   * century back. Left as a warning rather than a silent fix because the row still deserves a look.
+   */
+  private correctCentury(date: Date | undefined, warnings: string[]): Date | undefined {
+    if (!date || date.getUTCFullYear() >= 2000) return date;
+    const corrected = new Date(date);
+    corrected.setUTCFullYear(date.getUTCFullYear() + 100);
+    warnings.push(
+      `expiry ${date.toISOString().slice(0, 10)} was read as ${corrected.toISOString().slice(0, 10)} (Excel two-digit year)`,
+    );
+    return corrected;
   }
 
   /**
