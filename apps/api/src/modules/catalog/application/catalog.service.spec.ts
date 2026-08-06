@@ -14,8 +14,12 @@ function chain(leanImpl: () => Promise<unknown>) {
 function buildService(productFind: jest.Mock) {
   const productModel = { find: productFind } as never;
   const categoryModel = { findOne: jest.fn() } as never;
-  const pricing = { getPriceMap: jest.fn(), upsertPrice: jest.fn() } as never;
-  const inventory = { getAvailabilityMap: jest.fn() } as never;
+  const pricing = {
+    getPriceMap: jest.fn().mockResolvedValue(new Map()),
+    getPricedProductIds: jest.fn(),
+    upsertPrice: jest.fn(),
+  } as never;
+  const inventory = { getAvailabilityMap: jest.fn().mockResolvedValue(new Map()) } as never;
   const storage = { getSignedDownloadUrl: jest.fn() } as never;
   return new CatalogService(productModel, categoryModel, pricing, inventory, storage);
 }
@@ -69,5 +73,37 @@ describe('CatalogService search resilience', () => {
 
     expect(result.data[0].name).toBe('Barcoded Drug');
     expect(find).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('CatalogService branch catalog pagination', () => {
+  it('filters to branch-priced products before applying the page limit', async () => {
+    const pricedProduct = new Types.ObjectId();
+    const rows = [
+      {
+        _id: pricedProduct,
+        slug: 'priced-medicine',
+        name: 'Priced Medicine',
+        form: 'tablet',
+        regulatoryClass: 'OTC',
+      },
+    ];
+    const find = jest.fn().mockReturnValueOnce(chain(() => Promise.resolve(rows)));
+    const service = buildService(find);
+    const pricing = (
+      service as unknown as { pricing: { getPricedProductIds: jest.Mock; getPriceMap: jest.Mock } }
+    ).pricing;
+    pricing.getPricedProductIds.mockResolvedValue([pricedProduct]);
+    pricing.getPriceMap.mockResolvedValue(
+      new Map([
+        [pricedProduct.toString(), { priceKobo: 10000, currency: 'NGN', isAvailable: true }],
+      ]),
+    );
+
+    const result = await service.listProducts({ branchId: '6a733cb323c9dd5bda0d8945', limit: 20 });
+
+    expect(find).toHaveBeenCalledWith(expect.objectContaining({ _id: { $in: [pricedProduct] } }));
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].slug).toBe('priced-medicine');
   });
 });

@@ -61,6 +61,7 @@ export class CatalogService {
       status: ProductStatus.PUBLISHED,
       ...cursorFilter(query.cursor),
     };
+    await this.restrictToBranchPrices(filter, query.branchId);
     if (query.category) {
       const cat = await this.categoryModel.findOne({ slug: query.category }).lean();
       filter.categoryIds = cat?._id ?? new Types.ObjectId(); // no match → empty result
@@ -108,6 +109,7 @@ export class CatalogService {
       status: ProductStatus.PUBLISHED,
       ...cursorFilter(query.cursor),
     };
+    await this.restrictToBranchPrices(filter, query.branchId, true);
 
     const rows = query.q
       ? await this.textOrSubstring(filter, query.q, query.limit + 1, true)
@@ -379,6 +381,23 @@ export class CatalogService {
     const items = await this.decorate(rows, branchId);
     // Keep priced products even when out of stock (shown with an "Out of stock" badge).
     return branchId ? items.filter((i) => i.price) : items;
+  }
+
+  /**
+   * Apply branch price visibility before the product query is limited. Filtering after
+   * pagination strands priced products behind unrelated global catalog rows and can return a
+   * short first page with no next cursor.
+   */
+  private async restrictToBranchPrices(
+    filter: FilterQuery<Product>,
+    branchId?: string,
+    includeHidden = false,
+  ): Promise<void> {
+    if (!branchId) return;
+
+    const productIds = await this.pricing.getPricedProductIds(branchId, includeHidden);
+    const cursor = (filter._id as Record<string, unknown> | undefined) ?? {};
+    filter._id = { ...cursor, $in: productIds };
   }
 
   /**

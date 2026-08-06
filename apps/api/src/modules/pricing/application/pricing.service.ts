@@ -44,6 +44,15 @@ export class PricingService {
     return this.priceModel.find({ branchId: new Types.ObjectId(branchId) }).lean();
   }
 
+  /** Product IDs with a branch price, optionally including prices hidden from the storefront. */
+  async getPricedProductIds(branchId: string, includeHidden = false): Promise<Types.ObjectId[]> {
+    const filter: Record<string, unknown> = { branchId: new Types.ObjectId(branchId) };
+    if (!includeHidden) filter.isAvailable = true;
+
+    const rows = await this.priceModel.find(filter, { productId: 1 }).lean();
+    return rows.map((row) => row.productId);
+  }
+
   async upsertPrice(
     branchId: string,
     input: UpsertPriceInput,

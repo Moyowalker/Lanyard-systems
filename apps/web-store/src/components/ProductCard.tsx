@@ -6,10 +6,10 @@ import { ProductQuantityControl } from './ProductQuantityControl';
 
 function ProductMedia({ product }: { product: ProductListItemDto }) {
   const image = product.images?.[0];
-  const initial = product.name.trim().charAt(0).toUpperCase() || 'L';
+  const form = product.form?.replace(/_/g, ' ') || 'Medicine';
 
   return (
-    <div className="relative aspect-square overflow-hidden rounded-xl bg-paper-50">
+    <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gradient-to-br from-brand-50 via-white to-paper-50">
       {image ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -19,12 +19,14 @@ function ProductMedia({ product }: { product: ProductListItemDto }) {
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center">
-          <span className="select-none text-5xl font-semibold text-brand-200">{initial}</span>
+        <div className="flex h-full w-full items-center justify-between p-4">
+          <span className="max-w-[7.5rem] text-[0.66rem] font-semibold uppercase tracking-[0.12em] text-brand-800/75">
+            {form}
+          </span>
           <svg
             viewBox="0 0 48 48"
             aria-hidden="true"
-            className="absolute h-10 w-10 text-brand-400/70"
+            className="h-12 w-12 text-brand-500/70"
             fill="none"
           >
             <rect
@@ -77,14 +79,14 @@ export function ProductCard({
       : 'text-brand-700';
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-paper-200 bg-white p-2.5 transition duration-200 hover:border-brand-200 hover:shadow-lift">
+    <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-paper-200 bg-white p-2.5 transition duration-200 hover:border-brand-300 hover:shadow-lift">
       <Link href={`/products/${product.slug}`} aria-label={product.name}>
         <ProductMedia product={product} />
       </Link>
 
-      <div className="flex flex-1 flex-col px-1 pt-3">
+      <div className="flex flex-1 flex-col px-1 pt-2.5">
         <Link href={`/products/${product.slug}`}>
-          <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink-900 transition group-hover:text-brand-700">
+          <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug text-ink-900 transition group-hover:text-brand-700">
             {product.name}
           </h3>
         </Link>
@@ -116,7 +118,7 @@ export function ProductCard({
           </div>
         ) : null}
 
-        <div className="mt-3">
+        <div className="mt-2.5">
           <ProductQuantityControl
             branchId={branchId}
             productId={product.id}

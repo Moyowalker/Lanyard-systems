@@ -23,6 +23,43 @@ function ArrowIcon({ className }: { className?: string }) {
   );
 }
 
+const CATEGORY_SPOTLIGHTS = [
+  'antimalarial',
+  'antibiotics',
+  'analgesics',
+  'antidiabetics',
+  'antihypertensives',
+  'cold-flu',
+  'supplements',
+  'diagnostics',
+];
+
+function CategoryMark({ slug }: { slug: string }) {
+  const isDiagnostic = slug === 'diagnostics';
+  const isSupplement = slug === 'supplements';
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      {isDiagnostic ? (
+        <>
+          <circle cx="11" cy="11" r="5.5" />
+          <path d="m15 15 4.5 4.5M8 11h6M11 8v6" strokeLinecap="round" />
+        </>
+      ) : isSupplement ? (
+        <>
+          <path d="M12 20c4-3.1 6-6.1 6-10-3.8 0-6 1.8-6 6 0-4.2-2.2-6-6-6 0 3.9 2 6.9 6 10Z" strokeLinejoin="round" />
+          <path d="M12 16V7" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <rect x="8.5" y="7.5" width="12" height="6" rx="3" transform="rotate(-30 20.5 13.5)" />
+          <path d="M4 10h6M4 14h4" strokeLinecap="round" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export default async function HomePage() {
   const branches = await listBranches().catch(() => []);
   const selected = resolveBranch(branches, (await cookies()).get(COOKIE.branch)?.value);
@@ -36,7 +73,10 @@ export default async function HomePage() {
   const products = productsResponse?.data ?? [];
   const categories = categoriesResponse?.data ?? [];
   const productsUnavailable = productsResponse == null;
-  const featuredCategories = categories.slice(0, 8);
+  const featuredCategories = CATEGORY_SPOTLIGHTS.flatMap((slug) => {
+    const category = categories.find((item) => item.slug === slug);
+    return category ? [category] : [];
+  });
   const branchLabel = selected ? selected.name : null;
 
   return (
@@ -134,32 +174,26 @@ export default async function HomePage() {
       {/* Category quick-nav */}
       {featuredCategories.length > 0 ? (
         <section>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-lg font-semibold text-ink-900">Shop by category</h2>
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <div className="section-kicker">Shop by need</div>
+              <h2 className="mt-1 text-xl font-semibold text-ink-900">Find the right kind of care</h2>
+            </div>
+            <Link href="/categories" className="text-sm font-semibold text-brand-700 hover:text-brand-800">
+              All categories
+            </Link>
           </div>
-          <div className="flex gap-2.5 overflow-x-auto pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible lg:grid-cols-8">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-8">
             {featuredCategories.map((category) => (
               <Link
                 key={category.id}
                 href={`/category/${category.slug}`}
-                className="group flex flex-none flex-col items-center gap-2 rounded-xl border border-paper-200 bg-white px-4 py-3.5 text-center transition hover:border-brand-200 hover:bg-brand-50 sm:flex-1"
+                className="group flex min-h-[8.25rem] flex-col items-start justify-between rounded-xl border border-paper-200 bg-white p-3.5 text-left transition hover:border-brand-300 hover:bg-brand-50"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-700 transition group-hover:bg-white">
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    aria-hidden="true"
-                  >
-                    <rect x="9" y="6" width="12" height="6" rx="3" transform="rotate(-30 24 24)" />
-                    <path d="M4 9h7M4 13h5" strokeLinecap="round" />
-                  </svg>
+                  <CategoryMark slug={category.slug} />
                 </span>
-                <span className="whitespace-nowrap text-xs font-medium text-ink-900 sm:whitespace-normal">
-                  {category.name}
-                </span>
+                <span className="text-sm font-semibold leading-snug text-ink-900">{category.name}</span>
               </Link>
             ))}
           </div>
@@ -169,15 +203,18 @@ export default async function HomePage() {
       {/* Product grid */}
       <section>
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-lg font-semibold text-ink-900">
-            {branchLabel ? `Popular at ${branchLabel}` : 'Popular medicines'}
-          </h2>
+          <div>
+            <div className="section-kicker">Branch catalogue</div>
+            <h2 className="mt-1 text-xl font-semibold text-ink-900">
+              {branchLabel ? `Available at ${branchLabel}` : 'Medicines ready to browse'}
+            </h2>
+          </div>
           {!productsUnavailable && products.length > 0 ? (
             <Link
-              href="/search"
+              href="/categories"
               className="text-sm font-semibold text-brand-700 hover:text-brand-800"
             >
-              See all
+              Browse catalogue
             </Link>
           ) : null}
         </div>
