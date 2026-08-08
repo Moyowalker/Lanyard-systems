@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import {
+  AccountStatus,
+  ALL_BRANCHES,
+  BranchAccessCapabilityDto,
+  BranchAccessSummaryDto,
   BranchLocatorQuery,
   BranchStatus,
   BranchSummaryDto,
@@ -15,14 +19,41 @@ import {
 
 import { Branch, BranchDocument } from '../infrastructure/branch.schema';
 import { StaffUser } from '../../identity/infrastructure/identity.schemas';
+import { Role } from '../../authz/infrastructure/authz.schemas';
 import { DomainError } from '../../../core/errors/domain-error';
 import { cursorFilter, paginate } from '../../../core/pagination/cursor';
+
+const BRANCH_CAPABILITY_RULES: Array<{ key: string; label: string; permissions?: string[] }> = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'prescriptions', label: 'Prescriptions', permissions: ['rx:read', 'rx:verify'] },
+  { key: 'orders', label: 'Orders', permissions: ['order:read'] },
+  { key: 'deliveries', label: 'Deliveries', permissions: ['order:transition'] },
+  {
+    key: 'payments-refunds',
+    label: 'Payments & Refunds',
+    permissions: ['refund:create', 'pos:refund'],
+  },
+  { key: 'inventory', label: 'Inventory', permissions: ['inventory:read', 'inventory:adjust'] },
+  { key: 'point-of-sale', label: 'Point of Sale', permissions: ['pos:sell'] },
+  { key: 'reports', label: 'Reports', permissions: ['report:read'] },
+  { key: 'staff-access', label: 'Staff & Access', permissions: ['staff:read', 'role:read'] },
+];
+
+type BranchListRow = Branch & { _id: Types.ObjectId };
+type StaffScopeRow = {
+  branchScope?: string[];
+  roleIds?: Types.ObjectId[];
+  status?: string;
+  deletedAt?: Date;
+};
+type RoleSummaryRow = { _id: Types.ObjectId; key: string; name: string; permissionKeys?: string[] };
 
 @Injectable()
 export class BranchService {
   constructor(
     @InjectModel(Branch.name) private readonly branchModel: Model<Branch>,
     @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
+    @InjectModel(Role.name) private readonly roleModel: Model<Role>,
   ) {}
 
   /** Public branch locator. With ?near=lat,lng results are sorted by distance. */
@@ -59,13 +90,14 @@ export class BranchService {
 
   async listAdmin(
     query: PaginationQuery,
-  ): Promise<Paginated<{ id: string } & Record<string, unknown>>> {
+  ): Promise<Paginated<BranchSummaryDto>> {
     const rows = await this.branchModel
       .find(cursorFilter(query.cursor))
       .sort({ _id: 1 })
       .limit(query.limit + 1)
       .lean();
-    const mapped = rows.map((r) => ({ ...r, id: r._id.toString() }));
+    const mapped = rows.map((r) => this.toAdminSummary(r as BranchListRow));
+    await this.attachAccessSummaries(mapped);
     return paginate(mapped, query.limit);
   }
 
@@ -157,6 +189,100 @@ export class BranchService {
     return typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000;
   }
 
+  private async attachAccessSummaries(branches: BranchSummaryDto[]): Promise<void> {
+    if (branches.length === 0) return;
+
+    const branchIds = branches.map((branch) => branch.id);
+    const staff = await this.staffModel
+      .find({
+        deletedAt: { $exists: false },
+        status: AccountStatus.ACTIVE,
+        branchScope: { $in: [ALL_BRANCHES, ...branchIds] },
+      })
+      .select('branchScope roleIds')
+      .lean<StaffScopeRow[]>();
+
+    if (staff.length === 0) return;
+
+    const roleIds = [...new Set(staff.flatMap((row) => (row.roleIds ?? []).map((id) => id.toString())))];
+    const roles = roleIds.length
+      ? await this.roleModel
+          .find({ _id: { $in: roleIds.map((id) => new Types.ObjectId(id)) } })
+          .select('key name permissionKeys')
+          .lean<RoleSummaryRow[]>()
+      : [];
+    const roleMap = new Map(roles.map((role) => [role._id.toString(), role]));
+    const byBranch = new Map(branches.map((branch) => [branch.id, this.emptyAccessSummary()]));
+
+    for (const staffRow of staff) {
+      const scope = (staffRow.branchScope ?? []).map(String);
+      const targetBranchIds = scope.includes(ALL_BRANCHES)
+        ? branchIds
+        : scope.filter((branchId) => byBranch.has(branchId));
+      if (targetBranchIds.length === 0) continue;
+
+      const rolesForStaff = (staffRow.roleIds ?? [])
+        .map((id) => roleMap.get(id.toString()))
+        .filter((role): role is RoleSummaryRow => Boolean(role));
+
+      for (const branchId of targetBranchIds) {
+        const summary = byBranch.get(branchId);
+        if (!summary) continue;
+        summary.assignedStaffCount += 1;
+        for (const role of rolesForStaff) {
+          const existing = summary.roles.find(
+            (entry: BranchAccessSummaryDto['roles'][number]) => entry.key === role.key,
+          );
+          if (existing) {
+            existing.staffCount += 1;
+          } else {
+            summary.roles.push({ key: role.key, name: role.name, staffCount: 1 });
+          }
+          for (const capability of this.capabilitiesFor(role.permissionKeys ?? [], true)) {
+            if (
+              !summary.capabilities.some(
+                (entry: BranchAccessSummaryDto['capabilities'][number]) =>
+                  entry.key === capability.key,
+              )
+            ) {
+              summary.capabilities.push(capability);
+            }
+          }
+        }
+      }
+    }
+
+    for (const branch of branches) {
+      const summary = byBranch.get(branch.id);
+      if (!summary || summary.assignedStaffCount === 0) continue;
+      summary.roles.sort(
+        (a: BranchAccessSummaryDto['roles'][number], b: BranchAccessSummaryDto['roles'][number]) =>
+          a.name.localeCompare(b.name),
+      );
+      summary.capabilities.sort(
+        (
+          a: BranchAccessSummaryDto['capabilities'][number],
+          b: BranchAccessSummaryDto['capabilities'][number],
+        ) => a.label.localeCompare(b.label),
+      );
+      branch.accessSummary = summary;
+    }
+  }
+
+  private emptyAccessSummary(): BranchAccessSummaryDto {
+    return { assignedStaffCount: 0, roles: [], capabilities: [] };
+  }
+
+  private capabilitiesFor(
+    permissions: string[],
+    hasStaffAssignment: boolean,
+  ): BranchAccessCapabilityDto[] {
+    return BRANCH_CAPABILITY_RULES.filter((rule) => {
+      if (!rule.permissions) return hasStaffAssignment;
+      return rule.permissions.some((permission) => permissions.includes(permission));
+    }).map((rule) => ({ key: rule.key, label: rule.label }));
+  }
+
   private toSummary(b: BranchDocument, distanceM?: number): BranchSummaryDto {
     const [lng, lat] = b.address.geo.coordinates;
     return {
@@ -176,6 +302,45 @@ export class BranchService {
         })),
       },
       ...(distanceM !== undefined ? { distanceKm: Math.round(distanceM / 100) / 10 } : {}),
+    };
+  }
+
+  private toAdminSummary(b: BranchListRow): BranchSummaryDto {
+    const coordinates = b.address?.geo?.coordinates ?? [0, 0];
+    const [lng, lat] = coordinates;
+    return {
+      id: b._id.toString(),
+      code: b.code,
+      name: b.name,
+      status: b.status,
+      address: {
+        line1: b.address.line1,
+        line2: b.address.line2,
+        city: b.address.city,
+        state: b.address.state,
+        country: b.address.country,
+        lat,
+        lng,
+        geo: { coordinates: [lng, lat] },
+      },
+      contact: {
+        phone: b.contact?.phone,
+        email: b.contact?.email,
+      },
+      license: {
+        pcnPremisesNo: b.license?.pcnPremisesNo,
+        superintendentStaffId: b.license?.superintendentStaffId?.toString(),
+      },
+      fulfillment: {
+        pickup: b.fulfillment?.pickup ?? false,
+        delivery: b.fulfillment?.delivery ?? false,
+        deliveryZones: b.fulfillment?.deliveryZones?.map((zone) => ({
+          name: zone.name,
+          feeKobo: zone.feeKobo,
+          etaMins: zone.etaMins,
+          radiusKm: zone.radiusKm,
+        })),
+      },
     };
   }
 }

@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  type BranchSummaryDto,
   BranchStatus,
   CreateBranchSchema,
   type Paginated,
@@ -26,29 +27,7 @@ import {
   cn,
 } from '@/components/ui';
 
-type BranchRow = {
-  id: string;
-  code: string;
-  name: string;
-  status: string;
-  address: {
-    line1: string;
-    line2?: string;
-    city: string;
-    state: string;
-    country?: string;
-    lat?: number;
-    lng?: number;
-    geo?: { coordinates?: [number, number] };
-  };
-  contact?: { phone?: string; email?: string };
-  license?: { pcnPremisesNo?: string; superintendentStaffId?: string };
-  fulfillment?: {
-    pickup?: boolean;
-    delivery?: boolean;
-    deliveryZones?: Array<{ name: string; feeKobo: number; etaMins?: number; radiusKm?: number }>;
-  };
-};
+type BranchRow = BranchSummaryDto;
 
 type ZoneFormRow = { name: string; feeNaira: string; etaMins: string };
 
@@ -169,10 +148,35 @@ function toBranchForm(branch: BranchRow): BranchFormState {
   };
 }
 
+function branchSearchBlob(branch: BranchRow): string {
+  const roles = branch.accessSummary?.roles.flatMap((role) => [role.name, role.key]) ?? [];
+  const capabilities =
+    branch.accessSummary?.capabilities.flatMap((capability) => [capability.label, capability.key]) ?? [];
+  const terms = [
+    branch.name,
+    branch.code,
+    branch.status,
+    branch.address.line1,
+    branch.address.line2,
+    branch.address.city,
+    branch.address.state,
+    branch.address.country,
+    branch.contact?.phone,
+    branch.contact?.email,
+    branch.license?.pcnPremisesNo,
+    ...(branch.fulfillment?.pickup ? ['pickup'] : []),
+    ...(branch.fulfillment?.delivery ? ['delivery'] : []),
+    ...roles,
+    ...capabilities,
+  ];
+  return terms.filter(Boolean).join(' ').toLowerCase();
+}
+
 export default function BranchesPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<BranchFormState>(EMPTY_BRANCH_FORM);
   const [message, setMessage] = useState<FormMessage>();
+  const [search, setSearch] = useState('');
 
   const branchesQ = useQuery({
     queryKey: ['admin-branches', 'list'],
@@ -184,6 +188,11 @@ export default function BranchesPage() {
   });
 
   const rows = branchesQ.data?.data ?? [];
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((row) => branchSearchBlob(row).includes(term));
+  }, [rows, search]);
   const selectedBranch = useMemo(() => rows.find((row) => row.id === form.id), [form.id, rows]);
   const activeCount = rows.filter((row) => row.status === BranchStatus.ACTIVE).length;
   const deliveryCount = rows.filter((row) => row.fulfillment?.delivery).length;
@@ -826,17 +835,46 @@ export default function BranchesPage() {
                 />
               </Card>
             ) : (
-              <TableCard>
-                <thead className="border-b border-slate-100 bg-slate-50/60">
-                  <tr>
-                    <Th>Branch</Th>
-                    <Th>Status</Th>
-                    <Th>Location</Th>
-                    <Th>Services</Th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((row) => {
+              <div className="space-y-3">
+                <Card className="p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">Branch coverage</div>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Seek branches by role or module: Cashier, Inventory Officer,
+                        Prescriptions, Dashboard, Orders, Deliveries, and Payments &amp; Refunds.
+                      </p>
+                    </div>
+                    <div className="w-full lg:w-80">
+                      <input
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder="Search branch, role, or module"
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+                </Card>
+
+                <TableCard>
+                  <thead className="border-b border-slate-100 bg-slate-50/60">
+                    <tr>
+                      <Th>Branch</Th>
+                      <Th>Status</Th>
+                      <Th>Location</Th>
+                      <Th>Services</Th>
+                      <Th>Access</Th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-5 py-8 text-sm text-slate-500">
+                          No branches match that role or module search yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRows.map((row) => {
                     const active = form.id === row.id;
                     return (
                       <tr
@@ -875,11 +913,40 @@ export default function BranchesPage() {
                             </Badge>
                           </div>
                         </Td>
+                        <Td className="max-w-sm">
+                          {row.accessSummary ? (
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap gap-2">
+                                <Badge tone="neutral">
+                                  {row.accessSummary.assignedStaffCount} staff assigned
+                                </Badge>
+                                {row.accessSummary.roles.map((role) => (
+                                  <Badge key={role.key} tone="info">
+                                    {role.name} ({role.staffCount})
+                                  </Badge>
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {row.accessSummary.capabilities.map((capability) => (
+                                  <Badge key={capability.key} tone="success">
+                                    {capability.label}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              No active staff assigned to this branch yet.
+                            </span>
+                          )}
+                        </Td>
                       </tr>
                     );
-                  })}
-                </tbody>
-              </TableCard>
+                      })
+                    )}
+                  </tbody>
+                </TableCard>
+              </div>
             )}
           </div>
         </>

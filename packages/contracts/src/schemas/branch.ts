@@ -68,16 +68,45 @@ export type UpdateBranchInput = z.infer<typeof UpdateBranchSchema>;
 
 /* ── Response shapes ── */
 
+export interface BranchAccessRoleSummaryDto {
+  key: string;
+  name: string;
+  staffCount: number;
+}
+
+export interface BranchAccessCapabilityDto {
+  key: string;
+  label: string;
+}
+
+export interface BranchAccessSummaryDto {
+  assignedStaffCount: number;
+  roles: BranchAccessRoleSummaryDto[];
+  capabilities: BranchAccessCapabilityDto[];
+}
+
 export interface BranchSummaryDto {
   id: string;
   code: string;
   name: string;
   status: string;
-  address: { line1: string; city: string; state: string; lat: number; lng: number };
+  address: {
+    line1: string;
+    line2?: string;
+    city: string;
+    state: string;
+    country?: string;
+    lat: number;
+    lng: number;
+    geo?: { coordinates?: [number, number] };
+  };
+  contact?: { phone?: string; email?: string };
+  license?: { pcnPremisesNo?: string; superintendentStaffId?: string };
   fulfillment: {
     pickup: boolean;
     delivery: boolean;
     deliveryZones?: Array<{ name: string; feeKobo: number; etaMins?: number; radiusKm?: number }>;
   };
   distanceKm?: number; // present when ?near= supplied
+  accessSummary?: BranchAccessSummaryDto;
 }
