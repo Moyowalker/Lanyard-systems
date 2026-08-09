@@ -12,3 +12,9 @@ export const PaginationQuerySchema = z.object({
   cursor: z.string().optional(),
 });
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+
+/** Cursor pagination plus an optional explicit branch context for staff operations. */
+export const BranchPaginationQuerySchema = PaginationQuerySchema.extend({
+  branchId: z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId').optional(),
+});
+export type BranchPaginationQuery = z.infer<typeof BranchPaginationQuerySchema>;

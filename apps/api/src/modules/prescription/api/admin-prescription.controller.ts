@@ -1,8 +1,9 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
+  BranchPaginationQuery,
+  BranchPaginationQuerySchema,
   PaginationQuery,
-  PaginationQuerySchema,
   PrescriptionAdminSearchQuery,
   PrescriptionAdminSearchQuerySchema,
   RequestPrescriptionInfoInput,
@@ -30,7 +31,7 @@ export class AdminPrescriptionController {
   @RequirePermissions('rx:read')
   queue(
     @CurrentUser() user: AuthPrincipal,
-    @Query(new ZodValidationPipe(PaginationQuerySchema)) query: PaginationQuery,
+    @Query(new ZodValidationPipe(BranchPaginationQuerySchema)) query: BranchPaginationQuery,
   ) {
     return this.prescriptions.queue(user.branchScope, query);
   }

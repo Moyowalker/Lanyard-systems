@@ -11,6 +11,7 @@ import type {
   PrescriptionDto,
 } from '@lanyard/contracts';
 import { deriveMetrics } from '@/lib/metrics';
+import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
 import { personaFor, PERSONA_FOCUS, type Persona } from '@/lib/roles';
 import { formatKobo, label, statusTone, timeAgo } from '@/lib/format';
 import {
@@ -43,6 +44,7 @@ function greeting(): string {
 }
 
 export default function Dashboard() {
+  const branchFilter = useOperationalBranchFilter();
   const me = useQuery({
     queryKey: ['me'],
     queryFn: async () => {
@@ -52,18 +54,24 @@ export default function Dashboard() {
   });
 
   const ordersQ = useQuery({
-    queryKey: ['admin-orders', 'all'],
+    queryKey: ['admin-orders', 'dashboard', branchFilter.branchId],
+    enabled: branchFilter.canViewAllBranches || Boolean(branchFilter.branchId),
     queryFn: async () => {
-      const r = await fetch('/api/admin/orders?limit=100');
+      const params = new URLSearchParams({ limit: '100' });
+      if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
+      const r = await fetch(`/api/admin/orders?${params.toString()}`);
       return r.ok ? ((await r.json()) as Paginated<OrderDto>) : null;
     },
     refetchInterval: 15000,
   });
 
   const rxQ = useQuery({
-    queryKey: ['rx-queue', 'count'],
+    queryKey: ['rx-queue', 'count', branchFilter.branchId],
+    enabled: branchFilter.canViewAllBranches || Boolean(branchFilter.branchId),
     queryFn: async () => {
-      const r = await fetch('/api/admin/prescriptions?status=pending');
+      const params = new URLSearchParams({ status: 'pending' });
+      if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
+      const r = await fetch(`/api/admin/prescriptions?${params.toString()}`);
       return r.ok ? ((await r.json()) as Paginated<PrescriptionDto>) : null;
     },
     refetchInterval: 15000,
@@ -73,13 +81,14 @@ export default function Dashboard() {
   // caller's branches, gated on inventory:read.
   const canSeeInventory = me.data?.permissions?.includes('inventory:read') ?? false;
   const expiringQ = useQuery({
-    queryKey: ['dashboard-expiring'],
-    enabled: canSeeInventory,
+    queryKey: ['dashboard-expiring', branchFilter.branchId],
+    enabled:
+      canSeeInventory && (branchFilter.canViewAllBranches || Boolean(branchFilter.branchId)),
     refetchInterval: 60000,
     queryFn: async () => {
-      const branchesRes = await fetch('/api/admin/branches?limit=100');
-      if (!branchesRes.ok) return null;
-      const branches = ((await branchesRes.json()) as Paginated<BranchSummaryDto>).data;
+      const branches = branchFilter.branchId
+        ? branchFilter.branches.filter((branch) => branch.id === branchFilter.branchId)
+        : branchFilter.branches;
       const perBranch = await Promise.all(
         branches.map(async (branch) => {
           const r = await fetch(`/api/admin/branches/${branch.id}/inventory/expiring?days=30`);
@@ -124,14 +133,17 @@ export default function Dashboard() {
             </h1>
             <p className="mt-1 text-sm text-white/65">{PERSONA_FOCUS[persona]}</p>
           </div>
-          <div className="hidden text-right sm:block">
-            <div className="text-xs uppercase tracking-wider text-white/45">Today</div>
-            <div className="mt-0.5 text-sm font-semibold text-white/90">
-              {new Date().toLocaleDateString('en-NG', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-              })}
+          <div className="flex flex-wrap items-end justify-end gap-3">
+            <BranchFilter {...branchFilter} onChange={branchFilter.setBranchId} />
+            <div className="hidden text-right sm:block">
+              <div className="text-xs uppercase tracking-wider text-white/45">Today</div>
+              <div className="mt-0.5 text-sm font-semibold text-white/90">
+                {new Date().toLocaleDateString('en-NG', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                })}
+              </div>
             </div>
           </div>
         </div>

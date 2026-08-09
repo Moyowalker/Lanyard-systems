@@ -1,6 +1,6 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { RefundInput, RefundSchema } from '@lanyard/contracts';
+import { ErrorCode, RefundInput, RefundSchema } from '@lanyard/contracts';
 
 import { CurrentUser, RequirePermissions, RequireRealm } from '../../../core/auth/auth.decorators';
 import { PermissionsGuard, RealmGuard } from '../../../core/auth/authz.guards';
@@ -23,7 +23,13 @@ export class AdminPaymentController {
   /** Manually trigger reconciliation of pending intents (also runnable as a scheduled job). */
   @Post('reconcile')
   @RequirePermissions('order:read')
-  reconcile() {
+  reconcile(@CurrentUser() user: AuthPrincipal) {
+    if (!user.branchScope.includes('ALL')) {
+      throw new ForbiddenException({
+        code: ErrorCode.BRANCH_SCOPE_VIOLATION,
+        message: 'All-branch scope is required to reconcile payments',
+      });
+    }
     return this.payments.reconcile();
   }
 

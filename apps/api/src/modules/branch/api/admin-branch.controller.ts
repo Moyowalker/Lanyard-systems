@@ -9,8 +9,9 @@ import {
   UpdateBranchSchema,
 } from '@lanyard/contracts';
 
-import { RequirePermissions, RequireRealm } from '../../../core/auth/auth.decorators';
+import { CurrentUser, RequirePermissions, RequireRealm } from '../../../core/auth/auth.decorators';
 import { PermissionsGuard, RealmGuard } from '../../../core/auth/authz.guards';
+import { AuthPrincipal } from '../../../core/auth/principal';
 import { ZodValidationPipe } from '../../../core/validation/zod-validation.pipe';
 import { BranchService } from '../application/branch.service';
 
@@ -22,6 +23,14 @@ import { BranchService } from '../application/branch.service';
 @RequireRealm('staff')
 export class AdminBranchController {
   constructor(private readonly branches: BranchService) {}
+
+  @Get('available')
+  listAvailable(
+    @CurrentUser() user: AuthPrincipal,
+    @Query(new ZodValidationPipe(PaginationQuerySchema)) query: PaginationQuery,
+  ) {
+    return this.branches.listAvailable(query, user.branchScope);
+  }
 
   @Get()
   @RequirePermissions('branch:read')

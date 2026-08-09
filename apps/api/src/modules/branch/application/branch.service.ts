@@ -101,6 +101,26 @@ export class BranchService {
     return paginate(mapped, query.limit);
   }
 
+  /** Branch metadata available to the caller for selecting an operational context. */
+  async listAvailable(
+    query: PaginationQuery,
+    branchScope: string[],
+  ): Promise<Paginated<BranchSummaryDto>> {
+    const filter: FilterQuery<Branch> = { ...cursorFilter(query.cursor) };
+    if (!branchScope.includes(ALL_BRANCHES)) {
+      filter._id = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
+    }
+    const rows = await this.branchModel
+      .find(filter)
+      .sort({ _id: 1 })
+      .limit(query.limit + 1)
+      .lean();
+    return paginate(
+      rows.map((row) => this.toSummary(row as unknown as BranchDocument)),
+      query.limit,
+    );
+  }
+
   async create(input: CreateBranchInput): Promise<BranchDocument> {
     await this.assertSuperintendent(input.superintendentStaffId);
     try {

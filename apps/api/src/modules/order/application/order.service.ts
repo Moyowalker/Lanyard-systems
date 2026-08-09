@@ -409,9 +409,17 @@ export class OrderService {
 
   /* ── admin ── */
 
-  async listAdmin(query: PaginationQuery, branchScope: string[]): Promise<Paginated<OrderDto>> {
+  async listAdmin(
+    query: PaginationQuery & { branchId?: string },
+    branchScope: string[],
+  ): Promise<Paginated<OrderDto>> {
     const filter: Record<string, unknown> = { ...cursorFilter(query.cursor) };
-    if (!branchScope.includes('ALL')) {
+    if (query.branchId) {
+      filter.branchId =
+        branchScope.includes('ALL') || branchScope.includes(query.branchId)
+          ? new Types.ObjectId(query.branchId)
+          : new Types.ObjectId('000000000000000000000000');
+    } else if (!branchScope.includes('ALL')) {
       filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
     }
     const rows = await this.orderModel

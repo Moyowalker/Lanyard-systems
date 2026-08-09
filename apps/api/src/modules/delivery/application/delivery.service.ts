@@ -62,12 +62,17 @@ export class DeliveryService {
   ) {}
 
   /** Delivery-bound orders in scope, each annotated with its delivery record (if any). */
-  async board(branchScope: string[]): Promise<DeliveryBoardDto> {
+  async board(branchScope: string[], branchId?: string): Promise<DeliveryBoardDto> {
     const filter: Record<string, unknown> = {
       'fulfillment.type': FulfillmentType.DELIVERY,
       status: { $in: BOARD_STATES },
     };
-    if (!branchScope.includes('ALL')) {
+    if (branchId) {
+      filter.branchId =
+        branchScope.includes('ALL') || branchScope.includes(branchId)
+          ? new Types.ObjectId(branchId)
+          : new Types.ObjectId('000000000000000000000000');
+    } else if (!branchScope.includes('ALL')) {
       filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
     }
 

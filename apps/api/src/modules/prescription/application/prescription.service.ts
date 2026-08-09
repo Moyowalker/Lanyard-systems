@@ -217,12 +217,20 @@ export class PrescriptionService {
 
   /* ── pharmacist (staff) ── */
 
-  async queue(branchScope: string[], query: PaginationQuery): Promise<Paginated<PrescriptionDto>> {
+  async queue(
+    branchScope: string[],
+    query: PaginationQuery & { branchId?: string },
+  ): Promise<Paginated<PrescriptionDto>> {
     const filter: Record<string, unknown> = {
       status: { $in: [RxStatus.PENDING, RxStatus.UNDER_REVIEW, RxStatus.NEEDS_INFO] },
       ...cursorFilter(query.cursor),
     };
-    if (!branchScope.includes('ALL')) {
+    if (query.branchId) {
+      filter.branchId =
+        branchScope.includes('ALL') || branchScope.includes(query.branchId)
+          ? new Types.ObjectId(query.branchId)
+          : new Types.ObjectId('000000000000000000000000');
+    } else if (!branchScope.includes('ALL')) {
       filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
     }
     const rows = await this.rxModel
@@ -286,7 +294,12 @@ export class PrescriptionService {
     query: PrescriptionAdminSearchQuery,
   ): Promise<Paginated<PrescriptionAdminListItemDto>> {
     const filter: Record<string, unknown> = { ...cursorFilterDesc(query.cursor) };
-    if (!branchScope.includes('ALL')) {
+    if (query.branchId) {
+      filter.branchId =
+        branchScope.includes('ALL') || branchScope.includes(query.branchId)
+          ? new Types.ObjectId(query.branchId)
+          : new Types.ObjectId('000000000000000000000000');
+    } else if (!branchScope.includes('ALL')) {
       filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
     }
     if (query.status) filter.status = query.status;

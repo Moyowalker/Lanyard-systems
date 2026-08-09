@@ -22,6 +22,7 @@ import {
   cn,
 } from '@/components/ui';
 import { formatKobo, label, statusTone, timeAgo } from '@/lib/format';
+import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
 
 type FinanceFilter = 'all' | 'paid' | 'awaiting-payment' | 'refunded';
 type FormMessage = { tone: 'success' | 'danger'; text: string };
@@ -53,6 +54,7 @@ function InlineNotice({ message }: { message?: FormMessage }) {
 
 export default function FinancePage() {
   const queryClient = useQueryClient();
+  const branchFilter = useOperationalBranchFilter();
   const [filter, setFilter] = useState<FinanceFilter>('all');
   const [refundOrderId, setRefundOrderId] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
@@ -61,9 +63,12 @@ export default function FinancePage() {
   const [refundMessage, setRefundMessage] = useState<FormMessage>();
 
   const ordersQ = useQuery({
-    queryKey: ['finance-orders'],
+    queryKey: ['finance-orders', branchFilter.branchId],
+    enabled: branchFilter.canViewAllBranches || Boolean(branchFilter.branchId),
     queryFn: async () => {
-      const res = await fetch('/api/admin/orders?limit=100');
+      const params = new URLSearchParams({ limit: '100' });
+      if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
+      const res = await fetch(`/api/admin/orders?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load orders');
       return (await res.json()) as Paginated<OrderDto>;
     },
@@ -107,7 +112,7 @@ export default function FinancePage() {
         tone: 'success',
         text: `Reconciliation checked ${body.checked ?? 0} pending intents and settled ${body.settled ?? 0}.`,
       });
-      await queryClient.invalidateQueries({ queryKey: ['finance-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['finance-orders', branchFilter.branchId] });
     },
     onError: (error) => {
       setReconcileMessage({
@@ -131,7 +136,7 @@ export default function FinancePage() {
     onSuccess: async () => {
       setRefundMessage({ tone: 'success', text: 'Refund request submitted.' });
       setRefundAmount('');
-      await queryClient.invalidateQueries({ queryKey: ['finance-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['finance-orders', branchFilter.branchId] });
     },
     onError: (error) => {
       setRefundMessage({
@@ -170,17 +175,22 @@ export default function FinancePage() {
     <div>
       <PageHeader
         title="Payments & refunds"
-        subtitle="Monitor settlement status, reconcile pending intents, and issue staff refunds"
+        subtitle="Monitor settlement status and issue refunds for the selected branch"
         actions={
-          <Button onClick={() => reconcileMutation.mutate()} disabled={reconcileMutation.isPending}>
-            {reconcileMutation.isPending ? (
-              <>
-                <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Reconciling...
-              </>
-            ) : (
-              'Run reconciliation'
-            )}
-          </Button>
+          <>
+            <BranchFilter {...branchFilter} onChange={branchFilter.setBranchId} />
+            {branchFilter.canViewAllBranches && !branchFilter.branchId ? (
+              <Button onClick={() => reconcileMutation.mutate()} disabled={reconcileMutation.isPending}>
+                {reconcileMutation.isPending ? (
+                  <>
+                    <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Reconciling...
+                  </>
+                ) : (
+                  'Run reconciliation'
+                )}
+              </Button>
+            ) : null}
+          </>
         }
       />
 

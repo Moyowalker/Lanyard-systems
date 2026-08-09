@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { AvScanStatus, RxStatus, VerificationDecision } from '../enums';
-import { PaginationQuerySchema } from './common';
+import { BranchPaginationQuerySchema } from './common';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
 
@@ -91,7 +91,7 @@ export interface SignedFileUrlDto {
  * and rejected) so a fulfilled order's prescription can be recalled during a dispute.
  * Images stay gated behind phi:view; this surfaces linkage + metadata only. */
 
-export const PrescriptionAdminSearchQuerySchema = PaginationQuerySchema.extend({
+export const PrescriptionAdminSearchQuerySchema = BranchPaginationQuerySchema.extend({
   /** Free-text: a customer phone (E.164) or an order number. */
   q: z.string().trim().max(120).optional(),
   status: z.nativeEnum(RxStatus).optional(),

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { OrderDto, Paginated } from '@lanyard/contracts';
 import { formatKobo, label, statusTone, timeAgo } from '@/lib/format';
+import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
 import {
   Badge,
   Card,
@@ -33,10 +34,14 @@ const FILTERS: { key: string; label: string; match: (s: string) => boolean }[] =
 
 export default function OrdersList() {
   const [filter, setFilter] = useState('all');
+  const branchFilter = useOperationalBranchFilter();
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-orders', 'list'],
+    queryKey: ['admin-orders', 'list', branchFilter.branchId],
+    enabled: branchFilter.canViewAllBranches || Boolean(branchFilter.branchId),
     queryFn: async () => {
-      const r = await fetch('/api/admin/orders?limit=100');
+      const params = new URLSearchParams({ limit: '100' });
+      if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
+      const r = await fetch(`/api/admin/orders?${params.toString()}`);
       return r.ok ? ((await r.json()) as Paginated<OrderDto>) : null;
     },
     refetchInterval: 10000,
@@ -50,11 +55,14 @@ export default function OrdersList() {
     <div>
       <PageHeader
         title="Orders"
-        subtitle="Fulfilment pipeline across your branch scope"
+        subtitle="Fulfilment pipeline for the selected branch"
         actions={
-          <span className="text-sm text-slate-400">
-            {all.length} order{all.length === 1 ? '' : 's'}
-          </span>
+          <>
+            <BranchFilter {...branchFilter} onChange={branchFilter.setBranchId} />
+            <span className="text-sm text-slate-400">
+              {all.length} order{all.length === 1 ? '' : 's'}
+            </span>
+          </>
         }
       />
 

@@ -10,6 +10,7 @@ import {
   RxStatus,
 } from '@lanyard/contracts';
 import { rxTone, timeAgo } from '@/lib/format';
+import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from '@/components/ui';
 import { IconCheck, IconChevronRight, IconRx, IconShield } from '@/components/icons';
 
@@ -19,13 +20,16 @@ const selectClass =
 export default function PrescriptionQueue() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('');
+  const branchFilter = useOperationalBranchFilter();
   const searching = search.trim().length > 0 || status.length > 0;
 
   const queueQ = useQuery({
-    queryKey: ['rx-queue'],
-    enabled: !searching,
+    queryKey: ['rx-queue', branchFilter.branchId],
+    enabled: !searching && (branchFilter.canViewAllBranches || Boolean(branchFilter.branchId)),
     queryFn: async () => {
-      const r = await fetch('/api/admin/prescriptions');
+      const params = new URLSearchParams();
+      if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
+      const r = await fetch(`/api/admin/prescriptions?${params.toString()}`);
       if (!r.ok) throw new Error('Could not load the prescription queue');
       return (await r.json()) as Paginated<PrescriptionDto>;
     },
@@ -33,12 +37,13 @@ export default function PrescriptionQueue() {
   });
 
   const searchQ = useQuery({
-    queryKey: ['rx-search', search.trim(), status],
-    enabled: searching,
+    queryKey: ['rx-search', search.trim(), status, branchFilter.branchId],
+    enabled: searching && (branchFilter.canViewAllBranches || Boolean(branchFilter.branchId)),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (search.trim()) params.set('q', search.trim());
       if (status) params.set('status', status);
+      if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
       const r = await fetch(`/api/admin/prescriptions/search?${params.toString()}`);
       if (!r.ok) throw new Error('Search failed');
       return (await r.json()) as Paginated<PrescriptionAdminListItemDto>;
@@ -54,9 +59,12 @@ export default function PrescriptionQueue() {
         title="Prescriptions"
         subtitle="Verify prescriptions before dispensing, or search past prescriptions to recall an order — every access is audited (PCN / NDPA)"
         actions={
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700">
-            <IconShield width={14} height={14} /> Compliance-controlled
-          </span>
+          <>
+            <BranchFilter {...branchFilter} onChange={branchFilter.setBranchId} />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700">
+              <IconShield width={14} height={14} /> Compliance-controlled
+            </span>
+          </>
         }
       />
 

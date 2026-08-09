@@ -6,6 +6,7 @@ import type { DeliveryBoardDto, DeliveryBoardItemDto } from '@lanyard/contracts'
 import { formatKobo, label, statusTone, timeAgo } from '@/lib/format';
 import { Badge, Button, Card, EmptyState, PageHeader, Skeleton, type Tone } from '@/components/ui';
 import { IconBranch, IconCheck, IconOrders } from '@/components/icons';
+import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
 
 const DELIVERY_LABEL: Record<string, string> = {
   queued: 'Queued',
@@ -32,10 +33,14 @@ function deliveryTone(status?: string): Tone {
 }
 
 export default function DeliveriesPage() {
+  const branchFilter = useOperationalBranchFilter();
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['deliveries'],
+    queryKey: ['deliveries', branchFilter.branchId],
+    enabled: branchFilter.canViewAllBranches || Boolean(branchFilter.branchId),
     queryFn: async () => {
-      const r = await fetch('/api/admin/deliveries');
+      const params = new URLSearchParams();
+      if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
+      const r = await fetch(`/api/admin/deliveries?${params.toString()}`);
       return r.ok ? ((await r.json()) as DeliveryBoardDto) : null;
     },
     refetchInterval: 10000,
@@ -47,8 +52,13 @@ export default function DeliveriesPage() {
     <div>
       <PageHeader
         title="Deliveries"
-        subtitle="Assign riders and track delivery orders to the doorstep"
-        actions={<span className="text-sm text-slate-400">{items.length} active</span>}
+        subtitle="Assign riders and track delivery orders for the selected branch"
+        actions={
+          <>
+            <BranchFilter {...branchFilter} onChange={branchFilter.setBranchId} />
+            <span className="text-sm text-slate-400">{items.length} active</span>
+          </>
+        }
       />
 
       {isLoading ? (
