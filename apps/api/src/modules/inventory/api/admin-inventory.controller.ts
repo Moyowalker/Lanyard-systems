@@ -165,6 +165,17 @@ export class AdminInventoryController {
     return { data: await this.inventory.publishInvoice(branchId, user.sub, id) };
   }
 
+  /** Void a received invoice by recording compensating stock movements. */
+  @Post('invoices/:id/void')
+  @RequirePermissions('inventory:receive')
+  async voidInvoice(
+    @Param('branchId') branchId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
+    return { data: await this.inventory.voidInvoice(branchId, user.sub, id) };
+  }
+
   /** Update an invoice's payment status (paid/unpaid + expected date). */
   @Patch('invoices/:id/payment')
   @RequirePermissions('inventory:receive')

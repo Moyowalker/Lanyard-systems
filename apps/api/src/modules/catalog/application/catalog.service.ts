@@ -46,7 +46,7 @@ export class CatalogService {
   /* ── public reads ── */
 
   async listCategories(): Promise<CategoryDto[]> {
-    const rows = await this.categoryModel.find({ isActive: true }).sort({ displayOrder: 1 }).lean();
+    const rows = await this.categoryModel.find({ isActive: true }).sort({ name: 1 }).lean();
     return rows.map((c) => ({
       id: c._id.toString(),
       slug: c.slug,
@@ -140,16 +140,18 @@ export class CatalogService {
     };
   }
 
-  async search(query: ProductSearchQuery): Promise<{ data: ProductListItemDto[] }> {
+  async search(query: ProductSearchQuery): Promise<Paginated<ProductListItemDto>> {
     // Primary: weighted full-text match. Fallback: case-insensitive substring match
     // so partial terms and minor misspellings still return something useful — and so
     // a missing/conflicted text index degrades to substring instead of a 500.
-    const rows = await this.textOrSubstring(
-      { status: ProductStatus.PUBLISHED },
-      query.q,
-      query.limit,
-    );
-    return { data: await this.decorateForStorefront(rows, query.branchId) };
+    const filter: FilterQuery<Product> = {
+      status: ProductStatus.PUBLISHED,
+      ...cursorFilter(query.cursor),
+    };
+    await this.restrictToBranchPrices(filter, query.branchId);
+    const rows = await this.textOrSubstring(filter, query.q, query.limit + 1);
+    const items = await this.decorateForStorefront(rows, query.branchId);
+    return paginate(query.branchId ? items.filter((item) => item.price) : items, query.limit);
   }
 
   /** Lightweight typeahead suggestions — prefix/substring on the most relevant fields. */

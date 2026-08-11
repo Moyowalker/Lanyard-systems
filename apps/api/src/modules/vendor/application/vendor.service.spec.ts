@@ -80,4 +80,26 @@ describe('VendorService', () => {
       service.update(new Types.ObjectId().toString(), { name: 'X' } as never),
     ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
   });
+
+  it('soft-deletes an existing vendor so historical invoice references remain intact', async () => {
+    const findOneAndUpdate = jest.fn().mockResolvedValue({ _id: new Types.ObjectId() });
+    const service = new VendorService({ findOneAndUpdate } as never);
+    const id = new Types.ObjectId().toString();
+
+    await service.softDelete(id);
+
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: id, deletedAt: { $exists: false } },
+      { $set: { deletedAt: expect.any(Date), isActive: false } },
+      { new: true },
+    );
+  });
+
+  it('rejects deleting a missing or already deleted vendor', async () => {
+    const service = new VendorService({ findOneAndUpdate: jest.fn().mockResolvedValue(null) } as never);
+
+    await expect(service.softDelete(new Types.ObjectId().toString())).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+  });
 });

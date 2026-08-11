@@ -18,6 +18,7 @@ import {
   type Tone,
 } from '@/components/ui';
 import { IconAudit, IconChevronRight, IconShield } from '@/components/icons';
+import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
 
 /** Action-prefix quick filters. */
 const ACTION_FILTERS: { key: string; label: string }[] = [
@@ -60,15 +61,18 @@ export default function AuditLogPage() {
   const [action, setAction] = useState('');
   const [actorType, setActorType] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const { branchId, setBranchId, branches, canViewAllBranches, isLoading: branchesLoading } =
+    useOperationalBranchFilter();
 
   const query = useInfiniteQuery({
-    queryKey: ['audit', action, actorType],
+    queryKey: ['audit', action, actorType, branchId],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '50' });
       if (pageParam) params.set('cursor', pageParam);
       if (action) params.set('action', action);
       if (actorType) params.set('actorType', actorType);
+      if (branchId) params.set('branchId', branchId);
       const r = await fetch(`/api/admin/audit?${params.toString()}`);
       if (!r.ok) throw new Error('Failed to load audit log');
       return (await r.json()) as Paginated<AuditLogDto>;
@@ -117,6 +121,14 @@ export default function AuditLogPage() {
             </option>
           ))}
         </select>
+        {!branchesLoading ? (
+          <BranchFilter
+            branchId={branchId}
+            onChange={setBranchId}
+            branches={branches}
+            canViewAllBranches={canViewAllBranches}
+          />
+        ) : null}
       </div>
 
       {query.isLoading ? (

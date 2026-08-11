@@ -508,6 +508,7 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
     overrides: {
       findOne?: unknown;
       priceMap?: Map<string, unknown>;
+      inventoryRow?: unknown;
     } = {},
   ) {
     const invoiceId = new Types.ObjectId();
@@ -534,9 +535,9 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
     const upsertPrice = jest.fn().mockResolvedValue(undefined);
 
     const inventoryModel = {
-      findOne: jest.fn().mockReturnValue(findOneLean(null)),
+      findOne: jest.fn().mockReturnValue(findOneLean(overrides.inventoryRow ?? null)),
       create: jest.fn().mockResolvedValue(undefined),
-      updateOne: jest.fn(),
+      updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
       find: jest.fn(),
     };
     const productModel = {
@@ -565,7 +566,14 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
       { putObject: jest.fn(), getSignedDownloadUrl: jest.fn(), signedUrlTtl: 300 } as never,
       { findOne: jest.fn() } as never,
     );
-    return { service, invoiceCreate, invoiceDeleteOne, movementCreate, auditRecord, invoiceId };
+    return {
+      service,
+      invoiceCreate,
+      invoiceDeleteOne,
+      movementCreate,
+      auditRecord,
+      invoiceId,
+    };
   }
 
   const draftInput = {
@@ -639,6 +647,56 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
       service.deleteInvoice(branchId, actorId, new Types.ObjectId().toString()),
     ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
     expect(invoiceDeleteOne).not.toHaveBeenCalled();
+  });
+
+  it('voids a received invoice once by recording compensating stock movement', async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const invoiceId = new Types.ObjectId();
+    const received = {
+      _id: invoiceId,
+      branchId: new Types.ObjectId(branchId),
+      status: 'received' as const,
+      vendorName: 'Emzor',
+      invoiceNo: 'INV-9',
+      invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+      paymentStatus: 'paid' as const,
+      receivedByStaffId: new Types.ObjectId(actorId),
+      lines: [{ productId: productA, productName: 'Paracetamol', quantity: 100 }],
+      save,
+      toObject() {
+        return this;
+      },
+    };
+    const { service, movementCreate, auditRecord } = makeService({
+      findOne: received,
+      inventoryRow: {
+        _id: new Types.ObjectId(),
+        branchId: new Types.ObjectId(branchId),
+        productId: productA,
+        onHand: 100,
+        reserved: 0,
+        reorderLevel: 0,
+        batches: [],
+      },
+    });
+
+    await service.voidInvoice(branchId, actorId, invoiceId.toString());
+
+    expect(received.status).toBe('voided');
+    expect(save).toHaveBeenCalled();
+    const movement = movementCreate.mock.calls[0][0][0];
+    expect(movement).toMatchObject({ type: StockMovementType.ADJUST, quantity: -100, refType: 'invoice' });
+    expect(movement.refId.toString()).toBe(invoiceId.toString());
+    expect(auditRecord.mock.calls.at(-1)?.[0].action).toBe('inventory.invoice_voided');
+  });
+
+  it('rejects voiding an invoice that was already voided', async () => {
+    const { service, movementCreate } = makeService({ findOne: { status: 'voided' } });
+
+    await expect(
+      service.voidInvoice(branchId, actorId, new Types.ObjectId().toString()),
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
+    expect(movementCreate).not.toHaveBeenCalled();
   });
 
   it('marks an invoice paid and audits it', async () => {

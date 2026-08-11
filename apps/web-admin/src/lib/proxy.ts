@@ -28,6 +28,18 @@ async function clearSessionCookies() {
   jar.delete(COOKIE.refresh);
 }
 
+function sessionExpiredResponse(): Response {
+  return Response.json(
+    {
+      error: {
+        code: 'SESSION_EXPIRED',
+        message: 'Your session has expired. Please sign in again.',
+      },
+    },
+    { status: 401 },
+  );
+}
+
 async function refreshAccessToken(): Promise<string | undefined> {
   const jar = await cookies();
   const refreshToken = jar.get(COOKIE.refresh)?.value;
@@ -68,6 +80,7 @@ export async function proxy(path: string, init: RequestInit = {}): Promise<Respo
 
   if (!token) {
     token = await refreshAccessToken();
+    if (!token) return sessionExpiredResponse();
   }
 
   let response = await fetch(`${API_URL}${path}`, {
@@ -82,7 +95,7 @@ export async function proxy(path: string, init: RequestInit = {}): Promise<Respo
 
   const refreshedToken = await refreshAccessToken();
   if (!refreshedToken || refreshedToken === token) {
-    return response;
+    return sessionExpiredResponse();
   }
 
   response = await fetch(`${API_URL}${path}`, {

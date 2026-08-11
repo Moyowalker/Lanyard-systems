@@ -23,6 +23,7 @@ export const ProductSearchQuerySchema = z.object({
   q: z.string().trim().min(1),
   branchId: objectId.optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+  cursor: z.string().optional(),
 });
 export type ProductSearchQuery = z.infer<typeof ProductSearchQuerySchema>;
 

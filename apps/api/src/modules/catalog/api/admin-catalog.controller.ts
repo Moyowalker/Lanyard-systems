@@ -73,8 +73,8 @@ export class AdminCatalogController {
 
   @Post('products')
   @RequirePermissions('catalog:write')
-  createProduct(@Body(new ZodValidationPipe(CreateProductSchema)) dto: CreateProductInput) {
-    return this.catalog.createProduct(dto);
+  async createProduct(@Body(new ZodValidationPipe(CreateProductSchema)) dto: CreateProductInput) {
+    return { data: await this.catalog.createProduct(dto) };
   }
 
   @Post('branches/:branchId/products/import')

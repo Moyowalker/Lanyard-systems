@@ -37,8 +37,9 @@ function RecentInvoicesInner({
   onResume: (invoice: StockInvoiceDto) => void;
   onChanged: () => void;
 }) {
-  const [filter, setFilter] = useState<'received' | 'draft'>('received');
+  const [filter, setFilter] = useState<'received' | 'draft' | 'voided'>('received');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const invoicesQ = useQuery({
     queryKey: ['admin-invoices', branchId, filter],
@@ -56,13 +57,18 @@ function RecentInvoicesInner({
 
   async function act(url: string, method: string, id: string) {
     setBusyId(id);
+    setActionError(null);
     try {
       const res = await fetch(url, {
         method,
         headers: method === 'PATCH' ? { 'content-type': 'application/json' } : undefined,
         body: method === 'PATCH' ? JSON.stringify({ paymentStatus: 'paid' }) : undefined,
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setActionError(body?.error?.message ?? 'Invoice action failed');
+        return;
+      }
       await invoicesQ.refetch();
       onChanged();
     } finally {
@@ -110,7 +116,16 @@ function RecentInvoicesInner({
         >
           Drafts
         </button>
+        <button
+          type="button"
+          className={chipClass(filter === 'voided')}
+          onClick={() => setFilter('voided')}
+        >
+          Voided
+        </button>
       </div>
+
+      {actionError ? <p className="mb-3 text-sm text-rose-600" role="alert">{actionError}</p> : null}
 
       {invoicesQ.isLoading ? (
         <div className="space-y-2">
@@ -129,6 +144,7 @@ function RecentInvoicesInner({
           {invoices.map((invoice) => {
             const pay = paymentBadge(invoice);
             const isDraft = invoice.status === 'draft';
+            const isVoided = invoice.status === 'voided';
             return (
               <li key={invoice.id}>
                 <details className="rounded-xl border border-slate-200 bg-white">
@@ -140,6 +156,8 @@ function RecentInvoicesInner({
                       <span className="text-sm text-slate-600">{invoice.vendorName}</span>
                       {isDraft ? (
                         <Badge tone="warn">Draft</Badge>
+                      ) : isVoided ? (
+                        <Badge tone="danger">Voided</Badge>
                       ) : (
                         <Badge tone={pay.tone}>{pay.label}</Badge>
                       )}
@@ -203,14 +221,30 @@ function RecentInvoicesInner({
                             Delete
                           </button>
                         </>
-                      ) : invoice.paymentStatus === 'unpaid' ? (
-                        <Button
-                          variant="secondary"
-                          disabled={busyId === invoice.id}
-                          onClick={() => act(`${base}/${invoice.id}/payment`, 'PATCH', invoice.id)}
-                        >
-                          Mark paid
-                        </Button>
+                      ) : !isVoided ? (
+                        <>
+                          {invoice.paymentStatus === 'unpaid' ? (
+                            <Button
+                              variant="secondary"
+                              disabled={busyId === invoice.id}
+                              onClick={() => act(`${base}/${invoice.id}/payment`, 'PATCH', invoice.id)}
+                            >
+                              Mark paid
+                            </Button>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={busyId === invoice.id}
+                            onClick={() => {
+                              if (window.confirm(`Void ${invoice.invoiceNo}? This reverses its stock and keeps an audit record.`)) {
+                                void act(`${base}/${invoice.id}/void`, 'POST', invoice.id);
+                              }
+                            }}
+                            className="rounded-lg px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
+                          >
+                            Void invoice
+                          </button>
+                        </>
                       ) : null}
 
                       {/* Scanned invoice attachment (audit) — available on any invoice. */}

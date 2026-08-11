@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { ActorType } from '../enums';
 
+const auditBranchId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
+
 /**
  * Read model for an append-only audit log entry. The audit collection is the
  * compliance/security backbone (PCN, NDPA) — entries are never updated or deleted.
@@ -37,6 +39,7 @@ export const AuditLogQuerySchema = z.object({
   actorType: z.nativeEnum(ActorType).optional(),
   targetType: z.string().trim().min(1).max(120).optional(),
   targetId: z.string().trim().min(1).optional(),
+  branchId: auditBranchId.optional(),
   /** ISO datetime lower bound (inclusive). */
   from: z.string().optional(),
   /** ISO datetime upper bound (inclusive). */

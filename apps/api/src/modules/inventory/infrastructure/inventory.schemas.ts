@@ -148,12 +148,12 @@ export class StockInvoice {
   receivedByStaffId: Types.ObjectId;
 
   /**
-   * `draft` = editable, no stock/price applied yet; `received` = published, stock
-   * movements + price/visibility upserts done. Defaults to `received` so legacy
-   * documents (which predate drafts) read as received.
+  * `draft` = editable, no stock/price applied yet; `received` = published, stock
+  * movements + price/visibility upserts done; `voided` = received stock safely
+  * reversed while retaining the original invoice and ledger history.
    */
-  @Prop({ type: String, enum: ['draft', 'received'], default: 'received', index: true })
-  status: 'draft' | 'received';
+  @Prop({ type: String, enum: ['draft', 'received', 'voided'], default: 'received', index: true })
+  status: 'draft' | 'received' | 'voided';
 
   @Prop({ type: String, enum: ['paid', 'unpaid'], default: 'unpaid' })
   paymentStatus: 'paid' | 'unpaid';
@@ -161,6 +161,9 @@ export class StockInvoice {
   /** Expected payment date — required (in the DTO) while unpaid. */
   @Prop({ type: Date })
   paymentDueDate?: Date;
+
+  @Prop({ type: String, trim: true })
+  idempotencyKey?: string;
 
   /** Object-store key of the uploaded scanned invoice (audit artefact), if any. */
   @Prop({ type: String, trim: true })
@@ -173,6 +176,7 @@ export class StockInvoice {
 export const StockInvoiceSchema = SchemaFactory.createForClass(StockInvoice);
 StockInvoiceSchema.index({ branchId: 1, createdAt: -1 });
 StockInvoiceSchema.index({ branchId: 1, invoiceNo: 1 });
+StockInvoiceSchema.index({ branchId: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
 StockInvoiceSchema.index({ branchId: 1, status: 1, createdAt: -1 });
 // NOTE: no immutableGuard here. Invoices are NOT append-only: drafts are editable
 // and deletable, and received invoices accept payment-status updates. The service

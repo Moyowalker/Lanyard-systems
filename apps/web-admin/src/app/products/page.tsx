@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BranchSummaryDto,
   BulkMedicineImportResultDto,
@@ -182,13 +182,17 @@ export default function ProductsPage() {
   const [bulkResult, setBulkResult] = useState<BulkMedicineImportResultDto | null>(null);
   const [productSearch, setProductSearch] = useState('');
 
-  const productsQ = useQuery({
+  const productsQ = useInfiniteQuery({
     queryKey: ['admin-products'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/catalog/products?limit=100');
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '100' });
+      if (pageParam) params.set('cursor', pageParam);
+      const res = await fetch(`/api/admin/catalog/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<AdminProductRow>;
     },
+    getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
   });
 
   const categoriesQ = useQuery({
@@ -209,7 +213,7 @@ export default function ProductsPage() {
     },
   });
 
-  const rows = productsQ.data?.data ?? [];
+  const rows = productsQ.data?.pages.flatMap((page) => page.data) ?? [];
   const categories = categoriesQ.data?.data ?? [];
   const branches = branchesQ.data?.data ?? [];
   const selectedProduct = useMemo(
@@ -253,12 +257,19 @@ export default function ProductsPage() {
       return body;
     },
     onSuccess: async (_body, variables) => {
-      setProductMessage({
-        tone: 'success',
-        text: variables.mode === 'create' ? 'Product created.' : 'Product updated.',
-      });
       if (variables.mode === 'create') {
-        setProductForm(EMPTY_PRODUCT_FORM);
+        const created = (_body as { data?: AdminProductRow }).data;
+        if (created?.id) {
+          setProductForm(toProductForm(created));
+          setProductMessage({
+            tone: 'success',
+            text: 'Product created. You can now add product images.',
+          });
+        } else {
+          setProductMessage({ tone: 'success', text: 'Product created.' });
+        }
+      } else {
+        setProductMessage({ tone: 'success', text: 'Product updated.' });
       }
       await queryClient.invalidateQueries({ queryKey: ['admin-products'] });
     },
@@ -521,7 +532,7 @@ export default function ProductsPage() {
       ) : (
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Catalog SKUs" value={rows.length} icon={IconCatalog} tone="brand" />
+            <StatCard label="Catalog SKUs loaded" value={rows.length} icon={IconCatalog} tone="brand" />
             <StatCard label="Published" value={publishedCount} icon={IconCheck} tone="sky" />
             <StatCard label="Draft" value={draftCount} icon={IconClock} tone="amber" />
             <StatCard
@@ -901,20 +912,20 @@ export default function ProductsPage() {
                   />
                 </div>
 
-                {selectedProduct ? (
+                {productForm.id ? (
                   <div>
                     <div className={labelClass}>Images</div>
                     <div className="mt-2 grid gap-3 sm:grid-cols-[repeat(auto-fill,minmax(7rem,1fr))]">
-                      {(selectedProduct.images ?? []).map((key, index) => (
+                      {(selectedProduct?.images ?? []).map((key, index) => (
                         <div
                           key={key}
                           className="overflow-hidden rounded-xl border border-slate-200 bg-white"
                         >
                           <div className="aspect-square bg-slate-100">
-                            {selectedProduct.imageUrls?.[index] ? (
+                            {selectedProduct?.imageUrls?.[index] ? (
                               <img
                                 src={selectedProduct.imageUrls[index]}
-                                alt={`${selectedProduct.name} ${index + 1}`}
+                                alt={`${productForm.name} ${index + 1}`}
                                 className="h-full w-full object-cover"
                               />
                             ) : null}
@@ -923,7 +934,7 @@ export default function ProductsPage() {
                             type="button"
                             disabled={imageRemoveMutation.isPending}
                             onClick={() =>
-                              imageRemoveMutation.mutate({ id: selectedProduct.id, key })
+                              imageRemoveMutation.mutate({ id: productForm.id!, key })
                             }
                             className="w-full px-2 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
                           >
@@ -933,7 +944,7 @@ export default function ProductsPage() {
                             <button
                               type="button"
                               disabled={index === 0 || imageReorderMutation.isPending}
-                              onClick={() => moveImage(selectedProduct, index, -1)}
+                              onClick={() => selectedProduct && moveImage(selectedProduct, index, -1)}
                               className="px-2 py-2 transition hover:bg-slate-50 disabled:opacity-40"
                             >
                               Up
@@ -941,10 +952,10 @@ export default function ProductsPage() {
                             <button
                               type="button"
                               disabled={
-                                index === (selectedProduct.images?.length ?? 0) - 1 ||
+                                index === (selectedProduct?.images?.length ?? 0) - 1 ||
                                 imageReorderMutation.isPending
                               }
-                              onClick={() => moveImage(selectedProduct, index, 1)}
+                              onClick={() => selectedProduct && moveImage(selectedProduct, index, 1)}
                               className="border-l border-slate-100 px-2 py-2 transition hover:bg-slate-50 disabled:opacity-40"
                             >
                               Down
@@ -1192,7 +1203,7 @@ export default function ProductsPage() {
                   />
                 </div>
                 <span className="text-xs text-slate-500">
-                  {filteredRows.length} of {rows.length} products
+                  {filteredRows.length} of {rows.length} loaded product{rows.length === 1 ? '' : 's'}
                 </span>
               </div>
               {filteredRows.length === 0 ? (
@@ -1264,6 +1275,21 @@ export default function ProductsPage() {
                   </tbody>
                 </TableCard>
               )}
+              <div className="mt-4 flex justify-center">
+                {productsQ.hasNextPage ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => productsQ.fetchNextPage()}
+                    disabled={productsQ.isFetchingNextPage}
+                  >
+                    {productsQ.isFetchingNextPage ? 'Loading...' : 'Load more products'}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-slate-400">
+                    {rows.length} product{rows.length === 1 ? '' : 's'} loaded
+                  </span>
+                )}
+              </div>
             </>
           )}
         </>

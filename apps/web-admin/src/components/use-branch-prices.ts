@@ -39,6 +39,20 @@ const EMPTY_DRAFT: PriceDraft = {
   isAvailable: true,
 };
 
+function formatNaira(kobo?: number): string {
+  return kobo == null ? '' : (kobo / 100).toFixed(2);
+}
+
+function toKobo(naira: string): number {
+  return Math.round(Number(naira) * 100);
+}
+
+function isBelowCost(draft: PriceDraft): boolean {
+  const cost = Number(draft.costKobo);
+  const price = Number(draft.priceKobo);
+  return Number.isFinite(cost) && Number.isFinite(price) && cost > 0 && price < cost;
+}
+
 /**
  * Per-branch price book data layer — loads the branch price rows, keeps an editable
  * draft per product, and saves a single row. Extracted so the inventory page can edit
@@ -69,9 +83,9 @@ export function useBranchPrices(branchId: string, products: PricingProduct[]) {
     for (const product of products) {
       const row = pricesById.get(product.id);
       nextDrafts[product.id] = {
-        priceKobo: row ? String(row.priceKobo) : '',
-        costKobo: row?.costKobo ? String(row.costKobo) : '',
-        compareAtKobo: row?.compareAtKobo ? String(row.compareAtKobo) : '',
+        priceKobo: row ? formatNaira(row.priceKobo) : '',
+        costKobo: formatNaira(row?.costKobo),
+        compareAtKobo: formatNaira(row?.compareAtKobo),
         isAvailable: row?.isAvailable ?? true,
       };
     }
@@ -123,9 +137,9 @@ export function useBranchPrices(branchId: string, products: PricingProduct[]) {
     }
     const parsed = UpsertPriceSchema.safeParse({
       productId,
-      priceKobo: Number(draft?.priceKobo),
-      costKobo: draft?.costKobo ? Number(draft.costKobo) : undefined,
-      compareAtKobo: draft?.compareAtKobo ? Number(draft.compareAtKobo) : undefined,
+      priceKobo: toKobo(draft?.priceKobo),
+      costKobo: draft?.costKobo ? toKobo(draft.costKobo) : undefined,
+      compareAtKobo: draft?.compareAtKobo ? toKobo(draft.compareAtKobo) : undefined,
       isAvailable: draft?.isAvailable ?? true,
     });
     if (!parsed.success) {
@@ -145,6 +159,7 @@ export function useBranchPrices(branchId: string, products: PricingProduct[]) {
     availableCount: prices.filter((row) => row.isAvailable).length,
     missingCount: Math.max(0, products.length - prices.length),
     draftFor,
+    isBelowCost: (productId: string) => isBelowCost(drafts[productId] ?? EMPTY_DRAFT),
     patchDraft,
     saveRow,
     savingProductId,

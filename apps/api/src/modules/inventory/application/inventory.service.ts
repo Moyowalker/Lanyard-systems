@@ -301,6 +301,13 @@ export class InventoryService {
     input: ReceiveInvoiceInput,
   ): Promise<StockInvoiceDto> {
     input = await this.normalizeInvoiceVendor(input);
+    if (input.idempotencyKey) {
+      const existing = await this.invoiceModel.findOne({
+        branchId: new Types.ObjectId(branchId),
+        idempotencyKey: input.idempotencyKey,
+      });
+      if (existing) return this.toInvoiceDto(existing.toObject(), undefined);
+    }
     const asDraft = input.asDraft === true;
     // Drafts snapshot names + validate products exist, but skip the visible-without-price
     // guard (nothing is applied yet) and never touch stock/prices.
@@ -326,21 +333,32 @@ export class InventoryService {
     }
 
     let invoice!: StockInvoice & { _id: Types.ObjectId; toObject(): Record<string, unknown> };
-    await this.tx.run(async (session) => {
-      [invoice] = await this.invoiceModel.create(
-        [this.buildInvoiceDoc(branchId, actorId, input, nameById, 'received')],
-        { session },
-      );
-      await this.applyInvoiceLines(
-        branchId,
-        actorId,
-        input,
-        invoice._id.toString(),
-        existingPrices,
-        nameById,
-        session,
-      );
-    });
+    try {
+      await this.tx.run(async (session) => {
+        [invoice] = await this.invoiceModel.create(
+          [this.buildInvoiceDoc(branchId, actorId, input, nameById, 'received')],
+          { session },
+        );
+        await this.applyInvoiceLines(
+          branchId,
+          actorId,
+          input,
+          invoice._id.toString(),
+          existingPrices,
+          nameById,
+          session,
+        );
+      });
+    } catch (error) {
+      if (input.idempotencyKey && this.isDuplicateKey(error)) {
+        const existing = await this.invoiceModel.findOne({
+          branchId: new Types.ObjectId(branchId),
+          idempotencyKey: input.idempotencyKey,
+        });
+        if (existing) return this.toInvoiceDto(existing.toObject(), undefined);
+      }
+      throw error;
+    }
     const invoiceId = invoice._id.toString();
     await this.recordReceiveAudit(branchId, actorId, input, invoiceId, nameById);
     return this.toInvoiceDto(invoice.toObject() as never, undefined);
@@ -448,6 +466,62 @@ export class InventoryService {
       'inventory.invoice_draft_deleted',
       `Draft invoice ${invoice.invoiceNo} from ${invoice.vendorName} deleted`,
     );
+  }
+
+  /**
+   * Reverse a received invoice only while every received line can still be removed from stock.
+   * The original invoice and its receive movements stay in the audit trail; compensating
+   * negative movements make the correction explicit.
+   */
+  async voidInvoice(branchId: string, actorId: string, id: string): Promise<StockInvoiceDto> {
+    const invoice = await this.invoiceModel.findOne({
+      _id: new Types.ObjectId(id),
+      branchId: new Types.ObjectId(branchId),
+    });
+    if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
+    if (invoice.status !== 'received') {
+      throw new DomainError(ErrorCode.CONFLICT, 'Only received invoices can be voided');
+    }
+
+    const input = this.invoiceDocToInput(invoice);
+    await this.tx.run(async (session) => {
+      const current = await this.invoiceModel.findOne(
+        { _id: new Types.ObjectId(id), branchId: new Types.ObjectId(branchId), status: 'received' },
+        null,
+        { session },
+      );
+      if (!current) throw new DomainError(ErrorCode.CONFLICT, 'Invoice is already voided');
+
+      for (const line of input.lines) {
+        await this.applyManualMutation(
+          branchId,
+          actorId,
+          {
+            productId: line.productId,
+            quantityDelta: -line.quantity,
+            batchNo: line.batchNo,
+            expiry: line.expiry,
+            reason: `Void invoice ${input.invoiceNo} — ${input.vendorName}`,
+            movementType: StockMovementType.ADJUST,
+            invoiceId: id,
+            suppressAudit: true,
+          },
+          session,
+        );
+      }
+      current.status = 'voided';
+      await current.save({ session });
+      invoice.status = 'voided';
+    });
+
+    await this.recordInvoiceAudit(
+      branchId,
+      actorId,
+      id,
+      'inventory.invoice_voided',
+      `Received invoice ${invoice.invoiceNo} from ${invoice.vendorName} voided; stock reversed`,
+    );
+    return this.toInvoiceDto(invoice.toObject(), undefined);
   }
 
   /** Update an invoice's payment status (paid/unpaid + expected date). Audited. */
@@ -611,6 +685,7 @@ export class InventoryService {
       status,
       paymentStatus: input.paymentStatus,
       paymentDueDate: input.paymentStatus === 'unpaid' ? input.paymentDueDate : undefined,
+      idempotencyKey: input.idempotencyKey,
       receivedByStaffId: new Types.ObjectId(actorId),
       lines: input.lines.map((line) => ({
         productId: new Types.ObjectId(line.productId),
@@ -635,6 +710,7 @@ export class InventoryService {
     note?: string;
     paymentStatus: 'paid' | 'unpaid';
     paymentDueDate?: Date;
+    idempotencyKey?: string;
     lines: Array<{
       productId: Types.ObjectId;
       quantity: number;
@@ -845,9 +921,10 @@ export class InventoryService {
       invoiceNo: string;
       invoiceDate: Date;
       note?: string;
-      status?: 'draft' | 'received';
+      status?: 'draft' | 'received' | 'voided';
       paymentStatus?: 'paid' | 'unpaid';
       paymentDueDate?: Date;
+      idempotencyKey?: string;
       attachmentKey?: string;
       receivedByStaffId: Types.ObjectId;
       lines: Array<{
@@ -876,6 +953,7 @@ export class InventoryService {
       status: row.status ?? 'received',
       paymentStatus: row.paymentStatus ?? 'unpaid',
       paymentDueDate: row.paymentDueDate?.toISOString(),
+      idempotencyKey: row.idempotencyKey,
       hasAttachment: Boolean(row.attachmentKey),
       receivedById: row.receivedByStaffId.toString(),
       receivedByName: receivedByName || undefined,

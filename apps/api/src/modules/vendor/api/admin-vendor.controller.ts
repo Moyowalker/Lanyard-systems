@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   CreateVendorInput,
@@ -42,5 +42,12 @@ export class AdminVendorController {
     @Body(new ZodValidationPipe(UpdateVendorSchema)) dto: UpdateVendorInput,
   ) {
     return { data: await this.vendors.update(id, dto) };
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @RequirePermissions('vendor:write')
+  async remove(@Param('id') id: string): Promise<void> {
+    await this.vendors.softDelete(id);
   }
 }

@@ -91,6 +91,15 @@ export class VendorService {
     return this.toDto(vendor.toObject());
   }
 
+  async softDelete(id: string): Promise<void> {
+    const vendor = await this.vendorModel.findOneAndUpdate(
+      { _id: id, deletedAt: { $exists: false } },
+      { $set: { deletedAt: new Date(), isActive: false } },
+      { new: true },
+    );
+    if (!vendor) throw new DomainError(ErrorCode.NOT_FOUND, 'Vendor not found');
+  }
+
   private isDuplicateKey(err: unknown): boolean {
     return typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000;
   }

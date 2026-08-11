@@ -221,12 +221,21 @@ export function TableCard({ children, className }: { children: ReactNode; classN
   );
 }
 
-export function Th({ children, right }: { children: ReactNode; right?: boolean }) {
+export function Th({
+  children,
+  right,
+  className,
+}: {
+  children: ReactNode;
+  right?: boolean;
+  className?: string;
+}) {
   return (
     <th
       className={cn(
         'whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500',
         right ? 'text-right' : 'text-left',
+        className,
       )}
     >
       {children}

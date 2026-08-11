@@ -238,9 +238,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       {/* Main column */}
-      <div className="flex min-h-screen flex-1 flex-col lg:pl-64">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-64">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200/80 bg-white/70 px-5 backdrop-blur-xl lg:px-8">
+        <header className="sticky top-0 z-20 flex h-16 min-w-0 items-center gap-3 border-b border-slate-200/80 bg-white/70 px-5 backdrop-blur-xl lg:px-8">
           <button
             onClick={() => setMobileNavOpen(true)}
             className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 lg:hidden"

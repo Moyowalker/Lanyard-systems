@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { ALL_BRANCHES, AuditLogDto, AuditLogQuery, Paginated } from '@lanyard/contracts';
+import { ALL_BRANCHES, AuditLogDto, AuditLogQuery, ErrorCode, Paginated } from '@lanyard/contracts';
 
 import { AuditLog, AuditLogDocument } from '../../../database/platform.schemas';
 import { cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
+import { DomainError } from '../../../core/errors/domain-error';
 
 /** Escape user input before embedding in a RegExp (prevents regex injection). */
 function escapeRegex(s: string): string {
@@ -24,7 +25,12 @@ export class AuditQueryService {
 
     // Branch scope: ALL-scope staff see everything (incl. platform-level entries
     // with no branchId); branch-scoped staff see only their branches.
-    if (!branchScope.includes(ALL_BRANCHES)) {
+    if (query.branchId) {
+      if (!branchScope.includes(ALL_BRANCHES) && !branchScope.includes(query.branchId)) {
+        throw new DomainError(ErrorCode.BRANCH_SCOPE_VIOLATION, 'Outside your branch scope');
+      }
+      filter.branchId = new Types.ObjectId(query.branchId);
+    } else if (!branchScope.includes(ALL_BRANCHES)) {
       filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
     }
 

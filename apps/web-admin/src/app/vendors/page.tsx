@@ -108,10 +108,37 @@ export default function VendorsPage() {
       }),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/vendors/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error?.message ?? 'Failed to remove vendor');
+      }
+    },
+    onSuccess: async () => {
+      setMessage({ tone: 'success', text: 'Vendor removed.' });
+      setForm(EMPTY);
+      await queryClient.invalidateQueries({ queryKey: ['admin-vendors'] });
+    },
+    onError: (err) =>
+      setMessage({
+        tone: 'danger',
+        text: err instanceof Error ? err.message : 'Failed to remove vendor',
+      }),
+  });
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     saveMutation.mutate(form);
+  }
+
+  function removeVendor() {
+    if (!form.id) return;
+    if (!window.confirm(`Remove ${form.name}? Existing invoice history will be kept.`)) return;
+    setMessage(null);
+    deleteMutation.mutate(form.id);
   }
 
   return (
@@ -305,7 +332,10 @@ export default function VendorsPage() {
               </p>
             ) : null}
 
-            <Button type="submit" disabled={saveMutation.isPending || !form.name.trim()}>
+            <Button
+              type="submit"
+              disabled={saveMutation.isPending || deleteMutation.isPending || !form.name.trim()}
+            >
               {saveMutation.isPending ? (
                 <>
                   <Spinner className="h-4 w-4 border-white/40 border-t-white" /> Saving…
@@ -316,6 +346,16 @@ export default function VendorsPage() {
                 'Add vendor'
               )}
             </Button>
+            {form.id ? (
+              <button
+                type="button"
+                onClick={removeVendor}
+                disabled={saveMutation.isPending || deleteMutation.isPending}
+                className="ml-2 rounded-lg px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleteMutation.isPending ? 'Removing…' : 'Remove vendor'}
+              </button>
+            ) : null}
           </form>
         </Panel>
       </div>

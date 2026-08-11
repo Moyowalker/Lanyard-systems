@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BranchInventoryItemDto,
   BranchSummaryDto,
@@ -161,17 +161,30 @@ export default function InventoryPage() {
     },
   });
 
-  const productsQ = useQuery({
+  const productsQ = useInfiniteQuery({
     queryKey: ['admin-products', 'inventory'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/catalog/products?limit=100');
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '100' });
+      if (pageParam) params.set('cursor', pageParam);
+      const res = await fetch(`/api/admin/catalog/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<AdminProductLookup>;
     },
+    getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
   });
 
   const branches = branchesQ.data?.data ?? [];
-  const products = useMemo(() => productsQ.data?.data ?? [], [productsQ.data]);
+  const products = useMemo(
+    () => productsQ.data?.pages.flatMap((page) => page.data) ?? [],
+    [productsQ.data],
+  );
+
+  useEffect(() => {
+    if (productsQ.hasNextPage && !productsQ.isFetchingNextPage) {
+      void productsQ.fetchNextPage();
+    }
+  }, [productsQ.fetchNextPage, productsQ.hasNextPage, productsQ.isFetchingNextPage]);
 
   useEffect(() => {
     if (!branchId && branches[0]?.id) setBranchId(branches[0].id);
@@ -483,14 +496,14 @@ export default function InventoryPage() {
               <thead className="border-b border-slate-100 bg-slate-50/60">
                 <tr>
                   <Th>Product</Th>
-                  <Th>Status</Th>
+                  <Th className="hidden sm:table-cell">Status</Th>
                   <Th right>Available</Th>
-                  <Th right>On hand</Th>
-                  <Th right>Reserved</Th>
-                  <Th right>Reorder</Th>
-                  <Th>Next expiry</Th>
+                  <Th right className="hidden md:table-cell">On hand</Th>
+                  <Th right className="hidden lg:table-cell">Reserved</Th>
+                  <Th right className="hidden lg:table-cell">Reorder</Th>
+                  <Th className="hidden xl:table-cell">Next expiry</Th>
                   <Th right>Price</Th>
-                  <Th>Storefront</Th>
+                  <Th className="hidden lg:table-cell">Storefront</Th>
                   <Th right>{''}</Th>
                 </tr>
               </thead>
@@ -524,24 +537,24 @@ export default function InventoryPage() {
                           )
                         }
                       >
-                        <Td>
+                        <Td className="max-w-[12rem] sm:max-w-none">
                           <div className="font-semibold text-slate-900">{row.productName}</div>
-                          <div className="text-xs text-slate-500">
+                          <div className="hidden text-xs text-slate-500 sm:block">
                             {[row.genericName, row.brand, row.form, row.strength]
                               .filter(Boolean)
                               .join(' · ') || 'Catalog details unavailable'}
                           </div>
                         </Td>
-                        <Td>
+                        <Td className="hidden sm:table-cell">
                           <Badge tone={stockTone(row)}>{stockLabel(row)}</Badge>
                         </Td>
                         <Td right className="font-semibold text-slate-900">
                           {row.available}
                         </Td>
-                        <Td right>{row.onHand}</Td>
-                        <Td right>{row.reserved}</Td>
-                        <Td right>{row.reorderLevel}</Td>
-                        <Td>
+                        <Td right className="hidden md:table-cell">{row.onHand}</Td>
+                        <Td right className="hidden lg:table-cell">{row.reserved}</Td>
+                        <Td right className="hidden lg:table-cell">{row.reorderLevel}</Td>
+                        <Td className="hidden xl:table-cell">
                           <span className={exp.className}>
                             {exp.label}
                             {exp.hint ? (
@@ -560,7 +573,7 @@ export default function InventoryPage() {
                             <span className="text-slate-400">Not set</span>
                           )}
                         </Td>
-                        <Td>
+                        <Td className="hidden lg:table-cell">
                           <Badge tone={priceRow?.isAvailable ? 'success' : 'neutral'}>
                             {priceRow?.isAvailable ? 'Visible' : 'Hidden'}
                           </Badge>
@@ -578,7 +591,7 @@ export default function InventoryPage() {
                               {/* Price editor */}
                               <div onClick={(event) => event.stopPropagation()}>
                                 <div className="mb-2 text-sm font-semibold text-slate-900">
-                                  Pricing (kobo)
+                                  Pricing (NGN)
                                 </div>
                                 <div className="grid gap-3 sm:grid-cols-3">
                                   <div>
@@ -586,7 +599,7 @@ export default function InventoryPage() {
                                     <input
                                       type="number"
                                       min="0"
-                                      step="1"
+                                      step="0.01"
                                       value={draft.costKobo}
                                       onChange={(event) =>
                                         prices.patchDraft(row.productId, {
@@ -598,11 +611,11 @@ export default function InventoryPage() {
                                     />
                                   </div>
                                   <div>
-                                    <label className={labelClass}>Selling</label>
+                                    <label className={labelClass}>Selling (NGN)</label>
                                     <input
                                       type="number"
                                       min="0"
-                                      step="1"
+                                      step="0.01"
                                       value={draft.priceKobo}
                                       onChange={(event) =>
                                         prices.patchDraft(row.productId, {
@@ -613,11 +626,11 @@ export default function InventoryPage() {
                                     />
                                   </div>
                                   <div>
-                                    <label className={labelClass}>Compare at</label>
+                                    <label className={labelClass}>Compare at (NGN)</label>
                                     <input
                                       type="number"
                                       min="0"
-                                      step="1"
+                                      step="0.01"
                                       value={draft.compareAtKobo}
                                       onChange={(event) =>
                                         prices.patchDraft(row.productId, {
@@ -648,6 +661,11 @@ export default function InventoryPage() {
                                   Hidden products stay off the online store but can still be sold at
                                   the POS counter.
                                 </p>
+                                {prices.isBelowCost(row.productId) ? (
+                                  <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                    Selling price is below cost. Confirm this is intentional before saving.
+                                  </p>
+                                ) : null}
                                 {prices.message ? (
                                   <p
                                     className={cn(

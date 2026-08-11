@@ -196,6 +196,12 @@ export default function LoginPage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('reason') === 'session-expired') {
+      setError('Your session expired. Please sign in again.');
+    }
+  }, []);
+
   async function login() {
     setBusy(true);
     setError(undefined);

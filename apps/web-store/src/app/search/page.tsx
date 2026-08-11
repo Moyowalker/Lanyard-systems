@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Paginated, ProductListItemDto } from '@lanyard/contracts';
 import { apiFetch } from '@/lib/api';
 import { getSelectedBranch } from '@/lib/branch';
-import { ProductCard } from '@/components/ProductCard';
+import { PaginatedProductGrid } from '@/components/PaginatedProductGrid';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,11 +88,12 @@ export default async function SearchPage({
           cta
         />
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {results.data.map((p) => (
-            <ProductCard key={p.id} product={p} branchId={branch?.id} />
-          ))}
-        </div>
+        <PaginatedProductGrid
+          initialPage={results}
+          branchId={branch?.id}
+          endpoint="/api/catalog/search"
+          params={{ q }}
+        />
       )}
     </div>
   );

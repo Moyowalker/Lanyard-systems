@@ -21,6 +21,7 @@ type InvoiceLineForm = {
 };
 
 type InvoiceFormState = {
+  idempotencyKey: string;
   vendorId?: string;
   vendorName: string;
   invoiceNo: string;
@@ -43,6 +44,7 @@ const emptyLine = (): InvoiceLineForm => ({
 });
 
 const emptyForm = (): InvoiceFormState => ({
+  idempotencyKey: crypto.randomUUID(),
   vendorId: undefined,
   vendorName: '',
   invoiceNo: '',
@@ -56,6 +58,7 @@ const emptyForm = (): InvoiceFormState => ({
 /** Rebuild the editable form from a stored draft invoice (Resume). */
 function formFromInvoice(invoice: StockInvoiceDto): InvoiceFormState {
   return {
+    idempotencyKey: invoice.idempotencyKey ?? crypto.randomUUID(),
     vendorId: invoice.vendorId,
     vendorName: invoice.vendorName,
     invoiceNo: invoice.invoiceNo,
@@ -143,6 +146,32 @@ export function InvoiceReceiveForm({
   }
 
   const isRequired = useMemo(() => (key: string) => fieldErrors.has(key), [fieldErrors]);
+  const invoiceSummary = useMemo(
+    () =>
+      form.lines.reduce(
+        (summary, line) => {
+          const quantity = Number(line.quantity) || 0;
+          const costNaira = Number(line.costNaira) || 0;
+          return {
+            units: summary.units + quantity,
+            totalCostNaira: summary.totalCostNaira + quantity * costNaira,
+          };
+        },
+        { units: 0, totalCostNaira: 0 },
+      ),
+    [form.lines],
+  );
+  const belowCostLines = useMemo(
+    () =>
+      form.lines
+        .map((line, index) => ({ line, index }))
+        .filter(({ line }) => {
+          const cost = Number(line.costNaira);
+          const price = Number(line.priceNaira);
+          return Number.isFinite(cost) && Number.isFinite(price) && cost > 0 && price < cost;
+        }),
+    [form.lines],
+  );
 
   function patchLine(index: number, patch: Partial<InvoiceLineForm>) {
     setForm((current) => ({
@@ -160,6 +189,7 @@ export function InvoiceReceiveForm({
       invoiceDate: form.invoiceDate,
       note: form.note || undefined,
       paymentStatus: form.paymentStatus,
+      idempotencyKey: form.idempotencyKey,
       paymentDueDate:
         form.paymentStatus === 'unpaid' ? form.paymentDueDate || undefined : undefined,
       asDraft,
@@ -509,6 +539,31 @@ export function InvoiceReceiveForm({
         Setting a selling price and “Visible on storefront” publishes the product online the moment
         the invoice is received — no separate pricing step. Save as draft to finish it later.
       </p>
+
+      <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 sm:grid-cols-2">
+        <div>
+          <div className={labelClass}>Total units</div>
+          <div className="mt-1 text-lg font-semibold text-slate-900">{invoiceSummary.units}</div>
+        </div>
+        <div>
+          <div className={labelClass}>Invoice total cost</div>
+          <div className="mt-1 text-lg font-semibold text-slate-900">
+            {new Intl.NumberFormat('en-NG', {
+              style: 'currency',
+              currency: 'NGN',
+              minimumFractionDigits: 2,
+            }).format(invoiceSummary.totalCostNaira)}
+          </div>
+        </div>
+      </div>
+
+      {belowCostLines.length > 0 ? (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Selling price is below cost on line{belowCostLines.length === 1 ? '' : 's'}{' '}
+          {belowCostLines.map(({ index }) => index + 1).join(', ')}. Confirm this is intentional before
+          receiving stock.
+        </p>
+      ) : null}
 
       {message ? (
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{message}</p>

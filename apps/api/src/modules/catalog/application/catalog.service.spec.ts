@@ -106,4 +106,49 @@ describe('CatalogService branch catalog pagination', () => {
     expect(result.data).toHaveLength(1);
     expect(result.data[0].slug).toBe('priced-medicine');
   });
+
+  it('returns every branch-available product across cursor pages without duplication', async () => {
+    const first = new Types.ObjectId();
+    const second = new Types.ObjectId();
+    const third = new Types.ObjectId();
+    const rows = [first, second, third].map((id, index) => ({
+      _id: id,
+      slug: `medicine-${index + 1}`,
+      name: `Medicine ${index + 1}`,
+      form: 'tablet',
+      regulatoryClass: 'OTC',
+    }));
+    const find = jest.fn((filter: { _id?: { $gt?: string } }) => {
+      const after = filter._id?.$gt;
+      const start = after ? rows.findIndex((row) => row._id.toString() === after) + 1 : 0;
+      return chain(() => Promise.resolve(rows.slice(start)));
+    });
+    const service = buildService(find);
+    const pricing = (
+      service as unknown as { pricing: { getPricedProductIds: jest.Mock; getPriceMap: jest.Mock } }
+    ).pricing;
+    pricing.getPricedProductIds.mockResolvedValue([first, second, third]);
+    pricing.getPriceMap.mockResolvedValue(
+      new Map(
+        [first, second, third].map((id) => [
+          id.toString(),
+          { priceKobo: 10000, currency: 'NGN', isAvailable: true },
+        ]),
+      ),
+    );
+
+    const pageOne = await service.listProducts({
+      branchId: '6a733cb323c9dd5bda0d8945',
+      limit: 2,
+    });
+    const pageTwo = await service.listProducts({
+      branchId: '6a733cb323c9dd5bda0d8945',
+      limit: 2,
+      cursor: pageOne.meta.nextCursor ?? undefined,
+    });
+
+    expect(pageOne.data.map((row) => row.id)).toEqual([first.toString(), second.toString()]);
+    expect(pageTwo.data.map((row) => row.id)).toEqual([third.toString()]);
+    expect(pageTwo.meta.nextCursor).toBeNull();
+  });
 });

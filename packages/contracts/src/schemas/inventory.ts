@@ -127,7 +127,7 @@ export const ReceiveInvoiceLineSchema = requireBatchPair(
 export const InvoicePaymentStatus = z.enum(['paid', 'unpaid']);
 export type InvoicePaymentStatusValue = z.infer<typeof InvoicePaymentStatus>;
 
-export const InvoiceStatus = z.enum(['draft', 'received']);
+export const InvoiceStatus = z.enum(['draft', 'received', 'voided']);
 export type InvoiceStatusValue = z.infer<typeof InvoiceStatus>;
 
 /** Unpaid invoices must carry an expected payment date. */
@@ -153,6 +153,8 @@ export const ReceiveInvoiceSchema = z
     note: z.string().trim().max(500).optional(),
     paymentStatus: InvoicePaymentStatus,
     paymentDueDate: z.coerce.date().optional(),
+    /** Client-generated key that makes a receive retry return the original receipt. */
+    idempotencyKey: z.string().uuid().optional(),
     /** When true, persist as an editable draft (no stock/price applied yet). */
     asDraft: z.boolean().optional(),
     lines: z.array(ReceiveInvoiceLineSchema).min(1).max(100),
@@ -196,6 +198,7 @@ export interface StockInvoiceDto {
   status: InvoiceStatusValue;
   paymentStatus: InvoicePaymentStatusValue;
   paymentDueDate?: string;
+  idempotencyKey?: string;
   /** Whether a scanned invoice document has been attached (fetch the URL separately). */
   hasAttachment?: boolean;
   receivedById: string;
