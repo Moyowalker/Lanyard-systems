@@ -6,6 +6,7 @@ import {
   ActorType,
   CreateStaffInput,
   ErrorCode,
+  PrincipalType,
   RoleKey,
   StaffDto,
   StaffListDto,
@@ -13,7 +14,7 @@ import {
   UpdateStaffInput,
 } from '@lanyard/contracts';
 
-import { StaffUser, StaffUserDocument } from '../infrastructure/identity.schemas';
+import { Session, StaffUser, StaffUserDocument } from '../infrastructure/identity.schemas';
 import { Role } from '../../authz/infrastructure/authz.schemas';
 import { PasswordService } from '../../../core/security/password.service';
 import { AuditService } from '../../../core/platform/audit.service';
@@ -24,6 +25,7 @@ import { DomainError } from '../../../core/errors/domain-error';
 export class StaffAdminService {
   constructor(
     @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
+    @InjectModel(Session.name) private readonly sessionModel: Model<Session>,
     @InjectModel(Role.name) private readonly roleModel: Model<Role>,
     private readonly passwords: PasswordService,
     private readonly audit: AuditService,
@@ -100,11 +102,19 @@ export class StaffAdminService {
     }
     if (input.firstName !== undefined) staff.firstName = input.firstName;
     if (input.lastName !== undefined) staff.lastName = input.lastName;
+    if (input.email !== undefined) staff.email = input.email.toLowerCase().trim();
     if (input.phone !== undefined) staff.phone = input.phone;
     if (input.branchScope !== undefined) staff.branchScope = input.branchScope;
     if (input.pharmacist !== undefined) staff.pharmacist = input.pharmacist;
 
-    await staff.save();
+    try {
+      await staff.save();
+    } catch (err) {
+      if (this.isDuplicateKey(err)) {
+        throw new DomainError(ErrorCode.CONFLICT, 'A staff account with this email already exists');
+      }
+      throw err;
+    }
     await this.audit.record({
       actorId: principal.sub,
       actorType: ActorType.STAFF,
@@ -114,6 +124,35 @@ export class StaffAdminService {
       metadata: { fields: Object.keys(input) },
     });
     return this.get(id);
+  }
+
+  async softDelete(principal: AuthPrincipal, id: string): Promise<void> {
+    if (id === principal.sub) {
+      throw new DomainError(ErrorCode.FORBIDDEN, 'You cannot delete your own account');
+    }
+    const staff = await this.staffModel.findById(id);
+    if (!staff || staff.deletedAt) throw new DomainError(ErrorCode.NOT_FOUND, 'Staff not found');
+
+    const now = new Date();
+    staff.deletedAt = now;
+    staff.status = AccountStatus.SUSPENDED;
+    await staff.save();
+    await this.sessionModel.updateMany(
+      {
+        principalId: staff._id,
+        principalType: PrincipalType.STAFF,
+        revokedAt: { $exists: false },
+      },
+      { $set: { revokedAt: now } },
+    );
+    await this.audit.record({
+      actorId: principal.sub,
+      actorType: ActorType.STAFF,
+      action: 'staff.delete',
+      targetType: 'staff',
+      targetId: id,
+      metadata: { email: staff.email },
+    });
   }
 
   async resetPassword(principal: AuthPrincipal, id: string, password: string): Promise<void> {

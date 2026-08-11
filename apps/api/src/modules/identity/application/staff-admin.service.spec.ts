@@ -36,6 +36,7 @@ describe('StaffAdminService — privilege escalation guard', () => {
 
     const service = new StaffAdminService(
       staffModel as never,
+      {} as never,
       roleModel as never,
       passwords as never,
       audit as never,
@@ -69,6 +70,7 @@ describe('StaffAdminService — privilege escalation guard', () => {
 
     const service = new StaffAdminService(
       staffModel as never,
+      {} as never,
       roleModel as never,
       passwords as never,
       audit as never,
@@ -86,5 +88,68 @@ describe('StaffAdminService — privilege escalation guard', () => {
     ).rejects.toThrow('db-not-wired'); // got past the guard to the (mocked) write
 
     expect(passwords.hash).toHaveBeenCalled();
+  });
+});
+
+describe('StaffAdminService — account updates and deletion', () => {
+  it('reports a conflict when changing an email to one already in use', async () => {
+    const staff = {
+      _id: new Types.ObjectId(),
+      save: jest.fn().mockRejectedValue({ code: 11000 }),
+    };
+    const service = new StaffAdminService(
+      { findById: jest.fn().mockResolvedValue(staff) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.update(principal([]) as never, staff._id.toString(), { email: 'duplicate@lanyard.test' }),
+    ).rejects.toMatchObject<Partial<DomainError>>({ code: ErrorCode.CONFLICT });
+    expect(staff.save).toHaveBeenCalled();
+  });
+
+  it('suspends deleted staff, revokes active sessions, and audits the removal', async () => {
+    const staff = {
+      _id: new Types.ObjectId(),
+      email: 'kosisochukwu@lanyard.test',
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    const updateMany = jest.fn().mockResolvedValue(undefined);
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const service = new StaffAdminService(
+      { findById: jest.fn().mockResolvedValue(staff) } as never,
+      { updateMany } as never,
+      {} as never,
+      {} as never,
+      audit as never,
+    );
+
+    await service.softDelete(principal([]) as never, staff._id.toString());
+
+    expect(staff.save).toHaveBeenCalled();
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ principalId: staff._id, revokedAt: { $exists: false } }),
+      expect.objectContaining({ $set: expect.objectContaining({ revokedAt: expect.any(Date) }) }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'staff.delete', targetId: staff._id.toString() }),
+    );
+  });
+
+  it('does not allow a staff member to delete their own account', async () => {
+    const service = new StaffAdminService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(service.softDelete(principal([]) as never, 'me')).rejects.toMatchObject<
+      Partial<DomainError>
+    >({ code: ErrorCode.FORBIDDEN });
   });
 });

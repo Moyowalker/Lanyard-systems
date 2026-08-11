@@ -98,7 +98,7 @@ export const faqs = [
 export const contactChannels = [
   {
     title: 'Order & care support',
-    detail: '+234 708 816 7402',
+    detail: '+234 704 699 2829',
     note: 'Help with orders, branch pickup, delivery, and prescriptions.',
   },
   {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   CreateBranchInput,
@@ -51,5 +51,12 @@ export class AdminBranchController {
     @Body(new ZodValidationPipe(UpdateBranchSchema)) dto: UpdateBranchInput,
   ) {
     return this.branches.update(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @RequirePermissions('branch:write')
+  async remove(@CurrentUser() user: AuthPrincipal, @Param('id') id: string): Promise<void> {
+    await this.branches.softDelete(user, id);
   }
 }

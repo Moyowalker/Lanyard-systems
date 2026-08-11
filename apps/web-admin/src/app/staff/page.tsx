@@ -26,6 +26,7 @@ const labelClass = 'text-xs font-semibold uppercase tracking-wide text-slate-500
 
 export default function StaffPage() {
   const [editing, setEditing] = useState<StaffDto | null | 'new'>(null);
+  const [search, setSearch] = useState('');
 
   const staffQ = useQuery({
     queryKey: ['staff'],
@@ -50,10 +51,35 @@ export default function StaffPage() {
   });
 
   const staff = staffQ.data?.data ?? [];
+  const filteredStaff = staff.filter((member) => {
+    const term = search.trim().toLowerCase();
+    return (
+      !term ||
+      [member.firstName, member.lastName, member.email, member.phone]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(term)
+    );
+  });
   const roles = rolesQ.data?.roles ?? [];
   const branches = branchesQ.data?.data ?? [];
   const branchName = (id: string) =>
     id === 'ALL' ? 'All branches' : (branches.find((b) => b.id === id)?.name ?? id.slice(-6));
+
+  async function deleteStaff(member: StaffDto) {
+    if (!window.confirm(`Remove ${member.firstName} ${member.lastName}? Their access will be revoked.`)) {
+      return;
+    }
+    const response = await fetch(`/api/admin/staff/${member.id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      window.alert(body?.error?.message ?? 'Could not remove staff.');
+      return;
+    }
+    if (editing && editing !== 'new' && editing.id === member.id) setEditing(null);
+    await staffQ.refetch();
+  }
 
   return (
     <div>
@@ -61,9 +87,18 @@ export default function StaffPage() {
         title="Staff & access"
         subtitle="Manage staff accounts, roles, and branch scope"
         actions={
-          <Button onClick={() => setEditing('new')} disabled={roles.length === 0}>
-            + Add staff
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search staff"
+              aria-label="Search staff"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-500"
+            />
+            <Button onClick={() => setEditing('new')} disabled={roles.length === 0}>
+              + Add staff
+            </Button>
+          </div>
         }
       />
 
@@ -90,11 +125,15 @@ export default function StaffPage() {
             ))}
           </div>
         </Card>
-      ) : staff.length === 0 ? (
+      ) : filteredStaff.length === 0 ? (
         <Card>
           <EmptyState
-            title="No staff accounts yet"
-            description="Add your first staff member."
+            title={staff.length === 0 ? 'No staff accounts yet' : 'No staff match that search'}
+            description={
+              staff.length === 0
+                ? 'Add your first staff member.'
+                : 'Try a staff name, email address, or phone number.'
+            }
             icon={IconStaff}
           />
         </Card>
@@ -111,7 +150,7 @@ export default function StaffPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {staff.map((s) => (
+            {filteredStaff.map((s) => (
               <tr key={s.id} className="transition-colors hover:bg-slate-50/60">
                 <Td>
                   <div className="font-medium text-slate-900">
@@ -144,9 +183,18 @@ export default function StaffPage() {
                   )}
                 </Td>
                 <Td right>
-                  <Button variant="secondary" onClick={() => setEditing(s)}>
-                    Edit
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="secondary" onClick={() => setEditing(s)}>
+                      Edit
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteStaff(s)}
+                      className="text-sm font-medium text-rose-600 hover:text-rose-800"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </Td>
               </tr>
             ))}
@@ -213,6 +261,7 @@ function StaffForm({
 
     setBusy(true);
     const body: Record<string, unknown> = {
+      email,
       firstName,
       lastName,
       phone: phone.trim() || undefined,
@@ -228,7 +277,6 @@ function StaffForm({
     };
     if (editing) body.status = status;
     else {
-      body.email = email;
       body.password = password;
     }
 
@@ -292,17 +340,15 @@ function StaffForm({
             className={inputClass}
           />
         </div>
-        {!editing && (
-          <div>
-            <label className={labelClass}>Email</label>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              className={inputClass}
-            />
-          </div>
-        )}
+        <div>
+          <label className={labelClass}>Email</label>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            className={inputClass}
+          />
+        </div>
         <div>
           <label className={labelClass}>Phone (optional)</label>
           <input

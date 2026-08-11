@@ -246,6 +246,32 @@ export default function BranchesPage() {
     },
   });
 
+  const deleteBranchMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/branches/${id}`, { method: 'DELETE' });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error?.message ?? 'Could not remove branch');
+    },
+    onSuccess: async () => {
+      setForm(EMPTY_BRANCH_FORM);
+      setMessage({ tone: 'success', text: 'Branch removed.' });
+      await queryClient.invalidateQueries({ queryKey: ['admin-branches', 'list'] });
+    },
+    onError: (error) => {
+      setMessage({
+        tone: 'danger',
+        text: error instanceof Error ? error.message : 'Could not remove branch',
+      });
+    },
+  });
+
+  function removeSelectedBranch() {
+    if (!form.id) return;
+    if (!window.confirm(`Remove ${form.name}? This cannot be undone from the branch list.`)) return;
+    setMessage(undefined);
+    deleteBranchMutation.mutate(form.id);
+  }
+
   async function submitBranch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(undefined);
@@ -814,13 +840,24 @@ export default function BranchesPage() {
                     )}
                   </Button>
                   {form.id ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setForm(EMPTY_BRANCH_FORM)}
-                    >
-                      Clear selection
-                    </Button>
+                    <>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setForm(EMPTY_BRANCH_FORM)}
+                        disabled={deleteBranchMutation.isPending}
+                      >
+                        Clear selection
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={removeSelectedBranch}
+                        disabled={deleteBranchMutation.isPending}
+                        className="rounded-lg px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deleteBranchMutation.isPending ? 'Removing...' : 'Remove branch'}
+                      </button>
+                    </>
                   ) : null}
                 </div>
               </form>

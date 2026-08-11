@@ -72,7 +72,7 @@ export default function ReportsPage() {
   const branchesQ = useQuery({
     queryKey: ['admin-branches', 'reports'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/branches?limit=100');
+      const res = await fetch('/api/admin/branches/available?limit=100');
       if (!res.ok) return null;
       return (await res.json()) as Paginated<BranchSummaryDto>;
     },

@@ -1,8 +1,9 @@
 import { Types } from 'mongoose';
 
-import { ALL_BRANCHES } from '@lanyard/contracts';
+import { ALL_BRANCHES, ErrorCode } from '@lanyard/contracts';
 
 import { BranchService } from './branch.service';
+import { DomainError } from '../../../core/errors/domain-error';
 
 function listChain<T>(value: T) {
   const lean = jest.fn().mockResolvedValue(value);
@@ -81,6 +82,8 @@ describe('BranchService', () => {
       { find: branchFind } as never,
       { find: staffFind } as never,
       { find: roleFind } as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await service.listAdmin({ limit: 10 } as never);
@@ -118,6 +121,64 @@ describe('BranchService', () => {
         branchScope: { $in: [ALL_BRANCHES, branchA.toString(), branchB.toString()] },
         status: 'active',
       }),
+    );
+  });
+
+  it('refuses branch deletion while stock remains', async () => {
+    const branchId = new Types.ObjectId();
+    const service = new BranchService(
+      { findById: jest.fn().mockResolvedValue({}) } as never,
+      { exists: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
+      { exists: jest.fn().mockResolvedValue({ _id: new Types.ObjectId() }) } as never,
+      {} as never,
+    );
+
+    await expect(service.softDelete({ sub: 'admin' } as never, branchId.toString())).rejects.toMatchObject<
+      Partial<DomainError>
+    >({ code: ErrorCode.CONFLICT });
+  });
+
+  it('refuses branch deletion while active scoped staff remain', async () => {
+    const branchId = new Types.ObjectId();
+    const staffExists = jest.fn().mockResolvedValue({ _id: new Types.ObjectId() });
+    const service = new BranchService(
+      { findById: jest.fn().mockResolvedValue({}) } as never,
+      { exists: staffExists } as never,
+      {} as never,
+      { exists: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
+    );
+
+    await expect(service.softDelete({ sub: 'admin' } as never, branchId.toString())).rejects.toMatchObject<
+      Partial<DomainError>
+    >({ code: ErrorCode.CONFLICT });
+    expect(staffExists).toHaveBeenCalledWith(
+      expect.objectContaining({ branchScope: branchId.toString() }),
+    );
+  });
+
+  it('marks an empty branch inactive and audits its removal', async () => {
+    const branchId = new Types.ObjectId();
+    const branch = {
+      code: 'LAG-TEST-01',
+      name: 'Test branch',
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const service = new BranchService(
+      { findById: jest.fn().mockResolvedValue(branch) } as never,
+      { exists: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
+      { exists: jest.fn().mockResolvedValue(null) } as never,
+      audit as never,
+    );
+
+    await service.softDelete({ sub: 'admin' } as never, branchId.toString());
+
+    expect(branch.save).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'branch.delete', targetId: branchId.toString() }),
     );
   });
 });

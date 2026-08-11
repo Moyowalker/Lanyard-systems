@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -83,6 +84,13 @@ export class AdminStaffController {
     @Body(new ZodValidationPipe(UpdateStaffSchema)) dto: UpdateStaffInput,
   ) {
     return this.staffAdmin.update(user, id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @RequirePermissions('staff:write')
+  async remove(@CurrentUser() user: AuthPrincipal, @Param('id') id: string): Promise<void> {
+    await this.staffAdmin.softDelete(user, id);
   }
 
   @Post(':id/reset-password')

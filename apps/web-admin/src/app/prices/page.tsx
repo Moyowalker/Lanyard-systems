@@ -49,7 +49,7 @@ export default function PricesPage() {
   const branchesQ = useQuery({
     queryKey: ['admin-branches', 'prices'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/branches?limit=100');
+      const res = await fetch('/api/admin/branches/available?limit=100');
       if (!res.ok) throw new Error('Failed to load branches');
       return (await res.json()) as Paginated<BranchSummaryDto>;
     },

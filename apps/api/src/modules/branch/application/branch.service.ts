@@ -4,6 +4,7 @@ import { FilterQuery, Model, Types } from 'mongoose';
 import {
   AccountStatus,
   ALL_BRANCHES,
+  ActorType,
   BranchAccessCapabilityDto,
   BranchAccessSummaryDto,
   BranchLocatorQuery,
@@ -20,6 +21,8 @@ import {
 import { Branch, BranchDocument } from '../infrastructure/branch.schema';
 import { StaffUser } from '../../identity/infrastructure/identity.schemas';
 import { Role } from '../../authz/infrastructure/authz.schemas';
+import { InventoryItem } from '../../inventory/infrastructure/inventory.schemas';
+import { AuditService } from '../../../core/platform/audit.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { cursorFilter, paginate } from '../../../core/pagination/cursor';
 
@@ -54,11 +57,13 @@ export class BranchService {
     @InjectModel(Branch.name) private readonly branchModel: Model<Branch>,
     @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
     @InjectModel(Role.name) private readonly roleModel: Model<Role>,
+    @InjectModel(InventoryItem.name) private readonly inventoryModel: Model<InventoryItem>,
+    private readonly audit: AuditService,
   ) {}
 
   /** Public branch locator. With ?near=lat,lng results are sorted by distance. */
   async findPublic(query: BranchLocatorQuery): Promise<BranchSummaryDto[]> {
-    const match: FilterQuery<Branch> = { status: BranchStatus.ACTIVE };
+    const match: FilterQuery<Branch> = { status: BranchStatus.ACTIVE, deletedAt: { $exists: false } };
     if (query.service === FulfillmentType.PICKUP) match['fulfillment.pickup'] = true;
     if (query.service === FulfillmentType.DELIVERY) match['fulfillment.delivery'] = true;
 
@@ -83,7 +88,11 @@ export class BranchService {
   }
 
   async getPublic(id: string): Promise<BranchDocument> {
-    const branch = await this.branchModel.findOne({ _id: id, status: BranchStatus.ACTIVE });
+    const branch = await this.branchModel.findOne({
+      _id: id,
+      status: BranchStatus.ACTIVE,
+      deletedAt: { $exists: false },
+    });
     if (!branch) throw new DomainError(ErrorCode.NOT_FOUND, 'Branch not found');
     return branch;
   }
@@ -92,7 +101,7 @@ export class BranchService {
     query: PaginationQuery,
   ): Promise<Paginated<BranchSummaryDto>> {
     const rows = await this.branchModel
-      .find(cursorFilter(query.cursor))
+      .find({ ...cursorFilter(query.cursor), deletedAt: { $exists: false } })
       .sort({ _id: 1 })
       .limit(query.limit + 1)
       .lean();
@@ -106,7 +115,7 @@ export class BranchService {
     query: PaginationQuery,
     branchScope: string[],
   ): Promise<Paginated<BranchSummaryDto>> {
-    const filter: FilterQuery<Branch> = { ...cursorFilter(query.cursor) };
+    const filter: FilterQuery<Branch> = { ...cursorFilter(query.cursor), deletedAt: { $exists: false } };
     if (!branchScope.includes(ALL_BRANCHES)) {
       filter._id = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
     }
@@ -183,6 +192,39 @@ export class BranchService {
     const branch = await this.branchModel.findByIdAndUpdate(id, { $set: update }, { new: true });
     if (!branch) throw new DomainError(ErrorCode.NOT_FOUND, 'Branch not found');
     return branch;
+  }
+
+  async softDelete(principal: import('../../../core/auth/principal').AuthPrincipal, id: string): Promise<void> {
+    const branch = await this.branchModel.findById(id);
+    if (!branch || branch.deletedAt) throw new DomainError(ErrorCode.NOT_FOUND, 'Branch not found');
+
+    const branchId = new Types.ObjectId(id);
+    const [stock, activeStaff] = await Promise.all([
+      this.inventoryModel.exists({ branchId, onHand: { $gt: 0 } }),
+      this.staffModel.exists({
+        deletedAt: { $exists: false },
+        status: AccountStatus.ACTIVE,
+        branchScope: id,
+      }),
+    ]);
+    if (stock) {
+      throw new DomainError(ErrorCode.CONFLICT, 'Cannot delete a branch that still has inventory stock');
+    }
+    if (activeStaff) {
+      throw new DomainError(ErrorCode.CONFLICT, 'Reassign or remove active staff before deleting this branch');
+    }
+
+    branch.deletedAt = new Date();
+    branch.status = BranchStatus.INACTIVE;
+    await branch.save();
+    await this.audit.record({
+      actorId: principal.sub,
+      actorType: ActorType.STAFF,
+      action: 'branch.delete',
+      targetType: 'branch',
+      targetId: id,
+      metadata: { code: branch.code, name: branch.name },
+    });
   }
 
   /**

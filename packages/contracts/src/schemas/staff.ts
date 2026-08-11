@@ -30,6 +30,7 @@ export type CreateStaffInput = z.infer<typeof CreateStaffSchema>;
 
 export const UpdateStaffSchema = z
   .object({
+    email: z.string().email().max(120).optional(),
     firstName: z.string().trim().min(1).max(80).optional(),
     lastName: z.string().trim().min(1).max(80).optional(),
     phone: optionalPhoneSchema,
