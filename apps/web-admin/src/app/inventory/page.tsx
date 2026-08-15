@@ -191,10 +191,13 @@ export default function InventoryPage() {
   }, [branchId, branches]);
 
   const inventoryQ = useQuery({
-    queryKey: ['admin-inventory', branchId],
+    queryKey: ['admin-inventory', branchId, search],
     enabled: Boolean(branchId),
     queryFn: async () => {
-      const res = await fetch(`/api/admin/branches/${branchId}/inventory`);
+      const params = new URLSearchParams();
+      const term = search.trim();
+      if (term) params.set('q', term);
+      const res = await fetch(`/api/admin/branches/${branchId}/inventory?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load inventory');
       return (await res.json()) as { data: BranchInventoryItemDto[] };
     },

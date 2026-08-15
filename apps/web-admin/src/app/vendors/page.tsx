@@ -111,10 +111,9 @@ export default function VendorsPage() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/admin/vendors/${id}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        throw new Error(json?.error?.message ?? 'Failed to remove vendor');
-      }
+      if (res.status === 204) return;
+      const json = await res.json().catch(() => null);
+      throw new Error(json?.error?.message ?? json?.message ?? 'Failed to remove vendor');
     },
     onSuccess: async () => {
       setMessage({ tone: 'success', text: 'Vendor removed.' });

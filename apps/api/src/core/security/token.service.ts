@@ -37,7 +37,7 @@ export class TokenService {
   ) {}
 
   get accessTtlSeconds(): number {
-    return Math.floor(parseDurationMs(this.config.get<string>('JWT_ACCESS_TTL', '15m')) / 1000);
+    return Math.floor(parseDurationMs(this.config.get<string>('JWT_ACCESS_TTL', '30m')) / 1000);
   }
 
   get refreshTtlMs(): number {

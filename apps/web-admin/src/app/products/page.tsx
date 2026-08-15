@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BranchSummaryDto,
   BulkMedicineImportResultDto,
@@ -182,17 +182,16 @@ export default function ProductsPage() {
   const [bulkResult, setBulkResult] = useState<BulkMedicineImportResultDto | null>(null);
   const [productSearch, setProductSearch] = useState('');
 
-  const productsQ = useInfiniteQuery({
-    queryKey: ['admin-products'],
-    initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: '100' });
-      if (pageParam) params.set('cursor', pageParam);
+  const productsQ = useQuery({
+    queryKey: ['admin-products', productSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '200' });
+      const term = productSearch.trim();
+      if (term) params.set('q', term);
       const res = await fetch(`/api/admin/catalog/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<AdminProductRow>;
     },
-    getNextPageParam: (last) => last.meta.nextCursor ?? undefined,
   });
 
   const categoriesQ = useQuery({
@@ -213,7 +212,7 @@ export default function ProductsPage() {
     },
   });
 
-  const rows = productsQ.data?.pages.flatMap((page) => page.data) ?? [];
+  const rows = productsQ.data?.data ?? [];
   const categories = categoriesQ.data?.data ?? [];
   const branches = branchesQ.data?.data ?? [];
   const selectedProduct = useMemo(
@@ -1276,19 +1275,9 @@ export default function ProductsPage() {
                 </TableCard>
               )}
               <div className="mt-4 flex justify-center">
-                {productsQ.hasNextPage ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() => productsQ.fetchNextPage()}
-                    disabled={productsQ.isFetchingNextPage}
-                  >
-                    {productsQ.isFetchingNextPage ? 'Loading...' : 'Load more products'}
-                  </Button>
-                ) : (
-                  <span className="text-xs text-slate-400">
-                    {rows.length} product{rows.length === 1 ? '' : 's'} loaded
-                  </span>
-                )}
+                <span className="text-xs text-slate-400">
+                  {rows.length} product{rows.length === 1 ? '' : 's'} loaded
+                </span>
               </div>
             </>
           )}

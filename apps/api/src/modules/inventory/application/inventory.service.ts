@@ -100,11 +100,39 @@ export class InventoryService {
     @InjectModel(Vendor.name) private readonly vendorModel: Model<Vendor>,
   ) {}
 
-  async listBranchInventory(branchId: string): Promise<BranchInventoryItemDto[]> {
-    const rows = await this.inventoryModel
-      .find({ branchId: new Types.ObjectId(branchId) })
-      .sort({ onHand: 1, reserved: -1 })
-      .lean<InventorySnapshot[]>();
+  async listBranchInventory(branchId: string, q?: string): Promise<BranchInventoryItemDto[]> {
+    const term = q?.trim();
+    let rows: InventorySnapshot[] = [];
+
+    if (term) {
+      const productIds = await this.productModel
+        .find({
+          $or: [
+            { name: { $regex: this.escapeRegex(term), $options: 'i' } },
+            { genericName: { $regex: this.escapeRegex(term), $options: 'i' } },
+            { brand: { $regex: this.escapeRegex(term), $options: 'i' } },
+            { form: { $regex: this.escapeRegex(term), $options: 'i' } },
+            { strength: { $regex: this.escapeRegex(term), $options: 'i' } },
+          ],
+        })
+        .select('_id')
+        .lean<{ _id: Types.ObjectId }[]>();
+
+      if (productIds.length === 0) return [];
+
+      rows = await this.inventoryModel
+        .find({
+          branchId: new Types.ObjectId(branchId),
+          productId: { $in: productIds.map((item) => item._id) },
+        })
+        .sort({ onHand: 1, reserved: -1 })
+        .lean<InventorySnapshot[]>();
+    } else {
+      rows = await this.inventoryModel
+        .find({ branchId: new Types.ObjectId(branchId) })
+        .sort({ onHand: 1, reserved: -1 })
+        .lean<InventorySnapshot[]>();
+    }
 
     return this.hydrateInventoryRows(rows);
   }
@@ -1121,6 +1149,10 @@ export class InventoryService {
     const productById = new Map(products.map((product) => [product._id.toString(), product]));
 
     return rows.map((row) => this.toInventoryDto(row, productById.get(row.productId.toString())));
+  }
+
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   private toInventoryDto(

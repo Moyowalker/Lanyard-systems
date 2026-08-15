@@ -77,8 +77,11 @@ export class AdminInventoryController {
 
   @Get()
   @RequirePermissions('inventory:read')
-  async list(@Param('branchId') branchId: string) {
-    return { data: await this.inventory.listBranchInventory(branchId) };
+  async list(
+    @Param('branchId') branchId: string,
+    @Query('q') q?: string,
+  ) {
+    return { data: await this.inventory.listBranchInventory(branchId, q) };
   }
 
   @Get('low-stock')

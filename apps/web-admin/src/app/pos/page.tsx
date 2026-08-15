@@ -521,11 +521,13 @@ export default function PosPage() {
   });
   const products = productsQ.data?.data ?? [];
 
+  const [salesDate, setSalesDate] = useState(() => new Date().toISOString().slice(0, 10));
   const salesQ = useQuery({
-    queryKey: ['pos-sales', branchId],
+    queryKey: ['pos-sales', branchId, salesDate],
     enabled: Boolean(branchId),
     queryFn: async () => {
-      const res = await fetch(`/api/admin/pos/sales?branchId=${branchId}`);
+      const params = new URLSearchParams({ branchId, date: salesDate });
+      const res = await fetch(`/api/admin/pos/sales?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load sales');
       return (await res.json()) as { data: PosSaleDto[] };
     },
@@ -1299,11 +1301,20 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* ── Today's sales ── */}
+      {/* ── Sales for the selected day ── */}
       <div className="mt-8">
         <Panel
-          title="Today's counter sales"
+          title={`${new Date(salesDate + 'T00:00:00').toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' })} counter sales`}
           subtitle={`${todaysSales.length} sale${todaysSales.length === 1 ? '' : 's'} · ${formatKobo(todaysTotalKobo)}`}
+          action={
+            <input
+              type="date"
+              value={salesDate}
+              onChange={(event) => setSalesDate(event.target.value)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-500"
+              aria-label="Select sales date"
+            />
+          }
           bodyClassName="p-0"
         >
           {salesQ.isLoading ? (

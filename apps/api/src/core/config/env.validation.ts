@@ -54,7 +54,7 @@ export const envSchema = z
     // Auth
     JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 chars'),
     JWT_ISSUER: z.string().default('lanyard'),
-    JWT_ACCESS_TTL: z.string().default('15m'),
+    JWT_ACCESS_TTL: z.string().default('30m'),
     JWT_REFRESH_TTL: z.string().default('30d'),
     OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
     OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),

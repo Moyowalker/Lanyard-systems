@@ -116,6 +116,45 @@ describe('InventoryService', () => {
     expect(result.every((row) => row.isLowStock)).toBe(true);
   });
 
+  it('filters inventory rows by a search term across name, brand, and generic fields', async () => {
+    const productIds = [new Types.ObjectId(), new Types.ObjectId()];
+    productModel.find.mockImplementation((filter) => {
+      if (filter && '$or' in filter) {
+        return findOneLean([
+          { _id: productIds[0], name: 'Paracetamol', genericName: 'Acetaminophen', brand: 'Emzor' },
+          { _id: productIds[1], name: 'Vitamin C', genericName: 'Ascorbic acid', brand: 'MediCare' },
+        ]);
+      }
+      if (filter && '_id' in filter) {
+        return findOneLean([
+          { _id: productIds[0], name: 'Paracetamol', genericName: 'Acetaminophen', brand: 'Emzor' },
+        ]);
+      }
+      return sortedLean([]);
+    });
+    inventoryModel.find.mockImplementation((filter) => {
+      if (filter && 'productId' in filter && filter.productId && '$in' in filter.productId) {
+        return sortedLean([
+          {
+            _id: new Types.ObjectId(),
+            branchId: new Types.ObjectId(branchId),
+            productId: productIds[0],
+            onHand: 5,
+            reserved: 0,
+            reorderLevel: 2,
+            batches: [],
+          },
+        ]);
+      }
+      return sortedLean([]);
+    });
+
+    const result = await service.listBranchInventory(branchId, 'emzor');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].productName).toBe('Paracetamol');
+  });
+
   it('receives stock into a new inventory row and records a manual movement', async () => {
     const expiry = new Date('2026-08-31T00:00:00.000Z');
 
