@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BranchSummaryDto,
   BulkMedicineImportResultDto,
@@ -182,16 +182,19 @@ export default function ProductsPage() {
   const [bulkResult, setBulkResult] = useState<BulkMedicineImportResultDto | null>(null);
   const [productSearch, setProductSearch] = useState('');
 
-  const productsQ = useQuery({
+  const productsQ = useInfiniteQuery({
     queryKey: ['admin-products', productSearch],
-    queryFn: async () => {
-      const params = new URLSearchParams({ limit: '200' });
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '100' });
+      if (pageParam) params.set('cursor', pageParam);
       const term = productSearch.trim();
       if (term) params.set('q', term);
       const res = await fetch(`/api/admin/catalog/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<AdminProductRow>;
     },
+    getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
   });
 
   const categoriesQ = useQuery({
@@ -212,7 +215,10 @@ export default function ProductsPage() {
     },
   });
 
-  const rows = productsQ.data?.data ?? [];
+  const rows = useMemo(
+    () => productsQ.data?.pages.flatMap((page) => page.data) ?? [],
+    [productsQ.data],
+  );
   const categories = categoriesQ.data?.data ?? [];
   const branches = branchesQ.data?.data ?? [];
   const selectedProduct = useMemo(
@@ -238,6 +244,12 @@ export default function ProductsPage() {
       setBulkBranchId(branches[0].id);
     }
   }, [bulkBranchId, branches]);
+
+  useEffect(() => {
+    if (productsQ.hasNextPage && !productsQ.isFetchingNextPage) {
+      void productsQ.fetchNextPage();
+    }
+  }, [productsQ.fetchNextPage, productsQ.hasNextPage, productsQ.isFetchingNextPage]);
 
   const productMutation = useMutation({
     mutationFn: async (payload: { mode: 'create' | 'update'; body: unknown; id?: string }) => {
@@ -1275,9 +1287,15 @@ export default function ProductsPage() {
                 </TableCard>
               )}
               <div className="mt-4 flex justify-center">
-                <span className="text-xs text-slate-400">
-                  {rows.length} product{rows.length === 1 ? '' : 's'} loaded
-                </span>
+                {productsQ.hasNextPage || productsQ.isFetchingNextPage ? (
+                  <span className="flex items-center gap-2 text-xs text-slate-500">
+                    <Spinner className="h-3 w-3" /> Loading more products...
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400">
+                    {rows.length} product{rows.length === 1 ? '' : 's'} loaded
+                  </span>
+                )}
               </div>
             </>
           )}
