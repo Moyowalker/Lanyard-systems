@@ -543,7 +543,12 @@ export default function ProductsPage() {
       ) : (
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Catalog SKUs loaded" value={rows.length} icon={IconCatalog} tone="brand" />
+            <StatCard
+              label="Catalog SKUs loaded"
+              value={rows.length}
+              icon={IconCatalog}
+              tone="brand"
+            />
             <StatCard label="Published" value={publishedCount} icon={IconCheck} tone="sky" />
             <StatCard label="Draft" value={draftCount} icon={IconClock} tone="amber" />
             <StatCard
@@ -944,9 +949,7 @@ export default function ProductsPage() {
                           <button
                             type="button"
                             disabled={imageRemoveMutation.isPending}
-                            onClick={() =>
-                              imageRemoveMutation.mutate({ id: productForm.id!, key })
-                            }
+                            onClick={() => imageRemoveMutation.mutate({ id: productForm.id!, key })}
                             className="w-full px-2 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
                           >
                             Remove
@@ -955,7 +958,9 @@ export default function ProductsPage() {
                             <button
                               type="button"
                               disabled={index === 0 || imageReorderMutation.isPending}
-                              onClick={() => selectedProduct && moveImage(selectedProduct, index, -1)}
+                              onClick={() =>
+                                selectedProduct && moveImage(selectedProduct, index, -1)
+                              }
                               className="px-2 py-2 transition hover:bg-slate-50 disabled:opacity-40"
                             >
                               Up
@@ -966,7 +971,9 @@ export default function ProductsPage() {
                                 index === (selectedProduct?.images?.length ?? 0) - 1 ||
                                 imageReorderMutation.isPending
                               }
-                              onClick={() => selectedProduct && moveImage(selectedProduct, index, 1)}
+                              onClick={() =>
+                                selectedProduct && moveImage(selectedProduct, index, 1)
+                              }
                               className="border-l border-slate-100 px-2 py-2 transition hover:bg-slate-50 disabled:opacity-40"
                             >
                               Down
@@ -1214,7 +1221,8 @@ export default function ProductsPage() {
                   />
                 </div>
                 <span className="text-xs text-slate-500">
-                  {filteredRows.length} of {rows.length} loaded product{rows.length === 1 ? '' : 's'}
+                  {filteredRows.length} of {rows.length} loaded product
+                  {rows.length === 1 ? '' : 's'}
                 </span>
               </div>
               {filteredRows.length === 0 ? (
