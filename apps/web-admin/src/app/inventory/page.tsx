@@ -1,7 +1,12 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   BranchInventoryItemDto,
   BranchSummaryDto,
@@ -146,11 +151,17 @@ export default function InventoryPage() {
   const [branchId, setBranchId] = useState('');
   const [manageOpen, setManageOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<StockInvoiceDto | null>(null);
   const [manageMessage, setManageMessage] = useState<string | null>(null);
   const { download: runDownload, error: exportError } = useFileDownload();
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timeout);
+  }, [search]);
 
   const branchesQ = useQuery({
     queryKey: ['admin-branches', 'inventory'],
@@ -191,11 +202,12 @@ export default function InventoryPage() {
   }, [branchId, branches]);
 
   const inventoryQ = useQuery({
-    queryKey: ['admin-inventory', branchId, search],
+    queryKey: ['admin-inventory', branchId, debouncedSearch],
     enabled: Boolean(branchId),
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const params = new URLSearchParams();
-      const term = search.trim();
+      const term = debouncedSearch.trim();
       if (term) params.set('q', term);
       const res = await fetch(`/api/admin/branches/${branchId}/inventory?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load inventory');
@@ -261,7 +273,7 @@ export default function InventoryPage() {
     branchesQ.isLoading || (Boolean(branchId) && inventoryQ.isLoading && !inventoryQ.data);
 
   const filteredRows = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = debouncedSearch.trim().toLowerCase();
     return rows.filter((row) => {
       if (statusFilter === 'out' && row.available > 0) return false;
       if (statusFilter === 'low' && !(row.available <= Math.max(1, row.reorderLevel))) return false;
@@ -270,7 +282,7 @@ export default function InventoryPage() {
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(term));
     });
-  }, [rows, search, statusFilter]);
+  }, [rows, debouncedSearch, statusFilter]);
 
   async function invalidateStock() {
     await Promise.all([
@@ -501,9 +513,15 @@ export default function InventoryPage() {
                   <Th>Product</Th>
                   <Th className="hidden sm:table-cell">Status</Th>
                   <Th right>Available</Th>
-                  <Th right className="hidden md:table-cell">On hand</Th>
-                  <Th right className="hidden lg:table-cell">Reserved</Th>
-                  <Th right className="hidden lg:table-cell">Reorder</Th>
+                  <Th right className="hidden md:table-cell">
+                    On hand
+                  </Th>
+                  <Th right className="hidden lg:table-cell">
+                    Reserved
+                  </Th>
+                  <Th right className="hidden lg:table-cell">
+                    Reorder
+                  </Th>
                   <Th className="hidden xl:table-cell">Next expiry</Th>
                   <Th right>Price</Th>
                   <Th className="hidden lg:table-cell">Storefront</Th>
@@ -554,9 +572,15 @@ export default function InventoryPage() {
                         <Td right className="font-semibold text-slate-900">
                           {row.available}
                         </Td>
-                        <Td right className="hidden md:table-cell">{row.onHand}</Td>
-                        <Td right className="hidden lg:table-cell">{row.reserved}</Td>
-                        <Td right className="hidden lg:table-cell">{row.reorderLevel}</Td>
+                        <Td right className="hidden md:table-cell">
+                          {row.onHand}
+                        </Td>
+                        <Td right className="hidden lg:table-cell">
+                          {row.reserved}
+                        </Td>
+                        <Td right className="hidden lg:table-cell">
+                          {row.reorderLevel}
+                        </Td>
                         <Td className="hidden xl:table-cell">
                           <span className={exp.className}>
                             {exp.label}
@@ -666,7 +690,8 @@ export default function InventoryPage() {
                                 </p>
                                 {prices.isBelowCost(row.productId) ? (
                                   <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                                    Selling price is below cost. Confirm this is intentional before saving.
+                                    Selling price is below cost. Confirm this is intentional before
+                                    saving.
                                   </p>
                                 ) : null}
                                 {prices.message ? (

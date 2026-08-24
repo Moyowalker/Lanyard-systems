@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AdjustInventorySchema,
   BranchInventoryItemDto,
@@ -75,17 +75,30 @@ export default function AdjustmentsPage() {
     },
   });
 
-  const productsQ = useQuery({
+  const productsQ = useInfiniteQuery({
     queryKey: ['admin-products', 'adjustments'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/catalog/products?limit=100');
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '100' });
+      if (pageParam) params.set('cursor', pageParam);
+      const res = await fetch(`/api/admin/catalog/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<ComboboxProduct>;
     },
+    getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
   });
 
   const branches = branchesQ.data?.data ?? [];
-  const products = useMemo(() => productsQ.data?.data ?? [], [productsQ.data]);
+  const products = useMemo(
+    () => productsQ.data?.pages.flatMap((page) => page.data) ?? [],
+    [productsQ.data],
+  );
+
+  useEffect(() => {
+    if (productsQ.hasNextPage && !productsQ.isFetchingNextPage) {
+      void productsQ.fetchNextPage();
+    }
+  }, [productsQ.fetchNextPage, productsQ.hasNextPage, productsQ.isFetchingNextPage]);
 
   useEffect(() => {
     if (!branchId && branches[0]?.id) setBranchId(branches[0].id);
@@ -233,6 +246,11 @@ export default function AdjustmentsPage() {
                     <p className="mt-1 text-xs text-slate-500">
                       {selected.available} available, {selected.reserved} reserved, reorder at{' '}
                       {selected.reorderLevel}.
+                    </p>
+                  ) : form.productId ? (
+                    <p className="mt-1 text-xs text-amber-700">
+                      No inventory record exists for this branch. Use a positive adjustment to
+                      initialise stock; stock cannot be reduced below zero.
                     </p>
                   ) : null}
                 </div>

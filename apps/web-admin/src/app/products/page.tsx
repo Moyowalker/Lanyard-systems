@@ -1,7 +1,13 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type {
   BranchSummaryDto,
   BulkMedicineImportResultDto,
@@ -181,14 +187,21 @@ export default function ProductsPage() {
   const [bulkMessage, setBulkMessage] = useState<FormMessage>();
   const [bulkResult, setBulkResult] = useState<BulkMedicineImportResultDto | null>(null);
   const [productSearch, setProductSearch] = useState('');
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedProductSearch(productSearch), 250);
+    return () => clearTimeout(timeout);
+  }, [productSearch]);
 
   const productsQ = useInfiniteQuery({
-    queryKey: ['admin-products', productSearch],
+    queryKey: ['admin-products', debouncedProductSearch],
     initialPageParam: undefined as string | undefined,
+    placeholderData: keepPreviousData,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '100' });
       if (pageParam) params.set('cursor', pageParam);
-      const term = productSearch.trim();
+      const term = debouncedProductSearch.trim();
       if (term) params.set('q', term);
       const res = await fetch(`/api/admin/catalog/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load products');
@@ -230,14 +243,14 @@ export default function ProductsPage() {
   const prescriptionCount = rows.filter((row) => row.requiresPrescription).length;
 
   const filteredRows = useMemo(() => {
-    const term = productSearch.trim().toLowerCase();
+    const term = debouncedProductSearch.trim().toLowerCase();
     if (!term) return rows;
     return rows.filter((row) =>
       [row.name, row.genericName, row.brand, row.sku, row.barcode, row.slug, row.manufacturer]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(term)),
     );
-  }, [productSearch, rows]);
+  }, [debouncedProductSearch, rows]);
 
   useEffect(() => {
     if (!bulkBranchId && branches[0]?.id) {
