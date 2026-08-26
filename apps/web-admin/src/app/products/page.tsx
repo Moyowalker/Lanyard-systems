@@ -194,15 +194,17 @@ export default function ProductsPage() {
     return () => clearTimeout(timeout);
   }, [productSearch]);
 
+  const serverProductSearch =
+    debouncedProductSearch.trim().length >= 3 ? debouncedProductSearch.trim() : '';
+
   const productsQ = useInfiniteQuery({
-    queryKey: ['admin-products', debouncedProductSearch],
+    queryKey: ['admin-products', serverProductSearch],
     initialPageParam: undefined as string | undefined,
     placeholderData: keepPreviousData,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '100' });
       if (pageParam) params.set('cursor', pageParam);
-      const term = debouncedProductSearch.trim();
-      if (term) params.set('q', term);
+      if (serverProductSearch) params.set('q', serverProductSearch);
       const res = await fetch(`/api/admin/catalog/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<AdminProductRow>;
@@ -242,7 +244,15 @@ export default function ProductsPage() {
   const draftCount = rows.filter((row) => row.status === ProductStatus.DRAFT).length;
   const prescriptionCount = rows.filter((row) => row.requiresPrescription).length;
 
-  const filteredRows = rows;
+  const filteredRows = useMemo(() => {
+    const term = debouncedProductSearch.trim().toLowerCase();
+    if (!term || serverProductSearch) return rows;
+    return rows.filter((row) =>
+      [row.name, row.genericName, row.brand, row.sku, row.barcode, row.slug, row.manufacturer]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(term)),
+    );
+  }, [debouncedProductSearch, rows, serverProductSearch]);
 
   useEffect(() => {
     if (!bulkBranchId && branches[0]?.id) {
@@ -1187,7 +1197,7 @@ export default function ProductsPage() {
             Out-of-stock items still show, marked “Out of stock”.
           </p>
 
-          {rows.length === 0 ? (
+          {rows.length === 0 && !productSearch.trim() ? (
             <Card>
               <EmptyState
                 title="No products in the catalog"
