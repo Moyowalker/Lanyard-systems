@@ -242,15 +242,7 @@ export default function ProductsPage() {
   const draftCount = rows.filter((row) => row.status === ProductStatus.DRAFT).length;
   const prescriptionCount = rows.filter((row) => row.requiresPrescription).length;
 
-  const filteredRows = useMemo(() => {
-    const term = debouncedProductSearch.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((row) =>
-      [row.name, row.genericName, row.brand, row.sku, row.barcode, row.slug, row.manufacturer]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(term)),
-    );
-  }, [debouncedProductSearch, rows]);
+  const filteredRows = rows;
 
   useEffect(() => {
     if (!bulkBranchId && branches[0]?.id) {
