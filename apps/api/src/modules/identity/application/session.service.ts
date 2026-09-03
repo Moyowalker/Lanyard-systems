@@ -33,6 +33,12 @@ export class SessionService {
     private readonly tokens: TokenService,
   ) {}
 
+  private inactivityDeadline(session: Pick<Session, 'inactivityExpiresAt' | 'lastActivityAt'>, now: Date): Date {
+    return session.inactivityExpiresAt ?? new Date(
+      (session.lastActivityAt?.getTime() ?? now.getTime()) + SessionService.INACTIVITY_TTL_MS,
+    );
+  }
+
   async issue(
     principalId: Types.ObjectId,
     principalType: PrincipalType,
@@ -74,7 +80,7 @@ export class SessionService {
     if (current.expiresAt.getTime() < Date.now()) {
       throw new DomainError(ErrorCode.SESSION_INVALID, 'Session expired');
     }
-    if (current.inactivityExpiresAt.getTime() < Date.now()) {
+    if (this.inactivityDeadline(current, new Date()).getTime() < Date.now()) {
       current.revokedAt = new Date();
       await current.save();
       throw new DomainError(ErrorCode.SESSION_INVALID, 'Session expired due to inactivity');
@@ -116,7 +122,7 @@ export class SessionService {
     if (!session || session.revokedAt || session.expiresAt.getTime() < now.getTime()) {
       throw new DomainError(ErrorCode.SESSION_INVALID, 'Session expired');
     }
-    if (session.inactivityExpiresAt.getTime() < now.getTime()) {
+    if (this.inactivityDeadline(session, now).getTime() < now.getTime()) {
       session.revokedAt = now;
       await session.save();
       throw new DomainError(ErrorCode.SESSION_INVALID, 'Session expired due to inactivity');

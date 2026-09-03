@@ -42,4 +42,26 @@ describe('SessionService inactivity timeout', () => {
     expect(session.save).toHaveBeenCalled();
     expect(session.revokedAt).toBeInstanceOf(Date);
   });
+
+  it('allows a legacy session without inactivity fields to refresh', async () => {
+    const session = {
+      _id: new Types.ObjectId(),
+      principalId: new Types.ObjectId(),
+      principalType: PrincipalType.STAFF,
+      familyId: 'family',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    const create = jest.fn().mockResolvedValue({ _id: new Types.ObjectId() });
+    const service = new SessionService(
+      {
+        findOne: jest.fn().mockReturnValue({ select: jest.fn().mockResolvedValue(session) }),
+        create,
+      } as never,
+      tokens as never,
+    );
+
+    await expect(service.rotate('refresh-token')).resolves.toMatchObject({ familyId: 'family' });
+    expect(create.mock.calls[0][0].inactivityExpiresAt).toBeInstanceOf(Date);
+  });
 });

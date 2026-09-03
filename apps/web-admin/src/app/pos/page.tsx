@@ -403,6 +403,7 @@ export default function PosPage() {
   const [completedSale, setCompletedSale] = useState<PosSaleDto | null>(null);
   // A receipt opened from the history table — dismiss it without touching the live cart.
   const [viewingPastSale, setViewingPastSale] = useState(false);
+  const [resumedHeldSaleId, setResumedHeldSaleId] = useState<string>();
   const [showHeld, setShowHeld] = useState(false);
   const [returningSale, setReturningSale] = useState<PosSaleDto | null>(null);
   const idempotencyKey = useRef<string>('');
@@ -646,6 +647,7 @@ export default function PosPage() {
     setError(undefined);
     setSearchNotice(undefined);
     setCompletedSale(null);
+    setResumedHeldSaleId(undefined);
     idempotencyKey.current = '';
   }
 
@@ -721,6 +723,7 @@ export default function PosPage() {
     setDiscountValue(held.discountValue);
     setPayments([{ channel: 'cash', amountNaira: '' }]);
     idempotencyKey.current = crypto.randomUUID();
+    setResumedHeldSaleId(held.id);
     setShowHeld(false);
     if (missing.length > 0) {
       setError(`Some held items are not currently sellable: ${missing.join(', ')}. The held sale remains saved.`);
@@ -770,6 +773,18 @@ export default function PosPage() {
       setViewingPastSale(false);
       setCompletedSale(sale);
       setError(undefined);
+      if (resumedHeldSaleId) {
+        try {
+          const res = await fetch(`/api/admin/pos/held-sales/${resumedHeldSaleId}`, {
+            method: 'DELETE',
+          });
+          if (!res.ok) throw new Error('Failed to discard completed held sale');
+          setResumedHeldSaleId(undefined);
+          await queryClient.invalidateQueries({ queryKey: ['pos-held-sales', branchId] });
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to discard completed held sale');
+        }
+      }
       await queryClient.invalidateQueries({ queryKey: ['pos-sales', branchId] });
       await queryClient.invalidateQueries({ queryKey: ['pos-products'] });
     },
