@@ -114,6 +114,24 @@ export const PosCreateSaleSchema = z.object({
 });
 export type PosCreateSaleInput = z.infer<typeof PosCreateSaleSchema>;
 
+export const HeldSaleInputSchema = z.object({
+  branchId: objectId,
+  label: z.string().trim().min(1).max(160),
+  lines: z.array(z.object({ productId: objectId, name: z.string().trim().min(1).max(240), quantity: z.number().int().min(1).max(999) })).min(1).max(100),
+  customerPhone: z.string().trim().max(30).optional(),
+  customerFirst: z.string().trim().max(80).optional(),
+  customerLast: z.string().trim().max(80).optional(),
+  rxNote: z.string().trim().max(500).optional(),
+  discountType: z.enum(['percent', 'fixed']),
+  discountValue: z.string().trim().max(30),
+});
+export type HeldSaleInput = z.infer<typeof HeldSaleInputSchema>;
+
+export interface HeldSaleDto extends HeldSaleInput {
+  id: string;
+  heldAt: string;
+}
+
 export const PosSalesQuerySchema = z.object({
   branchId: objectId.optional(),
   /** ISO date (yyyy-mm-dd); defaults to today on the server. */

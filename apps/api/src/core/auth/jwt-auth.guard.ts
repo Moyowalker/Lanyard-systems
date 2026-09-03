@@ -5,6 +5,7 @@ import { ErrorCode } from '@lanyard/contracts';
 import { TokenService } from '../security/token.service';
 import { IS_PUBLIC_KEY } from './auth.decorators';
 import { AuthPrincipal } from './principal';
+import { SessionService } from '../../modules/identity/application/session.service';
 
 /**
  * Global authentication guard. Verifies the Bearer access token and attaches the
@@ -15,9 +16,10 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly tokens: TokenService,
     private readonly reflector: Reflector,
+    private readonly sessions: SessionService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -39,6 +41,7 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const claims = this.tokens.verifyAccess(token);
+      await this.sessions.assertActiveAndTouch(claims.sessionId);
       request.principal = {
         sub: claims.sub,
         realm: claims.realm,

@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Paginated, StockInvoiceDto } from '@lanyard/contracts';
 
@@ -38,16 +38,27 @@ function RecentInvoicesInner({
   onChanged: () => void;
 }) {
   const [filter, setFilter] = useState<'received' | 'draft' | 'voided'>('received');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
   const invoicesQ = useQuery({
-    queryKey: ['admin-invoices', branchId, filter],
+    queryKey: ['admin-invoices', branchId, filter, debouncedSearch, fromDate, toDate],
     enabled: Boolean(branchId),
     queryFn: async () => {
-      const res = await fetch(
-        `/api/admin/branches/${branchId}/inventory/invoices?limit=10&status=${filter}`,
-      );
+      const params = new URLSearchParams({ limit: '20', status: filter });
+      if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim());
+      if (fromDate) params.set('from', `${fromDate}T00:00:00.000Z`);
+      if (toDate) params.set('to', `${toDate}T23:59:59.999Z`);
+      const res = await fetch(`/api/admin/branches/${branchId}/inventory/invoices?${params}`);
       if (!res.ok) throw new Error('Failed to load invoices');
       return (await res.json()) as Paginated<StockInvoiceDto>;
     },
@@ -101,7 +112,7 @@ function RecentInvoicesInner({
 
   return (
     <div>
-      <div className="mb-3 flex gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           className={chipClass(filter === 'received')}
@@ -123,6 +134,33 @@ function RecentInvoicesInner({
         >
           Voided
         </button>
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search invoice or vendor"
+          className="ml-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-500"
+        />
+        <label className="flex items-center gap-1 text-xs font-medium text-slate-600">
+          From
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(event) => setFromDate(event.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-500"
+          />
+        </label>
+        <label className="flex items-center gap-1 text-xs font-medium text-slate-600">
+          To
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(event) => setToDate(event.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-500"
+          />
+        </label>
       </div>
 
       {actionError ? <p className="mb-3 text-sm text-rose-600" role="alert">{actionError}</p> : null}
@@ -185,7 +223,9 @@ function RecentInvoicesInner({
                             ) : null}
                           </span>
                           <span className="text-xs text-slate-500">
-                            {line.priceKobo != null ? formatKobo(line.priceKobo) : ''}
+                            {line.costKobo != null ? `Cost ${formatKobo(line.costKobo)}` : ''}
+                            {line.costKobo != null && line.priceKobo != null ? ' · ' : ''}
+                            {line.priceKobo != null ? `Selling ${formatKobo(line.priceKobo)}` : ''}
                             {line.visibleOnStorefront === true
                               ? ' · visible'
                               : line.visibleOnStorefront === false

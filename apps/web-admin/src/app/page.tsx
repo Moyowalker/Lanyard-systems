@@ -9,6 +9,7 @@ import type {
   OrderDto,
   Paginated,
   PrescriptionDto,
+  SalesSummaryDto,
 } from '@lanyard/contracts';
 import { deriveMetrics } from '@/lib/metrics';
 import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
@@ -110,8 +111,35 @@ export default function Dashboard() {
   const totalExpiring = expiringAlerts.reduce((sum, entry) => sum + entry.expiring, 0);
 
   const persona: Persona = personaFor(me.data?.roles ?? []);
+  const canSeeReports = me.data?.permissions?.includes('report:read') ?? false;
+  const revenueQ = useQuery({
+    queryKey: ['dashboard-revenue', branchFilter.branchId],
+    enabled:
+      canSeeReports && (branchFilter.canViewAllBranches || Boolean(branchFilter.branchId)),
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const now = new Date();
+      const from = new Date(now);
+      from.setDate(from.getDate() - 6);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(now);
+      to.setHours(23, 59, 59, 999);
+      const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+      if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
+      const response = await fetch(`/api/admin/reports/sales-summary?${params}`);
+      if (!response.ok) throw new Error('Failed to load dashboard revenue');
+      return (await response.json()) as SalesSummaryDto;
+    },
+  });
   const orders = ordersQ.data?.data ?? [];
   const m = deriveMetrics(orders);
+  const revenueByDay = revenueQ.data
+    ? revenueQ.data.byDay.map((day) => ({
+        label: new Date(`${day.date}T00:00:00`).toLocaleDateString('en-NG', { weekday: 'short' }),
+        value: day.revenueKobo,
+      }))
+    : m.revenueByDay;
+  const weeklyRevenue = revenueQ.data?.revenueKobo ?? m.revenueByDay.reduce((sum, day) => sum + day.value, 0);
   const pendingRx = rxQ.data?.data?.length ?? 0;
   const firstName = me.data?.profile.firstName ?? 'there';
   const loading = ordersQ.isLoading || me.isLoading;
@@ -187,11 +215,11 @@ export default function Dashboard() {
             <>
               <div className="mb-4 flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-slate-900">
-                  {formatKobo(m.revenueByDay.reduce((s, d) => s + d.value, 0))}
+                  {formatKobo(weeklyRevenue)}
                 </span>
                 <span className="text-sm text-slate-400">collected this week</span>
               </div>
-              <ColumnChart data={m.revenueByDay} format={(v) => formatKobo(v)} />
+              <ColumnChart data={revenueByDay} format={(v) => formatKobo(v)} />
             </>
           )}
         </Panel>

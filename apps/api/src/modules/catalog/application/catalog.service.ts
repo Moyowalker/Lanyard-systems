@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import {
+  ActorType,
   CategoryDto,
   CreateCategoryInput,
   CreateProductInput,
@@ -23,7 +24,9 @@ import { PricingService, PriceEntry } from '../../pricing/application/pricing.se
 import { InventoryService } from '../../inventory/application/inventory.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { cursorFilter, cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
+import { AuditService } from '../../../core/platform/audit.service';
 import { StorageService } from '../../../core/storage/storage.service';
+import { TransactionService } from '../../../core/platform/transaction.service';
 
 export interface UploadedProductImage {
   buffer: Buffer;
@@ -41,6 +44,8 @@ export class CatalogService {
     private readonly pricing: PricingService,
     private readonly inventory: InventoryService,
     private readonly storage: StorageService,
+    private readonly audit: AuditService,
+    private readonly tx: TransactionService,
   ) {}
 
   /* ── public reads ── */
@@ -270,6 +275,70 @@ export class CatalogService {
       }
       throw err;
     }
+  }
+
+  /** Remove a category while retaining a valid hierarchy and product catalog. */
+  async deleteCategory(id: string, actorId: string): Promise<void> {
+    const categoryId = new Types.ObjectId(id);
+    await this.tx.run(async (session) => {
+      const category = await this.categoryModel.findById(categoryId).session(session).lean();
+      if (!category) throw new DomainError(ErrorCode.NOT_FOUND, 'Category not found');
+
+      const [children, products] = await Promise.all([
+        this.categoryModel.find({ parentId: categoryId }).session(session).lean(),
+        this.productModel.updateMany(
+          { categoryIds: categoryId },
+          { $pull: { categoryIds: categoryId } },
+          { session },
+        ),
+      ]);
+      const parentUpdate = category.parentId
+        ? { $set: { parentId: category.parentId } }
+        : { $unset: { parentId: 1 } };
+      await this.categoryModel.updateMany({ parentId: categoryId }, parentUpdate, { session });
+      await this.categoryModel.deleteOne({ _id: categoryId }, { session });
+
+      const remaining = await this.categoryModel.find({}, null, { session }).lean();
+      const byId = new Map(remaining.map((entry) => [entry._id.toString(), entry]));
+      const pathFor = (entry: (typeof remaining)[number], visiting = new Set<string>()): string[] => {
+        const entryId = entry._id.toString();
+        if (!entry.parentId) return [];
+        if (visiting.has(entryId)) return [];
+        const parent = byId.get(entry.parentId.toString());
+        if (!parent) return [];
+        const nextVisiting = new Set(visiting).add(entryId);
+        return [...pathFor(parent, nextVisiting), parent.slug];
+      };
+      const pathUpdates = remaining
+        .map((entry) => ({ entry, path: pathFor(entry) }))
+        .filter(({ entry, path }) => entry.path.join('\u0000') !== path.join('\u0000'))
+        .map(({ entry, path }) => ({
+          updateOne: { filter: { _id: entry._id }, update: { $set: { path } } },
+        }));
+      if (pathUpdates.length > 0) await this.categoryModel.bulkWrite(pathUpdates, { session });
+
+      await this.audit.record(
+        {
+          actorId,
+          actorType: ActorType.STAFF,
+          action: 'catalog.category_deleted',
+          summary: `Deleted category ${category.name}`,
+          targetType: 'category',
+          targetId: id,
+          before: {
+            name: category.name,
+            slug: category.slug,
+            parentId: category.parentId?.toString(),
+            path: category.path,
+          },
+          metadata: {
+            childrenReparented: children.length,
+            productsUnassigned: products.modifiedCount,
+          },
+        },
+        session,
+      );
+    });
   }
 
   async listProductsAdmin(

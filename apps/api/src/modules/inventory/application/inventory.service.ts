@@ -915,6 +915,19 @@ export class InventoryService {
       ...cursorFilterDesc(query.cursor),
     };
     if (query.status) filter.status = query.status;
+    if (query.from || query.to) {
+      filter.invoiceDate = {
+        ...(query.from ? { $gte: query.from } : {}),
+        ...(query.to ? { $lte: query.to } : {}),
+      };
+    }
+    if (query.q) {
+      const escaped = this.escapeRegex(query.q);
+      filter.$or = [
+        { invoiceNo: { $regex: escaped, $options: 'i' } },
+        { vendorName: { $regex: escaped, $options: 'i' } },
+      ];
+    }
     const rows = await this.invoiceModel
       .find(filter)
       .sort({ _id: -1 })
@@ -1218,6 +1231,12 @@ export class InventoryService {
           else await this.inventoryModel.create(docs);
         } catch (err) {
           if (this.isDuplicateKey(err)) continue;
+          if (this.isWriteConflict(err)) {
+            throw new DomainError(
+              ErrorCode.CONFLICT,
+              'Inventory changed during update, retry the operation',
+            );
+          }
           throw err;
         }
 
@@ -1456,6 +1475,16 @@ export class InventoryService {
 
   private isDuplicateKey(err: unknown): boolean {
     return typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000;
+  }
+
+  private isWriteConflict(err: unknown): boolean {
+    if (typeof err !== 'object' || err === null) return false;
+    const error = err as { code?: number | string; message?: string };
+    return (
+      error.code === 112 ||
+      error.code === 'WriteConflict' ||
+      error.message?.includes('WriteConflict') === true
+    );
   }
 
   private async movement(

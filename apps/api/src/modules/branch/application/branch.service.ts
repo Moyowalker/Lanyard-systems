@@ -22,9 +22,11 @@ import { Branch, BranchDocument } from '../infrastructure/branch.schema';
 import { StaffUser } from '../../identity/infrastructure/identity.schemas';
 import { Role } from '../../authz/infrastructure/authz.schemas';
 import { InventoryItem } from '../../inventory/infrastructure/inventory.schemas';
+import { PriceList } from '../../pricing/infrastructure/price-list.schema';
 import { AuditService } from '../../../core/platform/audit.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { cursorFilter, paginate } from '../../../core/pagination/cursor';
+import { TransactionService } from '../../../core/platform/transaction.service';
 
 const BRANCH_CAPABILITY_RULES: Array<{ key: string; label: string; permissions?: string[] }> = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -58,7 +60,9 @@ export class BranchService {
     @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
     @InjectModel(Role.name) private readonly roleModel: Model<Role>,
     @InjectModel(InventoryItem.name) private readonly inventoryModel: Model<InventoryItem>,
+    @InjectModel(PriceList.name) private readonly priceModel: Model<PriceList>,
     private readonly audit: AuditService,
+    private readonly tx: TransactionService,
   ) {}
 
   /** Public branch locator. With ?near=lat,lng results are sorted by distance. */
@@ -133,25 +137,54 @@ export class BranchService {
   async create(input: CreateBranchInput): Promise<BranchDocument> {
     await this.assertSuperintendent(input.superintendentStaffId);
     try {
-      return await this.branchModel.create({
-        code: input.code,
-        name: input.name,
-        status: input.status,
-        address: {
-          line1: input.address.line1,
-          line2: input.address.line2,
-          city: input.address.city,
-          state: input.address.state,
-          country: input.address.country,
-          geo: { type: 'Point', coordinates: [input.address.lng, input.address.lat] },
-        },
-        contact: input.contact ?? {},
-        license: {
-          pcnPremisesNo: input.pcnPremisesNo,
-          superintendentStaffId: new Types.ObjectId(input.superintendentStaffId),
-        },
-        hours: input.hours,
-        fulfillment: input.fulfillment ?? { pickup: true, delivery: false, deliveryZones: [] },
+      return await this.tx.run(async (session) => {
+        if (input.sourceBranchId) {
+          const source = await this.branchModel
+            .findOne({ _id: input.sourceBranchId, deletedAt: { $exists: false } })
+            .session(session);
+          if (!source) throw new DomainError(ErrorCode.NOT_FOUND, 'Source branch not found');
+        }
+        const [branch] = await this.branchModel.create([{
+          code: input.code,
+          name: input.name,
+          status: input.status,
+          address: {
+            line1: input.address.line1,
+            line2: input.address.line2,
+            city: input.address.city,
+            state: input.address.state,
+            country: input.address.country,
+            geo: { type: 'Point', coordinates: [input.address.lng, input.address.lat] },
+          },
+          contact: input.contact ?? {},
+          license: {
+            pcnPremisesNo: input.pcnPremisesNo,
+            superintendentStaffId: new Types.ObjectId(input.superintendentStaffId),
+          },
+          hours: input.hours,
+          fulfillment: input.fulfillment ?? { pickup: true, delivery: false, deliveryZones: [] },
+        }], { session });
+        if (input.sourceBranchId) {
+          const sourcePrices = await this.priceModel
+            .find({ branchId: new Types.ObjectId(input.sourceBranchId) })
+            .session(session)
+            .lean();
+          if (sourcePrices.length > 0) {
+            await this.priceModel.insertMany(
+              sourcePrices.map(({ productId, priceKobo, costKobo, compareAtKobo, currency, isAvailable }) => ({
+                branchId: branch._id,
+                productId,
+                priceKobo,
+                costKobo,
+                compareAtKobo,
+                currency,
+                isAvailable,
+              })),
+              { session },
+            );
+          }
+        }
+        return branch;
       });
     } catch (err) {
       if (this.isDuplicateKey(err)) {

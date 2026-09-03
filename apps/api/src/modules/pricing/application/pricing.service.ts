@@ -13,6 +13,11 @@ export interface PriceEntry {
   isAvailable: boolean;
 }
 
+export interface PriceChange {
+  before?: PriceEntry;
+  after: PriceEntry;
+}
+
 /** Owns per-branch pricing. Other modules read prices through this service. */
 @Injectable()
 export class PricingService {
@@ -57,19 +62,39 @@ export class PricingService {
     branchId: string,
     input: UpsertPriceInput,
     session?: ClientSession,
-  ): Promise<void> {
+  ): Promise<PriceChange> {
+    const filter = {
+      branchId: new Types.ObjectId(branchId),
+      productId: new Types.ObjectId(input.productId),
+    };
+    const previous = await this.priceModel.findOne(filter).session(session ?? null).lean();
+    const after: PriceEntry = {
+      priceKobo: input.priceKobo,
+      costKobo: input.costKobo,
+      compareAtKobo: input.compareAtKobo,
+      isAvailable: input.isAvailable,
+      currency: Currency.NGN,
+    };
     await this.priceModel.updateOne(
-      { branchId: new Types.ObjectId(branchId), productId: new Types.ObjectId(input.productId) },
+      filter,
       {
         $set: {
-          priceKobo: input.priceKobo,
-          costKobo: input.costKobo,
-          compareAtKobo: input.compareAtKobo,
-          isAvailable: input.isAvailable,
-          currency: Currency.NGN,
+          ...after,
         },
       },
       { upsert: true, session },
     );
+    return {
+      before: previous
+        ? {
+            priceKobo: previous.priceKobo,
+            costKobo: previous.costKobo,
+            compareAtKobo: previous.compareAtKobo,
+            currency: previous.currency,
+            isAvailable: previous.isAvailable,
+          }
+        : undefined,
+      after,
+    };
   }
 }

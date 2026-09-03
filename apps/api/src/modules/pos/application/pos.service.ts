@@ -6,6 +6,8 @@ import {
   Currency,
   ErrorCode,
   FulfillmentType,
+  HeldSaleDto,
+  HeldSaleInput,
   OrderStatus,
   Paginated,
   PosCreateSaleInput,
@@ -21,6 +23,7 @@ import {
 } from '@lanyard/contracts';
 
 import { Order, OrderDocument } from '../../order/infrastructure/order.schema';
+import { HeldSale } from '../infrastructure/held-sale.schema';
 import { Product } from '../../catalog/infrastructure/catalog.schemas';
 import { StaffUser } from '../../identity/infrastructure/identity.schemas';
 import { Customer } from '../../identity/infrastructure/identity.schemas';
@@ -62,6 +65,7 @@ function uniqueIds(ids: Array<Types.ObjectId | undefined>): Types.ObjectId[] {
 export class PosService {
   constructor(
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
+    @InjectModel(HeldSale.name) private readonly heldSaleModel: Model<HeldSale>,
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
     @InjectModel(StaffUser.name) private readonly staffModel: Model<StaffUser>,
     @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
@@ -92,6 +96,59 @@ export class PosService {
       throw new DomainError(ErrorCode.BRANCH_SCOPE_VIOLATION, 'Outside your branch scope');
     }
     return this.catalog.listProductsForPos(query);
+  }
+
+  async listHeldSales(principal: AuthPrincipal, branchId: string): Promise<{ data: HeldSaleDto[] }> {
+    this.assertBranchScope(principal, branchId);
+    const rows = await this.heldSaleModel
+      .find({ branchId: new Types.ObjectId(branchId), cashierStaffId: new Types.ObjectId(principal.sub) })
+      .sort({ createdAt: -1 })
+      .lean();
+    return { data: rows.map((row) => this.toHeldDto(row)) };
+  }
+
+  async holdSale(principal: AuthPrincipal, input: HeldSaleInput): Promise<{ data: HeldSaleDto }> {
+    this.assertBranchScope(principal, input.branchId);
+    const [held] = await this.heldSaleModel.create([{
+      branchId: new Types.ObjectId(input.branchId),
+      cashierStaffId: new Types.ObjectId(principal.sub),
+      label: input.label,
+      lines: input.lines.map((line) => ({ ...line, productId: new Types.ObjectId(line.productId) })),
+      customerPhone: input.customerPhone,
+      customerFirst: input.customerFirst,
+      customerLast: input.customerLast,
+      rxNote: input.rxNote,
+      discountType: input.discountType,
+      discountValue: input.discountValue,
+    }]);
+    await this.audit.record({
+      actorId: principal.sub,
+      actorType: ActorType.STAFF,
+      action: 'pos.sale_held',
+      targetType: 'held_sale',
+      targetId: held._id.toString(),
+      branchId: input.branchId,
+      metadata: { items: input.lines.length },
+    });
+    return { data: this.toHeldDto(held) };
+  }
+
+  async deleteHeldSale(principal: AuthPrincipal, id: string): Promise<void> {
+    const held = await this.heldSaleModel.findById(id);
+    if (!held) throw new DomainError(ErrorCode.NOT_FOUND, 'Held sale not found');
+    this.assertBranchScope(principal, held.branchId.toString());
+    if (held.cashierStaffId.toString() !== principal.sub && !principal.permissions.includes('order:transition')) {
+      throw new DomainError(ErrorCode.PERMISSION_DENIED, 'You can only discard your own held sales');
+    }
+    await this.heldSaleModel.deleteOne({ _id: held._id });
+    await this.audit.record({
+      actorId: principal.sub,
+      actorType: ActorType.STAFF,
+      action: 'pos.held_sale_discarded',
+      targetType: 'held_sale',
+      targetId: id,
+      branchId: held.branchId.toString(),
+    });
   }
 
   async createSale(principal: AuthPrincipal, input: PosCreateSaleInput): Promise<PosSaleDto> {
@@ -561,6 +618,28 @@ export class PosService {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     return now;
+  }
+
+  private assertBranchScope(principal: AuthPrincipal, branchId: string): void {
+    if (!principal.branchScope.includes('ALL') && !principal.branchScope.includes(branchId)) {
+      throw new DomainError(ErrorCode.BRANCH_SCOPE_VIOLATION, 'Outside your branch scope');
+    }
+  }
+
+  private toHeldDto(row: HeldSale & { _id: Types.ObjectId; createdAt?: Date }): HeldSaleDto {
+    return {
+      id: row._id.toString(),
+      branchId: row.branchId.toString(),
+      label: row.label,
+      heldAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
+      lines: row.lines.map((line) => ({ productId: line.productId.toString(), name: line.name, quantity: line.quantity })),
+      customerPhone: row.customerPhone,
+      customerFirst: row.customerFirst,
+      customerLast: row.customerLast,
+      rxNote: row.rxNote,
+      discountType: row.discountType,
+      discountValue: row.discountValue,
+    };
   }
 
   private toDto(

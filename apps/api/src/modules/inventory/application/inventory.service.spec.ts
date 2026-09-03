@@ -536,6 +536,16 @@ describe('InventoryService.receiveInvoice', () => {
     ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
     expect(invoiceCreate).not.toHaveBeenCalled();
   });
+
+  it('returns a recoverable conflict when the first inventory receipt write conflicts', async () => {
+    const { service } = buildService();
+    const inventory = (service as unknown as { inventoryModel: { create: jest.Mock } }).inventoryModel;
+    inventory.create.mockRejectedValueOnce({ code: 112, message: 'WriteConflict' });
+
+    await expect(service.receiveInvoice(branchId, actorId, baseInput as never)).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT,
+    });
+  });
 });
 
 describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => {

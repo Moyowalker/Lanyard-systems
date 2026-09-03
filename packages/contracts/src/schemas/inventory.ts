@@ -210,5 +210,8 @@ export interface StockInvoiceDto {
 
 export const StockInvoiceQuerySchema = PaginationQuerySchema.extend({
   status: InvoiceStatus.optional(),
+  q: z.string().trim().min(1).max(120).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
 });
 export type StockInvoiceQuery = z.infer<typeof StockInvoiceQuerySchema>;

@@ -194,8 +194,7 @@ export default function ProductsPage() {
     return () => clearTimeout(timeout);
   }, [productSearch]);
 
-  const serverProductSearch =
-    debouncedProductSearch.trim().length >= 3 ? debouncedProductSearch.trim() : '';
+  const serverProductSearch = debouncedProductSearch.trim();
 
   const productsQ = useInfiniteQuery({
     queryKey: ['admin-products', serverProductSearch],
@@ -245,14 +244,14 @@ export default function ProductsPage() {
   const prescriptionCount = rows.filter((row) => row.requiresPrescription).length;
 
   const filteredRows = useMemo(() => {
-    const term = debouncedProductSearch.trim().toLowerCase();
-    if (!term || serverProductSearch) return rows;
+    const term = productSearch.trim().toLowerCase();
+    if (!term) return rows;
     return rows.filter((row) =>
       [row.name, row.genericName, row.brand, row.sku, row.barcode, row.slug, row.manufacturer]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(term)),
     );
-  }, [debouncedProductSearch, rows, serverProductSearch]);
+  }, [productSearch, rows]);
 
   useEffect(() => {
     if (!bulkBranchId && branches[0]?.id) {
@@ -327,6 +326,26 @@ export default function ProductsPage() {
       setCategoryMessage({
         tone: 'danger',
         text: error instanceof Error ? error.message : 'Category creation failed',
+      });
+    },
+  });
+
+  const categoryDeleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/catalog/categories/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message ?? 'Category deletion failed');
+      }
+    },
+    onSuccess: async () => {
+      setCategoryMessage({ tone: 'success', text: 'Category deleted.' });
+      await queryClient.invalidateQueries({ queryKey: ['catalog-categories'] });
+    },
+    onError: (error) => {
+      setCategoryMessage({
+        tone: 'danger',
+        text: error instanceof Error ? error.message : 'Category deletion failed',
       });
     },
   });
@@ -1096,7 +1115,7 @@ export default function ProductsPage() {
             </Panel>
 
             <Panel
-              title="Create category"
+              title="Manage categories"
               subtitle="Helper for product classification and storefront filtering"
             >
               <form className="space-y-4" onSubmit={submitCategory}>
@@ -1187,6 +1206,37 @@ export default function ProductsPage() {
                   )}
                 </Button>
               </form>
+              {categories.length > 0 ? (
+                <div className="mt-5 border-t border-slate-200 pt-4">
+                  <h3 className={labelClass}>Existing categories</h3>
+                  <ul className="mt-2 space-y-1.5">
+                    {categories.map((category) => (
+                      <li
+                        key={category.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      >
+                        <span className="min-w-0 truncate text-slate-700">{category.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Delete ${category.name}? Products will be unassigned and child categories reparented.`,
+                              )
+                            ) {
+                              categoryDeleteMutation.mutate(category.id);
+                            }
+                          }}
+                          disabled={categoryDeleteMutation.isPending}
+                          className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </Panel>
           </div>
 

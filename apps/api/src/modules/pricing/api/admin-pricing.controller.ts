@@ -1,9 +1,11 @@
 import { Body, Controller, Get, HttpCode, Param, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { UpsertPriceInput, UpsertPriceSchema } from '@lanyard/contracts';
+import { ActorType, UpsertPriceInput, UpsertPriceSchema } from '@lanyard/contracts';
 
-import { BranchScoped, RequirePermissions, RequireRealm } from '../../../core/auth/auth.decorators';
+import { BranchScoped, CurrentUser, RequirePermissions, RequireRealm } from '../../../core/auth/auth.decorators';
 import { BranchScopeGuard, PermissionsGuard, RealmGuard } from '../../../core/auth/authz.guards';
+import { AuthPrincipal } from '../../../core/auth/principal';
+import { AuditService } from '../../../core/platform/audit.service';
 import { ZodValidationPipe } from '../../../core/validation/zod-validation.pipe';
 import { PricingService } from '../application/pricing.service';
 
@@ -19,7 +21,10 @@ import { PricingService } from '../application/pricing.service';
 @RequireRealm('staff')
 @BranchScoped({ from: 'param', key: 'branchId' })
 export class AdminPricingController {
-  constructor(private readonly pricing: PricingService) {}
+  constructor(
+    private readonly pricing: PricingService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   @RequirePermissions('pricing:read')
@@ -31,10 +36,23 @@ export class AdminPricingController {
   @HttpCode(200)
   @RequirePermissions('pricing:write')
   async upsert(
+    @CurrentUser() user: AuthPrincipal,
     @Param('branchId') branchId: string,
     @Body(new ZodValidationPipe(UpsertPriceSchema)) dto: UpsertPriceInput,
   ) {
-    await this.pricing.upsertPrice(branchId, dto);
+    const change = await this.pricing.upsertPrice(branchId, dto);
+    await this.audit.record({
+      actorId: user.sub,
+      actorType: ActorType.STAFF,
+      action: 'pricing.update',
+      summary: `${change.before ? 'Updated' : 'Set'} price for product ${dto.productId}`,
+      targetType: 'price_list',
+      targetId: dto.productId,
+      branchId,
+      metadata: { productId: dto.productId, branchId },
+      before: change.before ? { ...change.before } : undefined,
+      after: { ...change.after },
+    });
     return { ok: true };
   }
 }

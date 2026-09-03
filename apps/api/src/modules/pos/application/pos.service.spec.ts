@@ -131,6 +131,7 @@ function buildService(opts: {
 
   const service = new PosService(
     orderModel as never,
+    {} as never,
     productModel as never,
     staffModel as never,
     customerModel as never,
@@ -495,6 +496,7 @@ describe('PosService.returnSale', () => {
 
     const service = new PosService(
       { findById: jest.fn().mockResolvedValue(order), updateOne } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

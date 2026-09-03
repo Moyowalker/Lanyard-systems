@@ -47,6 +47,7 @@ type BranchFormState = {
   email: string;
   pcnPremisesNo: string;
   superintendentStaffId: string;
+  sourceBranchId: string;
   pickup: boolean;
   delivery: boolean;
   deliveryZones: ZoneFormRow[];
@@ -78,6 +79,7 @@ const EMPTY_BRANCH_FORM: BranchFormState = {
   email: '',
   pcnPremisesNo: '',
   superintendentStaffId: '',
+  sourceBranchId: '',
   pickup: true,
   delivery: false,
   deliveryZones: [],
@@ -138,6 +140,7 @@ function toBranchForm(branch: BranchRow): BranchFormState {
     email: branch.contact?.email ?? '',
     pcnPremisesNo: branch.license?.pcnPremisesNo ?? '',
     superintendentStaffId: branch.license?.superintendentStaffId ?? '',
+    sourceBranchId: '',
     pickup: branch.fulfillment?.pickup ?? true,
     delivery: branch.fulfillment?.delivery ?? false,
     deliveryZones: (branch.fulfillment?.deliveryZones ?? []).map((zone) => ({
@@ -316,6 +319,7 @@ export default function BranchesPage() {
           : undefined,
       pcnPremisesNo: form.pcnPremisesNo || undefined,
       superintendentStaffId: form.superintendentStaffId || undefined,
+      sourceBranchId: form.sourceBranchId || undefined,
       fulfillment: {
         pickup: form.pickup,
         delivery: form.delivery,
@@ -439,6 +443,28 @@ export default function BranchesPage() {
                     />
                   </div>
                 </div>
+                {!form.id ? (
+                  <div>
+                    <label className={labelClass} htmlFor="branch-source">
+                      Copy price list from
+                    </label>
+                    <select
+                      id="branch-source"
+                      value={form.sourceBranchId}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, sourceBranchId: event.target.value }))
+                      }
+                      className={inputClass}
+                    >
+                      <option value="">Do not copy prices</option>
+                      {rows.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { BranchSummaryDto, Paginated } from '@lanyard/contracts';
 
 import { IconAlert, IconBranch, IconPricing } from '@/components/icons';
@@ -60,15 +60,28 @@ export default function PricesPage() {
     if (!branchId && branches[0]?.id) setBranchId(branches[0].id);
   }, [branchId, branches]);
 
-  const productsQ = useQuery({
+  const productsQ = useInfiniteQuery({
     queryKey: ['admin-products', 'prices'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/catalog/products?limit=100');
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '100' });
+      if (pageParam) params.set('cursor', pageParam);
+      const res = await fetch(`/api/admin/catalog/products?${params}`);
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<ProductRow>;
     },
+    getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
   });
-  const products = useMemo(() => productsQ.data?.data ?? [], [productsQ.data]);
+  const products = useMemo(
+    () => productsQ.data?.pages.flatMap((page) => page.data) ?? [],
+    [productsQ.data],
+  );
+
+  useEffect(() => {
+    if (productsQ.hasNextPage && !productsQ.isFetchingNextPage) {
+      void productsQ.fetchNextPage();
+    }
+  }, [productsQ.fetchNextPage, productsQ.hasNextPage, productsQ.isFetchingNextPage]);
 
   const pricesQ = useQuery({
     queryKey: ['admin-prices', branchId],

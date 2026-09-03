@@ -84,6 +84,8 @@ describe('BranchService', () => {
       { find: roleFind } as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await service.listAdmin({ limit: 10 } as never);
@@ -132,6 +134,8 @@ describe('BranchService', () => {
       {} as never,
       { exists: jest.fn().mockResolvedValue({ _id: new Types.ObjectId() }) } as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     await expect(service.softDelete({ sub: 'admin' } as never, branchId.toString())).rejects.toMatchObject<
@@ -147,6 +151,8 @@ describe('BranchService', () => {
       { exists: staffExists } as never,
       {} as never,
       { exists: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
+      {} as never,
       {} as never,
     );
 
@@ -172,6 +178,8 @@ describe('BranchService', () => {
       {} as never,
       { exists: jest.fn().mockResolvedValue(null) } as never,
       audit as never,
+      {} as never,
+      {} as never,
     );
 
     await service.softDelete({ sub: 'admin' } as never, branchId.toString());

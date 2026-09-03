@@ -27,6 +27,7 @@ export interface RotatedRefresh extends IssuedRefresh {
  */
 @Injectable()
 export class SessionService {
+  private static readonly INACTIVITY_TTL_MS = 60 * 60 * 1000;
   constructor(
     @InjectModel(Session.name) private readonly sessionModel: Model<Session>,
     private readonly tokens: TokenService,
@@ -39,6 +40,7 @@ export class SessionService {
   ): Promise<IssuedRefresh> {
     const refreshToken = this.tokens.newRefreshToken();
     const familyId = newUuid();
+    const now = new Date();
     const session = await this.sessionModel.create({
       principalId,
       principalType,
@@ -46,7 +48,9 @@ export class SessionService {
       familyId,
       ip: context?.ip,
       deviceInfo: context?.deviceInfo,
-      expiresAt: new Date(Date.now() + this.tokens.refreshTtlMs),
+      expiresAt: new Date(now.getTime() + this.tokens.refreshTtlMs),
+      lastActivityAt: now,
+      inactivityExpiresAt: new Date(now.getTime() + SessionService.INACTIVITY_TTL_MS),
     });
     return { sessionId: session._id.toString(), familyId, refreshToken };
   }
@@ -70,11 +74,17 @@ export class SessionService {
     if (current.expiresAt.getTime() < Date.now()) {
       throw new DomainError(ErrorCode.SESSION_INVALID, 'Session expired');
     }
+    if (current.inactivityExpiresAt.getTime() < Date.now()) {
+      current.revokedAt = new Date();
+      await current.save();
+      throw new DomainError(ErrorCode.SESSION_INVALID, 'Session expired due to inactivity');
+    }
 
     current.revokedAt = new Date();
     await current.save();
 
     const refreshTokenNew = this.tokens.newRefreshToken();
+    const now = new Date();
     const next = await this.sessionModel.create({
       principalId: current.principalId,
       principalType: current.principalType,
@@ -82,7 +92,9 @@ export class SessionService {
       familyId: current.familyId,
       ip: current.ip,
       deviceInfo: current.deviceInfo,
-      expiresAt: new Date(Date.now() + this.tokens.refreshTtlMs),
+      expiresAt: new Date(now.getTime() + this.tokens.refreshTtlMs),
+      lastActivityAt: now,
+      inactivityExpiresAt: new Date(now.getTime() + SessionService.INACTIVITY_TTL_MS),
     });
 
     return {
@@ -96,5 +108,22 @@ export class SessionService {
 
   async revoke(sessionId: string): Promise<void> {
     await this.sessionModel.updateOne({ _id: sessionId }, { $set: { revokedAt: new Date() } });
+  }
+
+  async assertActiveAndTouch(sessionId: string): Promise<void> {
+    const now = new Date();
+    const session = await this.sessionModel.findById(sessionId);
+    if (!session || session.revokedAt || session.expiresAt.getTime() < now.getTime()) {
+      throw new DomainError(ErrorCode.SESSION_INVALID, 'Session expired');
+    }
+    if (session.inactivityExpiresAt.getTime() < now.getTime()) {
+      session.revokedAt = now;
+      await session.save();
+      throw new DomainError(ErrorCode.SESSION_INVALID, 'Session expired due to inactivity');
+    }
+    await this.sessionModel.updateOne(
+      { _id: session._id },
+      { $set: { lastActivityAt: now, inactivityExpiresAt: new Date(now.getTime() + SessionService.INACTIVITY_TTL_MS) } },
+    );
   }
 }

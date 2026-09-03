@@ -205,6 +205,12 @@ export class Session {
   @Prop({ type: Date, required: true })
   expiresAt: Date;
 
+  @Prop({ type: Date, required: true, index: true })
+  lastActivityAt: Date;
+
+  @Prop({ type: Date, required: true, index: true })
+  inactivityExpiresAt: Date;
+
   @Prop({ type: Date })
   revokedAt?: Date;
 }

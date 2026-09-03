@@ -6,6 +6,7 @@ import { ReceiveInvoiceSchema, StockInvoiceDto } from '@lanyard/contracts';
 import { Button, Spinner, cn } from '@/components/ui';
 import { ProductCombobox, type ComboboxProduct } from '@/components/ProductCombobox';
 import { VendorPicker } from '@/components/inventory/VendorPicker';
+import type { PriceRow } from '@/components/use-branch-prices';
 
 /** One line of the goods-received (invoice) form. Money fields are naira strings. */
 type InvoiceLineForm = {
@@ -118,12 +119,14 @@ const labelClass = 'text-xs font-semibold uppercase tracking-wide text-slate-500
 export function InvoiceReceiveForm({
   branchId,
   products,
+  pricesById,
   editingInvoice,
   onSaved,
   onCancelEdit,
 }: {
   branchId: string;
   products: ComboboxProduct[];
+  pricesById: Map<string, PriceRow>;
   editingInvoice: StockInvoiceDto | null;
   onSaved: (message: string) => void;
   onCancelEdit: () => void;
@@ -338,6 +341,9 @@ export function InvoiceReceiveForm({
       <div className="space-y-3">
         {form.lines.map((line, index) => (
           <div key={index} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Product line {index + 1}
+            </p>
             <div className="grid gap-2 sm:grid-cols-[2fr_0.8fr_1fr_1fr] sm:items-end">
               <div>
                 <label className={labelClass}>Product</label>
@@ -345,7 +351,20 @@ export function InvoiceReceiveForm({
                   <ProductCombobox
                     products={products}
                     value={line.productId}
-                    onChange={(productId) => patchLine(index, { productId })}
+                    onChange={(productId) => {
+                      const currentPrice = pricesById.get(productId);
+                      patchLine(index, {
+                        productId,
+                        costNaira:
+                          line.costNaira || currentPrice?.costKobo == null
+                            ? line.costNaira
+                            : String(currentPrice.costKobo / 100),
+                        priceNaira:
+                          line.priceNaira || currentPrice?.priceKobo == null
+                            ? line.priceNaira
+                            : String(currentPrice.priceKobo / 100),
+                      });
+                    }}
                     invalid={isRequired(`lines.${index}.productId`)}
                   />
                 </div>

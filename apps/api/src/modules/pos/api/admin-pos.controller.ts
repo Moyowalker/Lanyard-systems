@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
+  HeldSaleInput,
+  HeldSaleInputSchema,
   PosCreateSaleInput,
   PosCreateSaleSchema,
   PosReturnInput,
@@ -40,6 +42,30 @@ export class AdminPosController {
     @Body(new ZodValidationPipe(PosCreateSaleSchema)) dto: PosCreateSaleInput,
   ) {
     return this.pos.createSale(user, dto);
+  }
+
+  @Get('held-sales')
+  @RequirePermissions('pos:sell')
+  listHeldSales(@CurrentUser() user: AuthPrincipal, @Query('branchId') branchId: string) {
+    return this.pos.listHeldSales(user, branchId);
+  }
+
+  @Post('held-sales')
+  @RequirePermissions('pos:sell')
+  @UseGuards(BranchScopeGuard)
+  @BranchScoped({ from: 'body', key: 'branchId' })
+  holdSale(
+    @CurrentUser() user: AuthPrincipal,
+    @Body(new ZodValidationPipe(HeldSaleInputSchema)) dto: HeldSaleInput,
+  ) {
+    return this.pos.holdSale(user, dto);
+  }
+
+  @Delete('held-sales/:id')
+  @HttpCode(204)
+  @RequirePermissions('pos:sell')
+  async deleteHeldSale(@CurrentUser() user: AuthPrincipal, @Param('id') id: string): Promise<void> {
+    await this.pos.deleteHeldSale(user, id);
   }
 
   /** Return part or all of a completed counter sale (branch scope checked in service). */

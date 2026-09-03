@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -151,6 +152,13 @@ export class AdminCatalogController {
   @RequirePermissions('catalog:write')
   createCategory(@Body(new ZodValidationPipe(CreateCategorySchema)) dto: CreateCategoryInput) {
     return this.catalog.createCategory(dto);
+  }
+
+  @Delete('categories/:id')
+  @HttpCode(204)
+  @RequirePermissions('catalog:write')
+  async deleteCategory(@CurrentUser() user: AuthPrincipal, @Param('id') id: string): Promise<void> {
+    await this.catalog.deleteCategory(id, user.sub);
   }
 
   private mapImages(files: Express.Multer.File[]): UploadedProductImage[] {

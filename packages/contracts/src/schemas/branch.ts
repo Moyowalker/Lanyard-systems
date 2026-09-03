@@ -51,6 +51,7 @@ const fulfillmentSchema = z.object({
 export const CreateBranchSchema = z.object({
   code: z.string().trim().min(1).max(40),
   name: z.string().trim().min(1).max(160),
+  sourceBranchId: objectId.optional(),
   status: z.nativeEnum(BranchStatus).default(BranchStatus.INACTIVE),
   address: addressSchema,
   contact: z

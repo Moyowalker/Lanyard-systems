@@ -434,6 +434,7 @@ export default function InventoryPage() {
                   <InvoiceReceiveForm
                     branchId={branchId}
                     products={products}
+                    pricesById={prices.pricesById}
                     editingInvoice={editingInvoice}
                     onSaved={onInvoiceSaved}
                     onCancelEdit={() => setEditingInvoice(null)}

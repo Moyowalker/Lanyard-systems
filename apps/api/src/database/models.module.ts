@@ -26,6 +26,7 @@ import {
   ProductSchema,
 } from '../modules/catalog/infrastructure/catalog.schemas';
 import { PriceList, PriceListSchema } from '../modules/pricing/infrastructure/price-list.schema';
+import { HeldSale, HeldSaleSchema } from '../modules/pos/infrastructure/held-sale.schema';
 import {
   InventoryItem,
   InventoryItemSchema,
@@ -93,6 +94,7 @@ const MODELS = [
   { name: Category.name, schema: CategorySchema },
   { name: Product.name, schema: ProductSchema },
   { name: PriceList.name, schema: PriceListSchema },
+  { name: HeldSale.name, schema: HeldSaleSchema },
   { name: InventoryItem.name, schema: InventoryItemSchema },
   { name: StockMovement.name, schema: StockMovementSchema },
   { name: StockInvoice.name, schema: StockInvoiceSchema },

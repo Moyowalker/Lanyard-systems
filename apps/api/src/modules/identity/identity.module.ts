@@ -42,7 +42,7 @@ import { AdminStaffController } from './api/admin-staff.controller';
     AuthService,
     StaffDirectoryService,
   ],
-  // CustomerAuthService is exported for the POS module (walk-in customer linking).
-  exports: [CustomerAuthService],
+  // CustomerAuthService is exported for POS; SessionService is used by the global auth guard.
+  exports: [CustomerAuthService, SessionService],
 })
 export class IdentityModule {}

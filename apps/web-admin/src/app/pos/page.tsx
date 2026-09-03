@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BranchSummaryDto,
+  HeldSaleDto,
   MeResponse,
   Paginated,
   PosReturnResultDto,
@@ -33,19 +34,7 @@ type DiscountType = 'percent' | 'fixed';
 
 type PaymentRow = { channel: string; amountNaira: string };
 
-/** A parked (held) sale — kept in localStorage per branch so the till can multitask. */
-type HeldSale = {
-  id: string;
-  label: string;
-  heldAt: string;
-  lines: Array<{ productId: string; name: string; quantity: number }>;
-  customerPhone: string;
-  customerFirst: string;
-  customerLast: string;
-  rxNote: string;
-  discountType: DiscountType;
-  discountValue: string;
-};
+type HeldSale = HeldSaleDto;
 
 const PAYMENT_OPTIONS = [
   { value: 'cash', label: 'Cash' },
@@ -89,23 +78,6 @@ function isControlled(p: ProductListItemDto): boolean {
 }
 function isPom(p: ProductListItemDto): boolean {
   return p.regulatoryClass === 'POM';
-}
-
-function heldSalesKey(branchId: string): string {
-  return `pos:held:${branchId}`;
-}
-
-function loadHeldSales(branchId: string): HeldSale[] {
-  if (typeof window === 'undefined' || !branchId) return [];
-  try {
-    return JSON.parse(window.localStorage.getItem(heldSalesKey(branchId)) ?? '[]') as HeldSale[];
-  } catch {
-    return [];
-  }
-}
-
-function storeHeldSales(branchId: string, sales: HeldSale[]) {
-  window.localStorage.setItem(heldSalesKey(branchId), JSON.stringify(sales));
 }
 
 /** Printable receipt: print CSS isolates #pos-receipt from the rest of the console. */
@@ -431,7 +403,6 @@ export default function PosPage() {
   const [completedSale, setCompletedSale] = useState<PosSaleDto | null>(null);
   // A receipt opened from the history table — dismiss it without touching the live cart.
   const [viewingPastSale, setViewingPastSale] = useState(false);
-  const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
   const [showHeld, setShowHeld] = useState(false);
   const [returningSale, setReturningSale] = useState<PosSaleDto | null>(null);
   const idempotencyKey = useRef<string>('');
@@ -460,9 +431,16 @@ export default function PosPage() {
     if (!branchId && branches[0]?.id) setBranchId(branches[0].id);
   }, [branchId, branches]);
 
-  useEffect(() => {
-    if (branchId) setHeldSales(loadHeldSales(branchId));
-  }, [branchId]);
+  const heldSalesQ = useQuery({
+    queryKey: ['pos-held-sales', branchId],
+    enabled: Boolean(branchId),
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/pos/held-sales?branchId=${branchId}`);
+      if (!res.ok) throw new Error('Failed to load held sales');
+      return (await res.json()) as { data: HeldSale[] };
+    },
+  });
+  const heldSales = heldSalesQ.data?.data ?? [];
 
   // Global keyboard-wedge scanner capture: assemble rapid keystrokes ending in Enter
   // when no text field is focused, and route them through the same exact-match handler.
@@ -671,7 +649,25 @@ export default function PosPage() {
     idempotencyKey.current = '';
   }
 
-  /* ── hold / resume / cancel (local, per till) ── */
+  const holdMutation = useMutation({
+    mutationFn: async (held: Omit<HeldSale, 'id' | 'heldAt'>) => {
+      const res = await fetch('/api/admin/pos/held-sales', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(held),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error?.message ?? 'Failed to hold sale');
+    },
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['pos-held-sales', branchId] }); resetSale(); },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to hold sale'),
+  });
+  const discardHeldMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/pos/held-sales/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to discard held sale');
+    },
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['pos-held-sales', branchId] }); },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to discard held sale'),
+  });
 
   function holdSale() {
     if (lines.length === 0) return;
@@ -679,10 +675,9 @@ export default function PosPage() {
       [customerFirst, customerLast].filter(Boolean).join(' ') ||
       customerPhone.trim() ||
       `${lines.length} item${lines.length === 1 ? '' : 's'} · ${formatKobo(subtotalKobo)}`;
-    const held: HeldSale = {
-      id: crypto.randomUUID(),
+    holdMutation.mutate({
+      branchId,
       label,
-      heldAt: new Date().toISOString(),
       lines: lines.map((l) => ({
         productId: l.product.id,
         name: l.product.name,
@@ -694,11 +689,7 @@ export default function PosPage() {
       rxNote,
       discountType,
       discountValue,
-    };
-    const next = [held, ...heldSales];
-    setHeldSales(next);
-    storeHeldSales(branchId, next);
-    resetSale();
+    });
   }
 
   async function resumeSale(held: HeldSale) {
@@ -722,25 +713,18 @@ export default function PosPage() {
       });
     }
     setCart(restored);
-    setCustomerPhone(held.customerPhone);
-    setCustomerFirst(held.customerFirst);
-    setCustomerLast(held.customerLast);
-    setRxNote(held.rxNote);
+    setCustomerPhone(held.customerPhone ?? '');
+    setCustomerFirst(held.customerFirst ?? '');
+    setCustomerLast(held.customerLast ?? '');
+    setRxNote(held.rxNote ?? '');
     setDiscountType(held.discountType);
     setDiscountValue(held.discountValue);
     setPayments([{ channel: 'cash', amountNaira: '' }]);
     idempotencyKey.current = crypto.randomUUID();
-    cancelHeld(held.id);
     setShowHeld(false);
     if (missing.length > 0) {
-      setError(`Some held items are no longer sellable and were dropped: ${missing.join(', ')}.`);
+      setError(`Some held items are not currently sellable: ${missing.join(', ')}. The held sale remains saved.`);
     }
-  }
-
-  function cancelHeld(id: string) {
-    const next = heldSales.filter((h) => h.id !== id);
-    setHeldSales(next);
-    storeHeldSales(branchId, next);
   }
 
   const saleMutation = useMutation({
@@ -899,7 +883,11 @@ export default function PosPage() {
                     <Button variant="secondary" onClick={() => resumeSale(held)}>
                       Resume
                     </Button>
-                    <Button variant="ghost" onClick={() => cancelHeld(held.id)}>
+                    <Button
+                      variant="ghost"
+                      disabled={discardHeldMutation.isPending}
+                      onClick={() => discardHeldMutation.mutate(held.id)}
+                    >
                       Cancel
                     </Button>
                   </div>

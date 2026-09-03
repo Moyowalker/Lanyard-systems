@@ -21,7 +21,9 @@ function buildService(productFind: jest.Mock) {
   } as never;
   const inventory = { getAvailabilityMap: jest.fn().mockResolvedValue(new Map()) } as never;
   const storage = { getSignedDownloadUrl: jest.fn() } as never;
-  return new CatalogService(productModel, categoryModel, pricing, inventory, storage);
+  const audit = { record: jest.fn() } as never;
+  const tx = { run: jest.fn() } as never;
+  return new CatalogService(productModel, categoryModel, pricing, inventory, storage, audit, tx);
 }
 
 describe('CatalogService search resilience', () => {

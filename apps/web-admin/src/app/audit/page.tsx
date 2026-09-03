@@ -60,12 +60,14 @@ const ACTOR_TONE: Record<string, Tone> = {
 export default function AuditLogPage() {
   const [action, setAction] = useState('');
   const [actorType, setActorType] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const { branchId, setBranchId, branches, canViewAllBranches, isLoading: branchesLoading } =
     useOperationalBranchFilter();
 
   const query = useInfiniteQuery({
-    queryKey: ['audit', action, actorType, branchId],
+    queryKey: ['audit', action, actorType, branchId, fromDate, toDate],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '50' });
@@ -73,6 +75,8 @@ export default function AuditLogPage() {
       if (action) params.set('action', action);
       if (actorType) params.set('actorType', actorType);
       if (branchId) params.set('branchId', branchId);
+      if (fromDate) params.set('from', `${fromDate}T00:00:00.000Z`);
+      if (toDate) params.set('to', `${toDate}T23:59:59.999Z`);
       const r = await fetch(`/api/admin/audit?${params.toString()}`);
       if (!r.ok) throw new Error('Failed to load audit log');
       return (await r.json()) as Paginated<AuditLogDto>;
@@ -121,6 +125,26 @@ export default function AuditLogPage() {
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+          From
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(event) => setFromDate(event.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-500"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+          To
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(event) => setToDate(event.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-500"
+          />
+        </label>
         {!branchesLoading ? (
           <BranchFilter
             branchId={branchId}
