@@ -50,6 +50,8 @@ function saleInput(productId: string, overrides: Partial<Record<string, unknown>
 }
 
 type Mocks = {
+  heldSaleCreate: jest.Mock;
+  getAvailabilityMap: jest.Mock;
   orderFindOne: jest.Mock;
   orderCreate: jest.Mock;
   orderFindById: jest.Mock;
@@ -87,6 +89,8 @@ function buildService(opts: {
   };
 
   const mocks: Mocks = {
+    heldSaleCreate: jest.fn(),
+    getAvailabilityMap: jest.fn().mockResolvedValue(opts.availability ?? new Map()),
     orderFindOne: jest.fn().mockResolvedValue(opts.existingByIdempotency ?? null),
     orderCreate: jest.fn().mockResolvedValue([createdOrder]),
     orderFindById: jest.fn().mockImplementation(() => ({
@@ -131,7 +135,7 @@ function buildService(opts: {
 
   const service = new PosService(
     orderModel as never,
-    {} as never,
+    { create: mocks.heldSaleCreate } as never,
     productModel as never,
     staffModel as never,
     customerModel as never,
@@ -139,7 +143,7 @@ function buildService(opts: {
     { genOrderNo: () => 'LNY-TEST01', completeInSession: mocks.completeInSession } as never,
     { recordOfflinePayment: mocks.recordOfflinePayment } as never,
     { recordOfflineRefund: jest.fn().mockResolvedValue({ refundId: 'r1' }) } as never,
-    { getAvailabilityMap: jest.fn().mockResolvedValue(opts.availability ?? new Map()) } as never,
+    { getAvailabilityMap: mocks.getAvailabilityMap } as never,
     { getPriceMap: jest.fn().mockResolvedValue(opts.priceMap ?? new Map()) } as never,
     {
       findOrCreateByPhone: mocks.findOrCreateByPhone,
@@ -163,6 +167,43 @@ function pricedAndStocked(product: { _id: Types.ObjectId }) {
 }
 
 // ── tests ────────────────────────────────────────────────────────────────────
+
+describe('PosService.holdSale', () => {
+  it('persists the held cart without reserving or deducting inventory', async () => {
+    const product = makeProduct();
+    const heldId = new Types.ObjectId();
+    const { service, mocks } = buildService({ products: [product], ...pricedAndStocked(product) });
+    mocks.heldSaleCreate.mockResolvedValueOnce([
+      {
+        _id: heldId,
+        branchId: new Types.ObjectId(BRANCH_ID),
+        cashierStaffId: new Types.ObjectId(STAFF_ID),
+        label: 'Ada order',
+        lines: [{ productId: product._id, name: product.name, quantity: 2 }],
+        discountType: 'percent',
+        discountValue: '0',
+        createdAt: new Date('2026-09-05T10:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.holdSale(principal, {
+      branchId: BRANCH_ID,
+      label: 'Ada order',
+      lines: [{ productId: product._id.toString(), name: product.name, quantity: 2 }],
+      discountType: 'percent',
+      discountValue: '0',
+    });
+
+    expect(result.data.id).toBe(heldId.toString());
+    expect(mocks.heldSaleCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.getAvailabilityMap).not.toHaveBeenCalled();
+    expect(mocks.completeInSession).not.toHaveBeenCalled();
+    expect(mocks.recordOfflinePayment).not.toHaveBeenCalled();
+    expect(mocks.auditRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'pos.sale_held', targetId: heldId.toString() }),
+    );
+  });
+});
 
 describe('PosService.createSale', () => {
   it('completes a cash sale: order created, offline payment recorded, stock dispensed', async () => {

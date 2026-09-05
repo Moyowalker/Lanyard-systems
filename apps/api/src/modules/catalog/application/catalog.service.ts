@@ -93,6 +93,22 @@ export class CatalogService {
    * exposed on the public catalog routes.
    */
   async listProductsForPos(query: ProductListQuery): Promise<Paginated<ProductListItemDto>> {
+    if (query.ids) {
+      const requestedIds = query.ids.map((id) => new Types.ObjectId(id));
+      const rows = await this.productModel
+        .find({
+          _id: { $in: requestedIds },
+          status: ProductStatus.PUBLISHED,
+        })
+        .limit(requestedIds.length)
+        .lean();
+      const items = await this.decorate(rows, query.branchId, true);
+      const visible = query.branchId ? items.filter((item) => item.price) : items;
+      const order = new Map(query.ids.map((id, index) => [id, index]));
+      visible.sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0));
+      return { data: visible, meta: { nextCursor: null } };
+    }
+
     // Scanner path: exact barcode/SKU match, bypassing text search entirely.
     if (query.barcode) {
       const code = query.barcode.trim();

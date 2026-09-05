@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BranchSummaryDto,
   HeldSaleDto,
@@ -488,12 +488,11 @@ export default function PosPage() {
   const productsQ = useQuery({
     queryKey: ['pos-products', branchId, debouncedSearch],
     enabled: Boolean(branchId),
-    placeholderData: keepPreviousData, // keep results visible while the next search loads
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams({ branchId, limit: '30' });
       if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim());
       // Staff lookup: includes products hidden from the storefront but sellable at the till.
-      const res = await fetch(`/api/admin/pos/products?${params.toString()}`);
+      const res = await fetch(`/api/admin/pos/products?${params.toString()}`, { signal });
       if (!res.ok) throw new Error('Failed to load products');
       return (await res.json()) as Paginated<ProductListItemDto>;
     },
@@ -697,22 +696,52 @@ export default function PosPage() {
   async function resumeSale(held: HeldSale) {
     // Re-resolve every line so CURRENT prices and stock apply (held prices may be stale).
     setError(undefined);
-    const restored = new Map<string, CartLine>();
-    const missing: string[] = [];
+    const quantities = new Map<string, { name: string; quantity: number }>();
     for (const line of held.lines) {
-      const res = await fetch(
-        `/api/admin/pos/products?branchId=${branchId}&q=${encodeURIComponent(line.name)}&limit=30`,
-      );
-      const body = res.ok ? ((await res.json()) as Paginated<ProductListItemDto>) : null;
-      const product = body?.data.find((p) => p.id === line.productId);
-      if (!product || product.price == null || isControlled(product)) {
-        missing.push(line.name);
+      const existing = quantities.get(line.productId);
+      quantities.set(line.productId, {
+        name: line.name,
+        quantity: (existing?.quantity ?? 0) + line.quantity,
+      });
+    }
+
+    const params = new URLSearchParams({
+      branchId,
+      ids: [...quantities.keys()].join(','),
+      limit: String(Math.min(quantities.size, 100)),
+    });
+    const res = await fetch(`/api/admin/pos/products?${params.toString()}`);
+    if (!res.ok) {
+      setError('Held sale could not be loaded. The held sale remains saved.');
+      return;
+    }
+    const body = (await res.json()) as Paginated<ProductListItemDto>;
+    const productsById = new Map(body.data.map((product) => [product.id, product]));
+    const restored = new Map<string, CartLine>();
+    const conflicts: string[] = [];
+    for (const [productId, heldLine] of quantities) {
+      const product = productsById.get(productId);
+      if (!product) {
+        conflicts.push(`${heldLine.name} is no longer available at this branch`);
+        continue;
+      }
+      if (product.price == null) {
+        conflicts.push(`${product.name} has no selling price at this branch`);
+        continue;
+      }
+      if (isControlled(product)) {
+        conflicts.push(`${product.name} is controlled and cannot be sold at the counter`);
         continue;
       }
       restored.set(product.id, {
         product,
-        quantity: Math.min(line.quantity, Math.max(product.available ?? 0, 1)),
+        quantity: heldLine.quantity,
       });
+      if ((product.available ?? 0) < heldLine.quantity) {
+        conflicts.push(
+          `${product.name} needs ${heldLine.quantity}, but only ${product.available ?? 0} is available`,
+        );
+      }
     }
     setCart(restored);
     setCustomerPhone(held.customerPhone ?? '');
@@ -725,8 +754,8 @@ export default function PosPage() {
     idempotencyKey.current = crypto.randomUUID();
     setResumedHeldSaleId(held.id);
     setShowHeld(false);
-    if (missing.length > 0) {
-      setError(`Some held items are not currently sellable: ${missing.join(', ')}. The held sale remains saved.`);
+    if (conflicts.length > 0) {
+      setError(`Held sale needs attention: ${conflicts.join('; ')}. The held sale remains saved.`);
     }
   }
 

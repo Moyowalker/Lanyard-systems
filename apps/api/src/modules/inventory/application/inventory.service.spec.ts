@@ -480,6 +480,38 @@ describe('InventoryService.receiveInvoice', () => {
     expect(result.totalUnits).toBe(120);
   });
 
+  it('maps a newly created invoice after the schema transform replaces _id with id', async () => {
+    const { service, invoiceCreate, invoiceId } = buildService();
+    invoiceCreate.mockResolvedValueOnce([
+      {
+        _id: invoiceId,
+        toObject: () => ({
+          id: invoiceId.toString(),
+          branchId: new Types.ObjectId(branchId),
+          vendorName: 'Emzor Distribution',
+          invoiceNo: 'INV-0231',
+          invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+          receivedByStaffId: new Types.ObjectId(actorId),
+          lines: [
+            {
+              productId: productA,
+              productName: 'Paracetamol 500mg',
+              quantity: 100,
+            },
+          ],
+          createdAt: new Date(),
+        }),
+      },
+    ]);
+
+    const result = await service.receiveInvoice(branchId, actorId, {
+      ...baseInput,
+      lines: [baseInput.lines[0]],
+    } as never);
+
+    expect(result.id).toBe(invoiceId.toString());
+  });
+
   it('upserts price + storefront visibility for lines that set them', async () => {
     const { service, upsertPrice } = buildService();
 
@@ -523,6 +555,26 @@ describe('InventoryService.receiveInvoice', () => {
 
     expect(invoiceCreate).not.toHaveBeenCalled();
     expect(movementCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects a cost-only line with no existing selling price before any mutation', async () => {
+    const { service, invoiceCreate, movementCreate, upsertPrice } = buildService();
+
+    await expect(
+      service.receiveInvoice(branchId, actorId, {
+        ...baseInput,
+        lines: [{ productId: productB.toString(), quantity: 20, costKobo: 30000 }],
+      } as never),
+    ).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_FAILED,
+      details: expect.arrayContaining([
+        expect.objectContaining({ issue: expect.stringContaining('selling price') }),
+      ]),
+    });
+
+    expect(invoiceCreate).not.toHaveBeenCalled();
+    expect(movementCreate).not.toHaveBeenCalled();
+    expect(upsertPrice).not.toHaveBeenCalled();
   });
 
   it('rejects unknown products before any mutation', async () => {

@@ -12,6 +12,11 @@ export const ProductListQuerySchema = z.object({
   branchId: objectId.optional(),
   category: z.string().optional(), // category slug
   q: z.string().trim().min(1).optional(),
+  /** Exact product IDs for hydrating persisted carts or held sales. */
+  ids: z.preprocess(
+    (value) => (typeof value === 'string' ? value.split(',').filter(Boolean) : value),
+    z.array(objectId).min(1).max(100).optional(),
+  ),
   /** Exact barcode or SKU match (scanner lookup) — takes precedence over `q`. */
   barcode: z.string().trim().min(1).max(64).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),

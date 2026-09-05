@@ -89,6 +89,7 @@ describe('Lanyard API integration flows', () => {
       'rx:read',
       'rx:verify',
       'phi:view',
+      'inventory:receive',
     ];
     await model<Permission>(Permission.name).create(
       allPerms.map((key) => ({ key, description: key, group: 'test' })),
@@ -211,9 +212,20 @@ describe('Lanyard API integration flows', () => {
     await asCustomer('post', '/cart/items')
       .send({ branchId: ids.branch, productId: ids.otc, quantity: 2 })
       .expect(201);
+    const invAfterCart = await model<InventoryItem>(InventoryItem.name)
+      .findOne({ branchId: new Types.ObjectId(ids.branch), productId: new Types.ObjectId(ids.otc) })
+      .lean();
+    expect(invAfterCart?.reserved).toBe(0);
+    expect(invAfterCart?.onHand).toBe(50);
+
     const order = await asCustomer('post', '/orders').send({ fulfillment: { type: 'pickup' } });
     expect(order.body.status).toBe('AWAITING_PAYMENT');
     const orderId = order.body.id;
+    const invAwaitingPayment = await model<InventoryItem>(InventoryItem.name)
+      .findOne({ branchId: new Types.ObjectId(ids.branch), productId: new Types.ObjectId(ids.otc) })
+      .lean();
+    expect(invAwaitingPayment?.reserved).toBe(0);
+    expect(invAwaitingPayment?.onHand).toBe(50);
 
     const intent = await asCustomer('post', '/payments/intents').send({ orderId });
     const intentId = intent.body.intentId;
@@ -274,6 +286,34 @@ describe('Lanyard API integration flows', () => {
       .expect(201);
     const advanced = await asCustomer('get', `/orders/${order.body.id}`);
     expect(advanced.body.status).toBe('AWAITING_PAYMENT');
+  });
+
+  it('receives a supplier invoice and persists stock plus unit cost atomically', async () => {
+    const response = await asStaff('post', `/admin/branches/${ids.branch}/inventory/invoices`).send({
+        vendorName: 'Integration Supplier',
+        invoiceNo: 'INT-INV-001',
+        invoiceDate: '2026-09-05',
+        paymentStatus: 'paid',
+        idempotencyKey: '4f9a4a9c-1111-4222-8333-444455556667',
+        lines: [
+          { productId: ids.otc, quantity: 5, costKobo: 30000, visibleOnStorefront: false },
+        ],
+      });
+
+    if (response.status !== 201) {
+      throw new Error(`Invoice receipt failed (${response.status}): ${JSON.stringify(response.body)}`);
+    }
+    expect(response.body.data.invoiceNo).toBe('INT-INV-001');
+    expect(response.body.data.totalUnits).toBe(5);
+
+    const inventory = await model<InventoryItem>(InventoryItem.name)
+      .findOne({ branchId: new Types.ObjectId(ids.branch), productId: new Types.ObjectId(ids.otc) })
+      .lean();
+    const price = await model<PriceList>(PriceList.name)
+      .findOne({ branchId: new Types.ObjectId(ids.branch), productId: new Types.ObjectId(ids.otc) })
+      .lean();
+    expect(inventory?.onHand).toBe(55);
+    expect(price?.costKobo).toBe(30000);
   });
 });
 

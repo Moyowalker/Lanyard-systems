@@ -411,10 +411,10 @@ export function InvoiceReceiveForm({
                 />
               </div>
             </div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1.2fr_auto] sm:items-end">
+            <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_1.2fr_auto] sm:items-end">
               <div>
                 <label className={labelClass} htmlFor={`line-cost-${index}`}>
-                  Cost (₦)
+                  Unit cost (₦)
                 </label>
                 <input
                   id={`line-cost-${index}`}
@@ -428,7 +428,7 @@ export function InvoiceReceiveForm({
               </div>
               <div>
                 <label className={labelClass} htmlFor={`line-price-${index}`}>
-                  Selling (₦)
+                  Unit selling price (₦)
                 </label>
                 <input
                   id={`line-price-${index}`}
@@ -453,6 +453,16 @@ export function InvoiceReceiveForm({
                   className={inputClass}
                   placeholder="Optional"
                 />
+              </div>
+              <div>
+                <span className={labelClass}>Line total</span>
+                <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900">
+                  {new Intl.NumberFormat('en-NG', {
+                    style: 'currency',
+                    currency: 'NGN',
+                    minimumFractionDigits: 2,
+                  }).format((Number(line.quantity) || 0) * (Number(line.costNaira) || 0))}
+                </div>
               </div>
               <div>
                 <label className={labelClass} htmlFor={`line-visibility-${index}`}>

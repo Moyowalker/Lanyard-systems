@@ -76,6 +76,30 @@ describe('CatalogService search resilience', () => {
     expect(result.data[0].name).toBe('Barcoded Drug');
     expect(find).toHaveBeenCalledTimes(1);
   });
+
+  it('hydrates held-sale products by id without relying on their saved names', async () => {
+    const rows = [
+      {
+        _id: productA,
+        slug: 'renamed-drug',
+        name: 'Renamed Drug',
+        form: 'tablet',
+        regulatoryClass: 'GSL',
+      },
+    ];
+    const find = jest.fn().mockReturnValueOnce(chain(() => Promise.resolve(rows)));
+    const service = buildService(find);
+
+    const result = await service.listProductsForPos({ ids: [productA.toString()], limit: 10 } as never);
+
+    expect(find).toHaveBeenCalledWith({
+      _id: { $in: [expect.any(Types.ObjectId)] },
+      status: 'published',
+    });
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].id).toBe(productA.toString());
+    expect(result.data[0].name).toBe('Renamed Drug');
+  });
 });
 
 describe('CatalogService branch catalog pagination', () => {

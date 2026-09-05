@@ -688,6 +688,17 @@ export class InventoryService {
           issue: 'set a selling price to make this product visible on the storefront',
         });
       }
+      if (
+        opts.requirePriceForVisible &&
+        line.costKobo != null &&
+        line.priceKobo == null &&
+        !existingPrices.get(line.productId)
+      ) {
+        problems.push({
+          field: name,
+          issue: 'set a selling price before recording a unit cost for this branch',
+        });
+      }
     });
     if (problems.length > 0) {
       throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Invoice has invalid lines', problems);
@@ -955,7 +966,8 @@ export class InventoryService {
 
   private toInvoiceDto(
     row: {
-      _id: Types.ObjectId;
+      _id?: Types.ObjectId;
+      id?: string;
       branchId: Types.ObjectId;
       vendorId?: Types.ObjectId;
       vendorName: string;
@@ -983,8 +995,10 @@ export class InventoryService {
     },
     receivedByName?: string,
   ): StockInvoiceDto {
+    const id = row.id ?? row._id?.toString();
+    if (!id) throw new DomainError(ErrorCode.INTERNAL, 'Invoice identifier is missing');
     return {
-      id: row._id.toString(),
+      id,
       branchId: row.branchId.toString(),
       vendorId: row.vendorId?.toString(),
       vendorName: row.vendorName,

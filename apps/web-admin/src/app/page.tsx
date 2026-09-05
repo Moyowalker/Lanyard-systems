@@ -119,11 +119,14 @@ export default function Dashboard() {
     refetchInterval: 15000,
     queryFn: async () => {
       const now = new Date();
-      const from = new Date(now);
-      from.setDate(from.getDate() - 6);
-      from.setHours(0, 0, 0, 0);
-      const to = new Date(now);
-      to.setHours(23, 59, 59, 999);
+      const lagosNow = new Date(now.getTime() + 60 * 60 * 1000);
+      const lagosTodayUtc = Date.UTC(
+        lagosNow.getUTCFullYear(),
+        lagosNow.getUTCMonth(),
+        lagosNow.getUTCDate(),
+      );
+      const from = new Date(lagosTodayUtc - 6 * 24 * 60 * 60 * 1000 - 60 * 60 * 1000);
+      const to = new Date(lagosTodayUtc + 24 * 60 * 60 * 1000 - 60 * 60 * 1000 - 1);
       const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
       if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
       const response = await fetch(`/api/admin/reports/sales-summary?${params}`);

@@ -192,6 +192,18 @@ describe('summarizeSales', () => {
     expect(result.byDay[2]).toEqual({ date: '2026-06-03', revenueKobo: 200000, orders: 1 });
   });
 
+  it('uses Africa/Lagos calendar days for revenue buckets', () => {
+    const result = summarizeSales(
+      [order({ createdAt: '2026-06-01T23:30:00.000Z', totals: { totalKobo: 100000 } })],
+      new Date('2026-06-01T23:00:00.000Z'),
+      new Date('2026-06-02T22:59:59.999Z'),
+    );
+
+    expect(result.byDay).toEqual([
+      { date: '2026-06-02', revenueKobo: 100000, orders: 1 },
+    ]);
+  });
+
   it('ranks top products by revenue', () => {
     const result = summarizeSales(
       [

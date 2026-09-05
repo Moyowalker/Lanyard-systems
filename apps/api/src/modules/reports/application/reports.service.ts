@@ -121,14 +121,18 @@ export interface OrderForReport {
   items: Array<{ productId: string; name: string; quantity: number; lineTotalKobo: number }>;
 }
 
+const LAGOS_OFFSET_MS = 60 * 60 * 1000;
+
 function dayKey(value: Date | string): string {
-  return new Date(value).toISOString().slice(0, 10);
+  return new Date(new Date(value).getTime() + LAGOS_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 function eachDay(from: Date, to: Date): string[] {
   const days: string[] = [];
-  const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
-  const end = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate()));
+  const fromKey = dayKey(from);
+  const toKey = dayKey(to);
+  const cursor = new Date(`${fromKey}T00:00:00.000Z`);
+  const end = new Date(`${toKey}T00:00:00.000Z`);
   // Guard against an inverted or absurd range producing an unbounded loop.
   let guard = 0;
   while (cursor <= end && guard < 366) {
