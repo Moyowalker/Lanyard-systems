@@ -175,7 +175,7 @@ StaffUserSchema.set('toJSON', {
 });
 
 /* ════════════════════════════════════════════════════════════════════════
- * sessions — refresh-token sessions (rotating). TTL auto-expiry.
+ * sessions — non-expiring refresh-token sessions (rotating).
  * ════════════════════════════════════════════════════════════════════════ */
 
 export type SessionDocument = HydratedDocument<Session>;
@@ -202,14 +202,8 @@ export class Session {
   @Prop({ type: String })
   ip?: string;
 
-  @Prop({ type: Date, required: true })
-  expiresAt: Date;
-
   @Prop({ type: Date, required: true, index: true })
   lastActivityAt: Date;
-
-  @Prop({ type: Date, required: true, index: true })
-  inactivityExpiresAt: Date;
 
   @Prop({ type: Date })
   revokedAt?: Date;
@@ -217,7 +211,6 @@ export class Session {
 
 export const SessionSchema = SchemaFactory.createForClass(Session);
 SessionSchema.index({ principalId: 1, principalType: 1 });
-SessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL cleanup
 
 /* ════════════════════════════════════════════════════════════════════════
  * otp_challenges — one-time codes (login/verify/reset). Hashed + TTL.

@@ -23,14 +23,15 @@ This prevents a customer token from ever reaching staff endpoints.
 
 ## 2. Token model
 
-- **Access token (JWT, short-lived ~15 min):** signed (RS256/asymmetric so verification
-  can be distributed later). Claims: `sub`, `realm`, `aud`, `roles`, `permissions`
-  (or a permissions hash), `branchScope`, `sessionId`, `iat`, `exp`.
-- **Refresh token (opaque, long-lived, rotating):** stored **hashed** in `sessions`.
+- **Access token (JWT, non-expiring):** signed (RS256/asymmetric so verification can be
+  distributed later). Claims: `sub`, `realm`, `aud`, `roles`, `permissions` (or a
+  permissions hash), `branchScope`, `sessionId`, `iat`; no `exp` claim is issued.
+- **Refresh token (opaque, rotating):** stored **hashed** in `sessions`.
   Every refresh **rotates** the token and invalidates the prior one; reuse of an old
   refresh token → **session family revoked** (theft detection).
 - **Web delivery:** tokens in **httpOnly, Secure, SameSite cookies** set by the app's
-  BFF route handlers — never in `localStorage` (XSS-resistant).
+  BFF route handlers — never in `localStorage` (XSS-resistant). Cookies renew for up
+  to 400 days, the practical browser persistence limit.
 - **Mobile/API delivery:** Bearer tokens via Authorization header (same endpoints).
 - **Logout / revoke:** deletes the session; `GET /me` and guards reject revoked sessions.
 
@@ -152,7 +153,7 @@ Request → AuthGuard (verify JWT, realm, session active)
 | Password hashing | Argon2id (memory-hard)                                                   |
 | Brute force      | Progressive lockout + rate limiting on login/OTP                         |
 | Token signing    | Asymmetric keys, rotated; old keys honored during overlap                |
-| Session hygiene  | TTL expiry, device list, revoke-all, refresh rotation w/ reuse detection |
+| Session hygiene  | Device list, revoke-all, refresh rotation w/ reuse detection              |
 | Enumeration      | Uniform responses on login/OTP/forgot-password                           |
 | Secrets          | Central secrets manager; never in repo or images                         |
 | Transport        | HTTPS only, HSTS, secure cookies, CSP on web apps                        |

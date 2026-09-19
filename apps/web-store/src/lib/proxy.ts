@@ -6,9 +6,8 @@ import { API_URL, COOKIE } from './config';
  * Forwards a request from a BFF route handler to the Lanyard API, attaching the
  * httpOnly access token as a Bearer header. Keeps tokens off the client entirely.
  *
- * Access tokens are short-lived (15m). When one is missing or rejected, we silently
- * rotate it using the refresh cookie and retry once — so a customer mid-checkout is
- * never bounced to login just because their access token expired.
+ * When an access token is missing or rejected, we silently rotate it using the refresh
+ * cookie and retry once — so a customer mid-checkout is not bounced to login.
  */
 
 async function persistTokens(tokens: AuthTokens): Promise<void> {
@@ -26,7 +25,7 @@ async function persistTokens(tokens: AuthTokens): Promise<void> {
     sameSite: 'lax',
     secure,
     path: '/',
-    maxAge: 60 * 60 * 24 * 30,
+    maxAge: tokens.expiresIn,
   });
 }
 

@@ -87,7 +87,7 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   tokenType: 'Bearer';
-  expiresIn: number; // access token lifetime, seconds
+  expiresIn: number; // browser authentication cookie lifetime, seconds
 }
 
 export interface MfaChallenge {

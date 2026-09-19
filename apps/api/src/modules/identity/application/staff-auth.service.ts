@@ -13,7 +13,7 @@ import {
 
 import { StaffUser, StaffUserDocument } from '../infrastructure/identity.schemas';
 import { PasswordService } from '../../../core/security/password.service';
-import { TokenService } from '../../../core/security/token.service';
+import { AUTH_COOKIE_MAX_AGE_SECONDS, TokenService } from '../../../core/security/token.service';
 import { SessionService } from './session.service';
 import { AuthzService } from '../../authz/application/authz.service';
 import { AuditService } from '../../../core/platform/audit.service';
@@ -119,7 +119,7 @@ export class StaffAuthService {
       accessToken,
       refreshToken: session.refreshToken,
       tokenType: 'Bearer',
-      expiresIn: this.tokens.accessTtlSeconds,
+      expiresIn: AUTH_COOKIE_MAX_AGE_SECONDS,
     };
   }
 }

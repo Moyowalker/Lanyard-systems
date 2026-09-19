@@ -15,7 +15,7 @@ import {
 import { Customer, CustomerDocument } from '../infrastructure/identity.schemas';
 import { OtpService, OtpIssueResult } from './otp.service';
 import { SessionService } from './session.service';
-import { TokenService } from '../../../core/security/token.service';
+import { AUTH_COOKIE_MAX_AGE_SECONDS, TokenService } from '../../../core/security/token.service';
 import { DomainError } from '../../../core/errors/domain-error';
 
 /** Customer authentication: phone-first, OTP-based (doc 07). */
@@ -207,7 +207,7 @@ export class CustomerAuthService {
       accessToken,
       refreshToken: session.refreshToken,
       tokenType: 'Bearer',
-      expiresIn: this.tokens.accessTtlSeconds,
+      expiresIn: AUTH_COOKIE_MAX_AGE_SECONDS,
     };
   }
 }

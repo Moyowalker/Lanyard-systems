@@ -95,10 +95,11 @@ RBAC detail in [07](07-auth-rbac.md).
 
 ```ts
 { _id, principalId, principalType: "customer"|"staff",
-  refreshTokenHash, deviceInfo, ip, createdAt, expiresAt, revokedAt? }
+  refreshTokenHash, deviceInfo, ip, createdAt, lastActivityAt, revokedAt? }
 ```
 
-Index: `{principalId:1}`, `{expiresAt:1}` (TTL).
+Index: `{principalId:1, principalType:1}`. Sessions are revoked explicitly rather than
+being deleted by a TTL index.
 
 ### `otp_challenges`
 
@@ -402,7 +403,7 @@ Everything else is single-document (Mongo guarantees single-doc atomicity).
 
 - Every collection's indexes are **declared in code** (Mongoose schema) and reviewed.
 - Compound indexes follow **ESR** (Equality, Sort, Range) ordering for the dominant query.
-- TTL indexes auto-expire sessions, OTPs, carts, idempotency keys.
+- TTL indexes auto-expire OTPs, carts, and idempotency keys.
 - `2dsphere` on branch geo for the **branch locator** ("nearest branch with stock").
 - Search: start with Mongo **text index**; graduate to **Atlas Search** or a dedicated
   engine when catalog/search load demands it.
@@ -418,7 +419,8 @@ Everything else is single-document (Mongo guarantees single-doc atomicity).
 | Prescriptions / dispensing records | Long (regulatory min; confirm with compliance) | PHI; encrypted; access audited        |
 | Orders / payment txns              | Financial retention period                     | Immutable history                     |
 | Audit logs                         | Long                                           | Append-only; exported to cold storage |
-| OTP / sessions / carts             | Minutes–days                                   | TTL auto-expiry                       |
+| OTP / carts                        | Minutes–days                                   | TTL auto-expiry                       |
+| Sessions                           | Until explicit revocation                      | Refresh rotation and reuse detection  |
 | Marketing leads                    | Until consent withdrawn                        | Honor deletion requests               |
 
 Customer **data-subject requests** (access/deletion) are supported via the customer +

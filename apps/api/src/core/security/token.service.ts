@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
-import { randomToken, parseDurationMs } from './crypto.util';
+import { randomToken } from './crypto.util';
 
 export type Realm = 'customer' | 'staff';
+export const AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 400;
 
-/** Claims carried in the short-lived access token. */
+/** Claims carried in the access token. */
 export interface AccessTokenClaims {
   sub: string;
   realm: Realm;
@@ -31,24 +31,10 @@ export interface MfaTokenClaims {
  */
 @Injectable()
 export class TokenService {
-  constructor(
-    private readonly jwt: JwtService,
-    private readonly config: ConfigService,
-  ) {}
-
-  get accessTtlSeconds(): number {
-    return Math.floor(parseDurationMs(this.config.get<string>('JWT_ACCESS_TTL', '30m')) / 1000);
-  }
-
-  get refreshTtlMs(): number {
-    return parseDurationMs(this.config.get<string>('JWT_REFRESH_TTL', '30d'));
-  }
+  constructor(private readonly jwt: JwtService) {}
 
   signAccess(claims: Omit<AccessTokenClaims, 'typ'>): string {
-    // expiresIn as a number = seconds (avoids the ms StringValue template-literal type).
-    return this.jwt.sign({ ...claims, typ: 'access' } satisfies AccessTokenClaims, {
-      expiresIn: this.accessTtlSeconds,
-    });
+    return this.jwt.sign({ ...claims, typ: 'access' } satisfies AccessTokenClaims);
   }
 
   signMfa(sub: string): string {

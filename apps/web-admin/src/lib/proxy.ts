@@ -18,7 +18,7 @@ async function persistTokens(tokens: AuthTokens) {
     sameSite: 'lax',
     secure,
     path: '/',
-    maxAge: 60 * 60 * 24 * 30,
+    maxAge: tokens.expiresIn,
   });
 }
 

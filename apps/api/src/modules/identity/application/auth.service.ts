@@ -5,7 +5,7 @@ import { AuthTokens, ErrorCode, PrincipalType } from '@lanyard/contracts';
 
 import { StaffUser } from '../infrastructure/identity.schemas';
 import { SessionService } from './session.service';
-import { TokenService } from '../../../core/security/token.service';
+import { AUTH_COOKIE_MAX_AGE_SECONDS, TokenService } from '../../../core/security/token.service';
 import { AuthzService } from '../../authz/application/authz.service';
 import { DomainError } from '../../../core/errors/domain-error';
 
@@ -48,7 +48,7 @@ export class AuthService {
       accessToken,
       refreshToken: rotated.refreshToken,
       tokenType: 'Bearer',
-      expiresIn: this.tokens.accessTtlSeconds,
+      expiresIn: AUTH_COOKIE_MAX_AGE_SECONDS,
     };
   }
 
