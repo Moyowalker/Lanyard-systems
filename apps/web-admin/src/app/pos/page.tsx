@@ -792,6 +792,7 @@ export default function PosPage() {
             : undefined,
           rxNote: rxNote.trim() || undefined,
           idempotencyKey: idempotencyKey.current,
+          heldSaleId: resumedHeldSaleId,
         }),
       });
       const body = await res.json().catch(() => null);
@@ -803,16 +804,8 @@ export default function PosPage() {
       setCompletedSale(sale);
       setError(undefined);
       if (resumedHeldSaleId) {
-        try {
-          const res = await fetch(`/api/admin/pos/held-sales/${resumedHeldSaleId}`, {
-            method: 'DELETE',
-          });
-          if (!res.ok) throw new Error('Failed to discard completed held sale');
-          setResumedHeldSaleId(undefined);
-          await queryClient.invalidateQueries({ queryKey: ['pos-held-sales', branchId] });
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to discard completed held sale');
-        }
+        setResumedHeldSaleId(undefined);
+        await queryClient.invalidateQueries({ queryKey: ['pos-held-sales', branchId] });
       }
       await queryClient.invalidateQueries({ queryKey: ['pos-sales', branchId] });
       await queryClient.invalidateQueries({ queryKey: ['pos-products'] });

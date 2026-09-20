@@ -111,6 +111,8 @@ export const PosCreateSaleSchema = z.object({
   rxNote: z.string().trim().min(3).max(500).optional(),
   /** Client-minted UUID; makes double-submits return the same sale. */
   idempotencyKey: z.string().uuid(),
+  /** Optional held receipt consumed only when the sale completes successfully. */
+  heldSaleId: objectId.optional(),
 });
 export type PosCreateSaleInput = z.infer<typeof PosCreateSaleSchema>;
 

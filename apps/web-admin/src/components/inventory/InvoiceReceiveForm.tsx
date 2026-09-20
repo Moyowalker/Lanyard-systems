@@ -56,6 +56,15 @@ const emptyForm = (): InvoiceFormState => ({
   lines: [emptyLine()],
 });
 
+function nairaToKobo(value: string): number {
+  const [whole, fraction = ''] = value.split('.');
+  return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+}
+
+function isValidNairaAmount(value: string): boolean {
+  return /^\d+(?:\.\d{1,2})?$/.test(value);
+}
+
 /** Rebuild the editable form from a stored draft invoice (Resume). */
 function formFromInvoice(invoice: StockInvoiceDto): InvoiceFormState {
   return {
@@ -202,8 +211,8 @@ export function InvoiceReceiveForm({
         batchNo: line.batchNo || undefined,
         expiry: line.expiry || undefined,
         reorderLevel: line.reorderLevel || undefined,
-        costKobo: line.costNaira ? Math.round(Number(line.costNaira) * 100) : undefined,
-        priceKobo: line.priceNaira ? Math.round(Number(line.priceNaira) * 100) : undefined,
+        costKobo: line.costNaira ? nairaToKobo(line.costNaira) : undefined,
+        priceKobo: line.priceNaira ? nairaToKobo(line.priceNaira) : undefined,
         visibleOnStorefront: line.visibility === 'visible',
       })),
     });
@@ -215,6 +224,20 @@ export function InvoiceReceiveForm({
 
     if (form.lines.filter((line) => line.productId).length === 0) {
       setMessage('Add at least one product line.');
+      return;
+    }
+
+    const invalidAmount = form.lines.findIndex(
+      (line) =>
+        line.productId &&
+        ((line.costNaira && !isValidNairaAmount(line.costNaira)) ||
+          (line.priceNaira && !isValidNairaAmount(line.priceNaira))),
+    );
+    if (invalidAmount >= 0) {
+      const line = form.lines[invalidAmount];
+      const field = line.costNaira && !isValidNairaAmount(line.costNaira) ? 'costKobo' : 'priceKobo';
+      setFieldErrors(new Set([`lines.${invalidAmount}.${field}`]));
+      setMessage(`Line ${invalidAmount + 1} — ${field === 'costKobo' ? 'Cost' : 'Selling price'} must use at most two decimal places.`);
       return;
     }
 
@@ -420,6 +443,8 @@ export function InvoiceReceiveForm({
                   id={`line-cost-${index}`}
                   type="number"
                   min="0"
+                  step="0.01"
+                  inputMode="decimal"
                   value={line.costNaira}
                   onChange={(e) => patchLine(index, { costNaira: e.target.value })}
                   className={inputClass}
@@ -434,6 +459,8 @@ export function InvoiceReceiveForm({
                   id={`line-price-${index}`}
                   type="number"
                   min="0"
+                  step="0.01"
+                  inputMode="decimal"
                   value={line.priceNaira}
                   onChange={(e) => patchLine(index, { priceNaira: e.target.value })}
                   className={inputClass}

@@ -42,6 +42,7 @@ import type { ComboboxProduct } from '@/components/ProductCombobox';
 type AdminProductLookup = ComboboxProduct;
 
 type StatusFilter = 'all' | 'low' | 'out';
+type FormMessage = { tone: 'success' | 'danger'; text: string };
 
 const inputClass =
   'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
@@ -155,7 +156,7 @@ export default function InventoryPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<StockInvoiceDto | null>(null);
-  const [manageMessage, setManageMessage] = useState<string | null>(null);
+  const [manageMessage, setManageMessage] = useState<FormMessage | null>(null);
   const { download: runDownload, error: exportError } = useFileDownload();
 
   useEffect(() => {
@@ -296,7 +297,7 @@ export default function InventoryPage() {
   }
 
   function onInvoiceSaved(message: string) {
-    setManageMessage(message);
+    setManageMessage({ tone: 'success', text: message });
     setEditingInvoice(null);
     void invalidateStock();
   }
@@ -427,9 +428,24 @@ export default function InventoryPage() {
               ) : (
                 <div className="space-y-3">
                   {manageMessage ? (
-                    <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                      {manageMessage}
-                    </p>
+                    <div
+                      role="status"
+                      className={cn(
+                        'flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-sm',
+                        manageMessage.tone === 'success'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : 'border-rose-200 bg-rose-50 text-rose-800',
+                      )}
+                    >
+                      <span className="font-medium">{manageMessage.text}</span>
+                      <button
+                        type="button"
+                        onClick={() => setManageMessage(null)}
+                        className="shrink-0 text-xs font-semibold underline underline-offset-2"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
                   ) : null}
                   <InvoiceReceiveForm
                     branchId={branchId}

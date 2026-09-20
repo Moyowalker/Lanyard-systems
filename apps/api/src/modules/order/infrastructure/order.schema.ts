@@ -160,6 +160,10 @@ export class OrderCounterSale {
   @Prop({ type: String, trim: true, maxlength: 500 })
   rxNote?: string;
 
+  /** Held receipt consumed when this counter sale completed. */
+  @Prop({ type: Types.ObjectId, ref: 'HeldSale' })
+  heldSaleId?: Types.ObjectId;
+
   /** Returns applied against this sale (partial or full). */
   @Prop({ type: [CounterSaleReturnSchema], default: undefined })
   returns?: CounterSaleReturn[];

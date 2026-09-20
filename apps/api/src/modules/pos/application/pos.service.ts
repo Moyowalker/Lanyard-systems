@@ -302,6 +302,7 @@ export class PosService {
                 paymentChannel: primaryChannel,
                 payments: input.payments,
                 rxNote: input.rxNote?.trim() || undefined,
+                heldSaleId: input.heldSaleId ? new Types.ObjectId(input.heldSaleId) : undefined,
                 idempotencyKey: input.idempotencyKey,
               },
             },
@@ -337,6 +338,18 @@ export class PosService {
           session,
         );
 
+        if (input.heldSaleId) {
+          const held = await this.heldSaleModel.findById(input.heldSaleId).session(session);
+          if (!held) throw new DomainError(ErrorCode.NOT_FOUND, 'Held sale not found');
+          if (held.branchId.toString() !== input.branchId) {
+            throw new DomainError(ErrorCode.BRANCH_SCOPE_VIOLATION, 'Held sale belongs to another branch');
+          }
+          if (held.cashierStaffId.toString() !== principal.sub && !principal.permissions.includes('order:transition')) {
+            throw new DomainError(ErrorCode.PERMISSION_DENIED, 'You can only complete your own held sales');
+          }
+          await this.heldSaleModel.deleteOne({ _id: held._id }, { session });
+        }
+
         await this.audit.record(
           {
             actorId: principal.sub,
@@ -354,6 +367,7 @@ export class PosService {
               totalKobo,
               items: itemSnapshots.length,
               rxNote: Boolean(input.rxNote),
+              heldSaleId: input.heldSaleId,
             },
           },
           session,

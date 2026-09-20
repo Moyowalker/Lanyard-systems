@@ -51,6 +51,8 @@ function saleInput(productId: string, overrides: Partial<Record<string, unknown>
 
 type Mocks = {
   heldSaleCreate: jest.Mock;
+  heldSaleFindById: jest.Mock;
+  heldSaleDeleteOne: jest.Mock;
   getAvailabilityMap: jest.Mock;
   orderFindOne: jest.Mock;
   orderCreate: jest.Mock;
@@ -70,6 +72,7 @@ function buildService(opts: {
   paidStatus?: OrderStatus;
   existingByIdempotency?: unknown;
   salesRows?: unknown[];
+  heldSale?: unknown;
 }): { service: PosService; mocks: Mocks } {
   const createdOrder = {
     _id: new Types.ObjectId(),
@@ -90,6 +93,8 @@ function buildService(opts: {
 
   const mocks: Mocks = {
     heldSaleCreate: jest.fn(),
+    heldSaleFindById: jest.fn().mockReturnValue({ session: jest.fn().mockResolvedValue(opts.heldSale ?? null) }),
+    heldSaleDeleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 }),
     getAvailabilityMap: jest.fn().mockResolvedValue(opts.availability ?? new Map()),
     orderFindOne: jest.fn().mockResolvedValue(opts.existingByIdempotency ?? null),
     orderCreate: jest.fn().mockResolvedValue([createdOrder]),
@@ -135,7 +140,11 @@ function buildService(opts: {
 
   const service = new PosService(
     orderModel as never,
-    { create: mocks.heldSaleCreate } as never,
+    {
+      create: mocks.heldSaleCreate,
+      findById: mocks.heldSaleFindById,
+      deleteOne: mocks.heldSaleDeleteOne,
+    } as never,
     productModel as never,
     staffModel as never,
     customerModel as never,
@@ -226,6 +235,47 @@ describe('PosService.createSale', () => {
     expect(mocks.completeInSession).toHaveBeenCalled();
     expect(mocks.findOrCreateWalkIn).toHaveBeenCalled(); // no customer captured
     expect(sale.orderNo).toBe('LNY-TEST01');
+  });
+
+  it('consumes the resumed held sale after completing the counter sale', async () => {
+    const product = makeProduct();
+    const heldId = new Types.ObjectId();
+    const { service, mocks } = buildService({
+      products: [product],
+      ...pricedAndStocked(product),
+      heldSale: {
+        _id: heldId,
+        branchId: new Types.ObjectId(BRANCH_ID),
+        cashierStaffId: new Types.ObjectId(STAFF_ID),
+      },
+    });
+
+    await service.createSale(principal, saleInput(product._id.toString(), { heldSaleId: heldId.toString() }));
+
+    expect(mocks.completeInSession).toHaveBeenCalled();
+    expect(mocks.heldSaleDeleteOne).toHaveBeenCalledWith({ _id: heldId }, { session: null });
+    expect(mocks.orderCreate.mock.calls[0][0][0].counterSale.heldSaleId).toEqual(heldId);
+  });
+
+  it('keeps the held sale when checkout cannot complete', async () => {
+    const product = makeProduct();
+    const heldId = new Types.ObjectId();
+    const { service, mocks } = buildService({
+      products: [product],
+      ...pricedAndStocked(product),
+      paidStatus: OrderStatus.STOCK_HOLD,
+      heldSale: {
+        _id: heldId,
+        branchId: new Types.ObjectId(BRANCH_ID),
+        cashierStaffId: new Types.ObjectId(STAFF_ID),
+      },
+    });
+
+    await expect(
+      service.createSale(principal, saleInput(product._id.toString(), { heldSaleId: heldId.toString() })),
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
+
+    expect(mocks.heldSaleDeleteOne).not.toHaveBeenCalled();
   });
 
   it('links the sale to a customer when a phone is captured', async () => {
