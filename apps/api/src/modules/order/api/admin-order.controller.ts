@@ -2,8 +2,8 @@ import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/co
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   ActorType,
-  BranchPaginationQuery,
-  BranchPaginationQuerySchema,
+  AdminOrderQuery,
+  AdminOrderQuerySchema,
   OrderTransitionInput,
   OrderTransitionSchema,
 } from '@lanyard/contracts';
@@ -27,10 +27,11 @@ export class AdminOrderController {
   @RequirePermissions('order:read')
   list(
     @CurrentUser() user: AuthPrincipal,
-    @Query(new ZodValidationPipe(BranchPaginationQuerySchema)) query: BranchPaginationQuery,
+    @Query(new ZodValidationPipe(AdminOrderQuerySchema)) query: AdminOrderQuery,
   ) {
     return this.orders.listAdmin(query, user.branchScope);
   }
+
 
   @Get(':id')
   @RequirePermissions('order:read')

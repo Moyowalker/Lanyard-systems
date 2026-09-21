@@ -57,14 +57,21 @@ export function ProductCombobox({
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const pool = q
-      ? products.filter((p) =>
-          [p.name, p.genericName, p.brand, p.sku, p.barcode]
-            .filter(Boolean)
-            .some((field) => field!.toLowerCase().includes(q)),
-        )
-      : products;
-    return pool.slice(0, 20);
+    if (!q) return products.slice(0, 20);
+    const pool = products.filter((p) =>
+      [p.name, p.genericName, p.brand, p.sku, p.barcode]
+        .filter(Boolean)
+        .some((field) => field!.toLowerCase().includes(q)),
+    );
+    const tier = (p: ComboboxProduct): number => {
+      const name = p.name.toLowerCase();
+      if (name === q) return 0;
+      if (name.startsWith(q)) return 1;
+      if ((p.genericName ?? '').toLowerCase().startsWith(q) || (p.brand ?? '').toLowerCase().startsWith(q)) return 2;
+      return 3;
+    };
+    const ranked = [...pool].sort((a, b) => tier(a) - tier(b) || a.name.localeCompare(b.name));
+    return ranked.slice(0, 20);
   }, [products, query]);
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { FulfillmentType, OrderStatus } from '../enums';
 import type { CartDto } from './cart';
+import { BranchPaginationQuerySchema } from './common';
 import { optionalPhoneSchema } from './phone';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
@@ -32,6 +33,22 @@ export const OrderTransitionSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 });
 export type OrderTransitionInput = z.infer<typeof OrderTransitionSchema>;
+
+/** Staff order list — status/date-range/order-number filters on top of branch pagination. */
+export const AdminOrderQuerySchema = BranchPaginationQuerySchema.extend({
+  status: z.nativeEnum(OrderStatus).optional(),
+  statuses: z
+    .preprocess(
+      (value) => (typeof value === 'string' ? value.split(',').filter(Boolean) : value),
+      z.array(z.nativeEnum(OrderStatus)).min(1).max(4),
+    )
+    .optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  q: z.string().trim().min(1).max(80).optional(),
+});
+export type AdminOrderQuery = z.infer<typeof AdminOrderQuerySchema>;
+
 
 export interface OrderItemDto {
   productId: string;

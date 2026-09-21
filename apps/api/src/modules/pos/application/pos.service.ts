@@ -98,10 +98,12 @@ export class PosService {
     return this.catalog.listProductsForPos(query);
   }
 
+  // Held sales are a shared till resource for the branch, not the parking cashier's
+  // private list — any staff covering the till must be able to see and clear them.
   async listHeldSales(principal: AuthPrincipal, branchId: string): Promise<{ data: HeldSaleDto[] }> {
     this.assertBranchScope(principal, branchId);
     const rows = await this.heldSaleModel
-      .find({ branchId: new Types.ObjectId(branchId), cashierStaffId: new Types.ObjectId(principal.sub) })
+      .find({ branchId: new Types.ObjectId(branchId) })
       .sort({ createdAt: -1 })
       .lean();
     return { data: rows.map((row) => this.toHeldDto(row)) };
@@ -137,9 +139,6 @@ export class PosService {
     const held = await this.heldSaleModel.findById(id);
     if (!held) throw new DomainError(ErrorCode.NOT_FOUND, 'Held sale not found');
     this.assertBranchScope(principal, held.branchId.toString());
-    if (held.cashierStaffId.toString() !== principal.sub && !principal.permissions.includes('order:transition')) {
-      throw new DomainError(ErrorCode.PERMISSION_DENIED, 'You can only discard your own held sales');
-    }
     await this.heldSaleModel.deleteOne({ _id: held._id });
     await this.audit.record({
       actorId: principal.sub,
@@ -343,9 +342,6 @@ export class PosService {
           if (!held) throw new DomainError(ErrorCode.NOT_FOUND, 'Held sale not found');
           if (held.branchId.toString() !== input.branchId) {
             throw new DomainError(ErrorCode.BRANCH_SCOPE_VIOLATION, 'Held sale belongs to another branch');
-          }
-          if (held.cashierStaffId.toString() !== principal.sub && !principal.permissions.includes('order:transition')) {
-            throw new DomainError(ErrorCode.PERMISSION_DENIED, 'You can only complete your own held sales');
           }
           await this.heldSaleModel.deleteOne({ _id: held._id }, { session });
         }

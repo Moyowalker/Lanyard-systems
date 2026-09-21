@@ -4,6 +4,7 @@ import { ClientSession, Error as MongooseError, Model, Types } from 'mongoose';
 import { randomBytes } from 'node:crypto';
 import {
   ActorType,
+  AdminOrderQuery,
   CreateOrderInput,
   Currency,
   ErrorCode,
@@ -29,8 +30,14 @@ import { AuditService } from '../../../core/platform/audit.service';
 import { TransactionService } from '../../../core/platform/transaction.service';
 import { DomainError } from '../../../core/errors/domain-error';
 import { assertTransition } from '../domain/order-state-machine';
-import { cursorFilter, paginate } from '../../../core/pagination/cursor';
+import { cursorFilter, cursorFilterDesc, paginate } from '../../../core/pagination/cursor';
 import { AuthPrincipal } from '../../../core/auth/principal';
+
+/** Escape user input before embedding in a RegExp (prevents regex injection). */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 
 export interface Actor {
   id?: string;
@@ -410,10 +417,10 @@ export class OrderService {
   /* ── admin ── */
 
   async listAdmin(
-    query: PaginationQuery & { branchId?: string },
+    query: AdminOrderQuery,
     branchScope: string[],
   ): Promise<Paginated<OrderDto>> {
-    const filter: Record<string, unknown> = { ...cursorFilter(query.cursor) };
+    const filter: Record<string, unknown> = { ...cursorFilterDesc(query.cursor) };
     if (query.branchId) {
       filter.branchId =
         branchScope.includes('ALL') || branchScope.includes(query.branchId)
@@ -422,9 +429,19 @@ export class OrderService {
     } else if (!branchScope.includes('ALL')) {
       filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
     }
+    if (query.statuses?.length) filter.status = { $in: query.statuses };
+    else if (query.status) filter.status = query.status;
+    if (query.q) {
+      filter.orderNo = { $regex: escapeRegex(query.q.trim()), $options: 'i' };
+    }
+    const createdAt: Record<string, Date> = {};
+    if (query.from) createdAt.$gte = query.from;
+    if (query.to) createdAt.$lte = query.to;
+    if (Object.keys(createdAt).length > 0) filter.createdAt = createdAt;
+
     const rows = await this.orderModel
       .find(filter)
-      .sort({ _id: 1 })
+      .sort({ _id: -1 })
       .limit(query.limit + 1);
     return paginate(
       rows.map((o) => this.toDto(o)),

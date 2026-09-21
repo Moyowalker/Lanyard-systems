@@ -51,6 +51,7 @@ function saleInput(productId: string, overrides: Partial<Record<string, unknown>
 
 type Mocks = {
   heldSaleCreate: jest.Mock;
+  heldSaleFind: jest.Mock;
   heldSaleFindById: jest.Mock;
   heldSaleDeleteOne: jest.Mock;
   getAvailabilityMap: jest.Mock;
@@ -73,6 +74,7 @@ function buildService(opts: {
   existingByIdempotency?: unknown;
   salesRows?: unknown[];
   heldSale?: unknown;
+  heldSales?: unknown[];
 }): { service: PosService; mocks: Mocks } {
   const createdOrder = {
     _id: new Types.ObjectId(),
@@ -93,7 +95,13 @@ function buildService(opts: {
 
   const mocks: Mocks = {
     heldSaleCreate: jest.fn(),
-    heldSaleFindById: jest.fn().mockReturnValue({ session: jest.fn().mockResolvedValue(opts.heldSale ?? null) }),
+    heldSaleFind: jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(opts.heldSales ?? []) }),
+    }),
+    heldSaleFindById: jest.fn().mockReturnValue({
+      session: jest.fn().mockResolvedValue(opts.heldSale ?? null),
+      then: (resolve: (value: unknown) => void) => resolve(opts.heldSale ?? null),
+    }),
     heldSaleDeleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 }),
     getAvailabilityMap: jest.fn().mockResolvedValue(opts.availability ?? new Map()),
     orderFindOne: jest.fn().mockResolvedValue(opts.existingByIdempotency ?? null),
@@ -142,6 +150,7 @@ function buildService(opts: {
     orderModel as never,
     {
       create: mocks.heldSaleCreate,
+      find: mocks.heldSaleFind,
       findById: mocks.heldSaleFindById,
       deleteOne: mocks.heldSaleDeleteOne,
     } as never,
@@ -211,6 +220,36 @@ describe('PosService.holdSale', () => {
     expect(mocks.auditRecord).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'pos.sale_held', targetId: heldId.toString() }),
     );
+  });
+});
+
+describe('PosService held sale sharing', () => {
+  it('lists and discards a colleague\'s held sale at the same branch', async () => {
+    const heldId = new Types.ObjectId();
+    const { service, mocks } = buildService({
+      heldSale: {
+        _id: heldId,
+        branchId: new Types.ObjectId(BRANCH_ID),
+        cashierStaffId: new Types.ObjectId(),
+      },
+      heldSales: [
+        {
+          _id: heldId,
+          branchId: new Types.ObjectId(BRANCH_ID),
+          cashierStaffId: new Types.ObjectId(),
+          label: 'Abandoned basket',
+          lines: [],
+          createdAt: new Date(),
+        },
+      ],
+    });
+
+    const result = await service.listHeldSales(principal, BRANCH_ID);
+    await service.deleteHeldSale(principal, heldId.toString());
+
+    expect(result.data).toHaveLength(1);
+    expect(mocks.heldSaleFind).toHaveBeenCalledWith({ branchId: expect.any(Types.ObjectId) });
+    expect(mocks.heldSaleDeleteOne).toHaveBeenCalledWith({ _id: heldId });
   });
 });
 

@@ -180,9 +180,10 @@ export class CatalogService {
     const limit = Math.min(query.limit, 8);
     const rows = await this.productModel
       .find({ status: ProductStatus.PUBLISHED, ...this.substringFilter(query.q) })
-      .limit(limit)
+      .limit(Math.min(limit * 5, 100))
       .lean();
-    return { data: await this.decorateForStorefront(rows, query.branchId) };
+    const ranked = this.rankByRelevance(rows, query.q).slice(0, limit);
+    return { data: await this.decorateForStorefront(ranked, query.branchId) };
   }
 
   /* ── admin writes ── */
@@ -501,8 +502,8 @@ export class CatalogService {
   ): Promise<Array<Record<string, unknown> & { _id: Types.ObjectId }>> {
     try {
       const rows = await this.productModel
-        .find({ ...baseFilter, $text: { $search: q } })
-        .sort({ _id: 1 })
+        .find({ ...baseFilter, $text: { $search: q } }, { score: { $meta: 'textScore' } })
+        .sort({ score: { $meta: 'textScore' } })
         .limit(limit)
         .lean();
       if (rows.length > 0) return rows as Array<Record<string, unknown> & { _id: Types.ObjectId }>;
@@ -513,11 +514,32 @@ export class CatalogService {
         }`,
       );
     }
-    return this.productModel
+    // Fetch extra candidates so relevance ranking can surface the best matches.
+    const candidates = (await this.productModel
       .find({ ...baseFilter, ...this.substringFilter(q, forPos) })
       .sort({ _id: 1 })
-      .limit(limit)
-      .lean() as unknown as Array<Record<string, unknown> & { _id: Types.ObjectId }>;
+      .limit(Math.min(limit * 5, 200))
+      .lean()) as unknown as Array<Record<string, unknown> & { _id: Types.ObjectId }>;
+    return this.rankByRelevance(candidates, q).slice(0, limit);
+  }
+
+  /** Exact name match > name starts-with > generic/brand starts-with > everything else. */
+  private rankByRelevance(
+    rows: Array<Record<string, unknown> & { _id: Types.ObjectId }>,
+    q: string,
+  ): Array<Record<string, unknown> & { _id: Types.ObjectId }> {
+    const term = q.trim().toLowerCase();
+    const tier = (row: Record<string, unknown>): number => {
+      const name = String(row.name ?? '').toLowerCase();
+      if (name === term) return 0;
+      if (name.startsWith(term)) return 1;
+      if (String(row.genericName ?? '').toLowerCase().startsWith(term)) return 2;
+      if (String(row.brand ?? '').toLowerCase().startsWith(term)) return 2;
+      return 3;
+    };
+    return [...rows].sort(
+      (a, b) => tier(a) - tier(b) || String(a.name ?? '').localeCompare(String(b.name ?? '')),
+    );
   }
 
   /**

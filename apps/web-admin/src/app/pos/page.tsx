@@ -405,6 +405,7 @@ export default function PosPage() {
   const [viewingPastSale, setViewingPastSale] = useState(false);
   const [resumedHeldSaleId, setResumedHeldSaleId] = useState<string>();
   const [showHeld, setShowHeld] = useState(false);
+  const [heldError, setHeldError] = useState<string>();
   const [returningSale, setReturningSale] = useState<PosSaleDto | null>(null);
   const idempotencyKey = useRef<string>('');
   const scanRef = useRef<HTMLInputElement>(null);
@@ -663,11 +664,12 @@ export default function PosPage() {
   });
   const discardHeldMutation = useMutation({
     mutationFn: async (id: string) => {
+      setHeldError(undefined);
       const res = await fetch(`/api/admin/pos/held-sales/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to discard held sale');
     },
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['pos-held-sales', branchId] }); },
-    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to discard held sale'),
+    onError: (err) => setHeldError(err instanceof Error ? err.message : 'Failed to discard held sale'),
   });
 
   function holdSale() {
@@ -696,6 +698,7 @@ export default function PosPage() {
   async function resumeSale(held: HeldSale) {
     // Re-resolve every line so CURRENT prices and stock apply (held prices may be stale).
     setError(undefined);
+    setHeldError(undefined);
     const quantities = new Map<string, { name: string; quantity: number }>();
     for (const line of held.lines) {
       const existing = quantities.get(line.productId);
@@ -712,7 +715,7 @@ export default function PosPage() {
     });
     const res = await fetch(`/api/admin/pos/products?${params.toString()}`);
     if (!res.ok) {
-      setError('Held sale could not be loaded. The held sale remains saved.');
+      setHeldError('Held sale could not be loaded. The held sale remains saved.');
       return;
     }
     const body = (await res.json()) as Paginated<ProductListItemDto>;
@@ -898,6 +901,12 @@ export default function PosPage() {
           subtitle="Parked carts on this till — resume to continue, cancel to discard"
           className="mb-5"
         >
+          {heldError ? (
+            <p className="mb-3 flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <IconAlert width={16} height={16} className="mt-0.5 shrink-0" />
+              {heldError}
+            </p>
+          ) : null}
           {heldSales.length === 0 ? (
             <p className="text-sm text-slate-500">
               Nothing on hold. Use “Hold sale” on the till to park the current cart.

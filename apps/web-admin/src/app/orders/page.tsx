@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import type { OrderDto, Paginated } from '@lanyard/contracts';
+import { useEffect, useMemo, useState } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { OrderStatus, type OrderDto, type Paginated } from '@lanyard/contracts';
 import { formatKobo, label, statusTone, timeAgo } from '@/lib/format';
 import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
 import {
   Badge,
+  Button,
   Card,
   EmptyState,
   PageHeader,
@@ -19,37 +20,65 @@ import {
 } from '@/components/ui';
 import { IconChevronRight, IconOrders } from '@/components/icons';
 
-const FILTERS: { key: string; label: string; match: (s: string) => boolean }[] = [
-  { key: 'all', label: 'All', match: () => true },
-  { key: 'rx', label: 'Awaiting ℞', match: (s) => s === 'AWAITING_RX_VERIFICATION' },
-  { key: 'pay', label: 'Awaiting payment', match: (s) => s === 'AWAITING_PAYMENT' },
+const inputClass =
+  'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
+
+const FILTERS: { key: string; label: string; statuses?: OrderStatus[] }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'rx', label: 'Awaiting ℞', statuses: [OrderStatus.AWAITING_RX_VERIFICATION] },
+  { key: 'pay', label: 'Awaiting payment', statuses: [OrderStatus.AWAITING_PAYMENT] },
   {
     key: 'fulfil',
     label: 'To fulfil',
-    match: (s) => ['PAID', 'FULFILLING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY'].includes(s),
+    statuses: [
+      OrderStatus.PAID,
+      OrderStatus.FULFILLING,
+      OrderStatus.READY_FOR_PICKUP,
+      OrderStatus.OUT_FOR_DELIVERY,
+    ],
   },
-  { key: 'hold', label: 'Stock holds', match: (s) => s === 'STOCK_HOLD' },
-  { key: 'done', label: 'Completed', match: (s) => s === 'COMPLETED' },
+  { key: 'hold', label: 'Stock holds', statuses: [OrderStatus.STOCK_HOLD] },
+  { key: 'done', label: 'Completed', statuses: [OrderStatus.COMPLETED] },
 ];
 
 export default function OrdersList() {
   const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const branchFilter = useOperationalBranchFilter();
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-orders', 'list', branchFilter.branchId],
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  const active = FILTERS.find((item) => item.key === filter) ?? FILTERS[0];
+  const statusKey = active.statuses?.join(',') ?? '';
+
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ['admin-orders', 'list', branchFilter.branchId, debouncedSearch, from, to, statusKey],
     enabled: branchFilter.canViewAllBranches || Boolean(branchFilter.branchId),
-    queryFn: async () => {
-      const params = new URLSearchParams({ limit: '100' });
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '50' });
       if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
+      if (debouncedSearch) params.set('q', debouncedSearch);
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      if (active.statuses?.length === 1) params.set('status', active.statuses[0]);
+      if (active.statuses && active.statuses.length > 1) params.set('statuses', statusKey);
+      if (pageParam) params.set('cursor', pageParam);
       const r = await fetch(`/api/admin/orders?${params.toString()}`);
-      return r.ok ? ((await r.json()) as Paginated<OrderDto>) : null;
+      if (!r.ok) throw new Error('Failed to load orders');
+      return (await r.json()) as Paginated<OrderDto>;
     },
-    refetchInterval: 10000,
+    getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
   });
 
-  const all = data?.data ?? [];
-  const active = FILTERS.find((f) => f.key === filter) ?? FILTERS[0];
-  const rows = all.filter((o) => active.match(o.status));
+  const all = useMemo(() => data?.pages.flatMap((page) => page.data) ?? [], [data]);
+  const rows = all;
 
   return (
     <div>
@@ -66,9 +95,31 @@ export default function OrdersList() {
         }
       />
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by order number"
+          className={inputClass}
+        />
+        <input
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          aria-label="From date"
+          className={inputClass}
+        />
+        <input
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          aria-label="To date"
+          className={inputClass}
+        />
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => {
-          const count = all.filter((o) => f.match(o.status)).length;
           return (
             <button
               key={f.key}
@@ -81,14 +132,6 @@ export default function OrdersList() {
               )}
             >
               {f.label}
-              <span
-                className={cn(
-                  'rounded-full px-1.5 text-xs',
-                  filter === f.key ? 'bg-white/20' : 'bg-slate-100 text-slate-500',
-                )}
-              >
-                {count}
-              </span>
             </button>
           );
         })}
@@ -159,6 +202,14 @@ export default function OrdersList() {
           </tbody>
         </TableCard>
       )}
+
+      {hasNextPage ? (
+        <div className="mt-4 flex justify-center">
+          <Button variant="secondary" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+            {isFetchingNextPage ? 'Loading…' : 'Load more orders'}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

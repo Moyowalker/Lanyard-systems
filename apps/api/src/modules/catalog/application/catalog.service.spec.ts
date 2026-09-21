@@ -54,6 +54,27 @@ describe('CatalogService search resilience', () => {
     expect(find).toHaveBeenCalledTimes(2);
   });
 
+  it('ranks exact and prefix product names ahead of broader substring matches', async () => {
+    const rows = [
+      { _id: new Types.ObjectId(), slug: 'extra', name: 'Extra Paracetamol', form: 'tablet', regulatoryClass: 'GSL' },
+      { _id: new Types.ObjectId(), slug: 'prefix', name: 'Paracetamol 500mg', form: 'tablet', regulatoryClass: 'GSL' },
+      { _id: new Types.ObjectId(), slug: 'exact', name: 'Paracetamol', form: 'tablet', regulatoryClass: 'GSL' },
+    ];
+    const find = jest
+      .fn()
+      .mockReturnValueOnce(chain(() => Promise.resolve([])))
+      .mockReturnValueOnce(chain(() => Promise.resolve(rows)));
+    const service = buildService(find);
+
+    const result = await service.search({ q: 'paracetamol', limit: 10 } as never);
+
+    expect(result.data.map((row) => row.name)).toEqual([
+      'Paracetamol',
+      'Paracetamol 500mg',
+      'Extra Paracetamol',
+    ]);
+  });
+
   it('barcode exact-match lookup does not go through the text/substring path', async () => {
     const rows = [
       {

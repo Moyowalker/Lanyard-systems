@@ -177,8 +177,8 @@ describe('BranchService', () => {
       { exists: jest.fn().mockResolvedValue(null) } as never,
       {} as never,
       { exists: jest.fn().mockResolvedValue(null) } as never,
-      audit as never,
       {} as never,
+      audit as never,
       {} as never,
     );
 
