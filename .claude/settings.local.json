@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem packages\\\\contracts\\\\src -Recurse -File | ForEach-Object { $_.FullName.Replace\\('C:\\\\Users\\\\ajayi\\\\Projects\\\\lanyard-systems\\\\packages\\\\contracts\\\\src\\\\',''\\) })",
+      "PowerShell(\"`n===== 12-compliance =====\")"
+    ]
+  }
+}

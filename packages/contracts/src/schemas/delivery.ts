@@ -52,7 +52,7 @@ export interface DeliveryBoardItemDto {
   totalKobo: number;
   deliveryFeeKobo: number;
   etaMins?: number;
-  address?: { line1: string; city: string; state: string };
+  address?: { line1: string; city: string; state: string; contactPhone?: string };
   /** Customer's delivery instructions captured at checkout. */
   deliveryNote?: string;
   createdAt: string;

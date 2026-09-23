@@ -91,7 +91,14 @@ export class DeliveryService {
         totalKobo: o.totals.totalKobo,
         deliveryFeeKobo: o.totals.deliveryKobo ?? o.fulfillment?.feeKobo ?? 0,
         etaMins: o.fulfillment?.etaMins,
-        address: addr ? { line1: addr.line1, city: addr.city, state: addr.state } : undefined,
+        address: addr
+          ? {
+              line1: addr.line1,
+              city: addr.city,
+              state: addr.state,
+              contactPhone: addr.contactPhone,
+            }
+          : undefined,
         deliveryNote: o.fulfillment?.deliveryNote,
         createdAt: (o as unknown as { createdAt: Date }).createdAt.toISOString(),
         delivery: delivery ? this.toDto(delivery) : undefined,

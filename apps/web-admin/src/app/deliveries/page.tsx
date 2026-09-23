@@ -153,6 +153,17 @@ function DeliveryCard({ item, onChanged }: { item: DeliveryBoardItemDto; onChang
             {item.etaMins ? <span>ETA ~{item.etaMins} min</span> : null}
             <span>{timeAgo(item.createdAt)}</span>
           </div>
+          {item.address?.contactPhone && (
+            <div className="mt-1 text-sm text-slate-600">
+              Customer phone:{' '}
+              <a
+                href={`tel:${item.address.contactPhone}`}
+                className="font-medium text-brand-700 underline decoration-brand-300 underline-offset-2"
+              >
+                {item.address.contactPhone}
+              </a>
+            </div>
+          )}
           {delivery?.rider?.name && (
             <div className="mt-1 text-sm text-slate-600">
               Rider: <span className="font-medium text-slate-800">{delivery.rider.name}</span>

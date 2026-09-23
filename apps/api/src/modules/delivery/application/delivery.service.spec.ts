@@ -31,7 +31,40 @@ describe('DeliveryService branch filter', () => {
       '000000000000000000000000',
     );
   });
-});import { DeliveryStatus, OrderStatus } from '@lanyard/contracts';
+  it('includes the delivery contact phone in a board item', async () => {
+    const chain = listChain();
+    const orderId = new Types.ObjectId();
+    chain.lean.mockResolvedValueOnce([
+      {
+        _id: orderId,
+        orderNo: 'LNY-TEST123',
+        status: 'FULFILLING',
+        totals: { totalKobo: 800000, deliveryKobo: 400000 },
+        fulfillment: {
+          address: {
+            line1: '1 Test Street',
+            city: 'Lagos',
+            state: 'Lagos',
+            contactPhone: '+2348012345678',
+          },
+        },
+        createdAt: new Date('2026-09-23T10:00:00.000Z'),
+      },
+    ]);
+    const service = new DeliveryService(
+      { find: jest.fn().mockResolvedValue([]) } as never,
+      { find: jest.fn().mockReturnValue(chain) } as never,
+      {} as never,
+      {} as never,
+    );
+
+    const board = await service.board(['ALL']);
+
+    expect(board.data[0].address?.contactPhone).toBe('+2348012345678');
+  });
+});
+
+import { DeliveryStatus, OrderStatus } from '@lanyard/contracts';
 import { mapDeliveryAction } from './delivery.service';
 
 describe('mapDeliveryAction', () => {
