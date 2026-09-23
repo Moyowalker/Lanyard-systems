@@ -16,6 +16,7 @@ import {
 
 import { Delivery, DeliveryDocument } from '../infrastructure/delivery.schema';
 import { Order } from '../../order/infrastructure/order.schema';
+import { Customer } from '../../identity/infrastructure/identity.schemas';
 import { OrderService } from '../../order/application/order.service';
 import { AuditService } from '../../../core/platform/audit.service';
 import { DomainError } from '../../../core/errors/domain-error';
@@ -57,6 +58,7 @@ export class DeliveryService {
   constructor(
     @InjectModel(Delivery.name) private readonly deliveryModel: Model<Delivery>,
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
+    @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
     private readonly orders: OrderService,
     private readonly audit: AuditService,
   ) {}
@@ -80,10 +82,18 @@ export class DeliveryService {
     const orderIds = orders.map((o) => o._id);
     const deliveries = await this.deliveryModel.find({ orderId: { $in: orderIds } });
     const byOrder = new Map(deliveries.map((d) => [d.orderId.toString(), d]));
+    const customerIds = orders
+      .filter((o) => !o.fulfillment?.address?.contactPhone)
+      .map((o) => o.customerId);
+    const customers = customerIds.length
+      ? await this.customerModel.find({ _id: { $in: customerIds } }).select('_id phone').lean()
+      : [];
+    const customerPhones = new Map(customers.map((customer) => [customer._id.toString(), customer.phone]));
 
     const data: DeliveryBoardItemDto[] = orders.map((o) => {
       const delivery = byOrder.get(o._id.toString());
       const addr = o.fulfillment?.address;
+      const contactPhone = addr?.contactPhone ?? customerPhones.get(o.customerId.toString());
       return {
         orderId: o._id.toString(),
         orderNo: o.orderNo,
@@ -96,7 +106,7 @@ export class DeliveryService {
               line1: addr.line1,
               city: addr.city,
               state: addr.state,
-              contactPhone: addr.contactPhone,
+              contactPhone,
             }
           : undefined,
         deliveryNote: o.fulfillment?.deliveryNote,

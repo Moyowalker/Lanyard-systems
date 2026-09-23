@@ -21,6 +21,7 @@ describe('DeliveryService branch filter', () => {
       { find } as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await service.board([assignedBranchId], assignedBranchId);
@@ -54,6 +55,39 @@ describe('DeliveryService branch filter', () => {
     const service = new DeliveryService(
       { find: jest.fn().mockResolvedValue([]) } as never,
       { find: jest.fn().mockReturnValue(chain) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const board = await service.board(['ALL']);
+
+    expect(board.data[0].address?.contactPhone).toBe('+2348012345678');
+  });
+
+  it('falls back to the customer profile phone when the address has none', async () => {
+    const chain = listChain();
+    const orderId = new Types.ObjectId();
+    const customerId = new Types.ObjectId();
+    chain.lean.mockResolvedValueOnce([
+      {
+        _id: orderId,
+        customerId,
+        orderNo: 'LNY-TEST456',
+        status: 'FULFILLING',
+        totals: { totalKobo: 800000, deliveryKobo: 400000 },
+        fulfillment: { address: { line1: '1 Test Street', city: 'Lagos', state: 'Lagos' } },
+        createdAt: new Date('2026-09-23T10:00:00.000Z'),
+      },
+    ]);
+    const customerLean = jest.fn().mockResolvedValue([{ _id: customerId, phone: '+2348012345678' }]);
+    const customerModel = {
+      find: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ lean: customerLean }) }),
+    };
+    const service = new DeliveryService(
+      { find: jest.fn().mockResolvedValue([]) } as never,
+      { find: jest.fn().mockReturnValue(chain) } as never,
+      customerModel as never,
       {} as never,
       {} as never,
     );
