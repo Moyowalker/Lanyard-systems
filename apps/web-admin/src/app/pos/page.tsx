@@ -7,6 +7,7 @@ import type {
   HeldSaleDto,
   MeResponse,
   Paginated,
+  PosCreateSaleInput,
   PosReturnResultDto,
   PosSaleDto,
   ProductListItemDto,
@@ -27,6 +28,28 @@ import {
   Th,
 } from '@/components/ui';
 import { formatKobo, formatDateTime } from '@/lib/format';
+import {
+  findOfflineProductByCode,
+  refreshOfflineCatalog,
+  searchOfflineCatalog,
+} from '@/lib/offline-pos/catalog';
+import { syncOfflineSales } from '@/lib/offline-pos/sync';
+import {
+  configureOfflinePin,
+  enqueueSale,
+  getCatalog,
+  getDeviceId,
+  getOfflineSession,
+  hasOfflinePin,
+  isOfflinePosUnlocked,
+  listQueuedSales,
+  saveOfflineSession,
+  unlockOfflinePos,
+  updateQueuedSale,
+  type OfflineCatalog,
+  type OfflineQueuedSale,
+  type OfflineSession,
+} from '@/lib/offline-pos/vault';
 
 type CartLine = { product: ProductListItemDto; quantity: number };
 
@@ -84,11 +107,13 @@ function isPom(p: ProductListItemDto): boolean {
 function Receipt({
   sale,
   branchName,
+  provisional = false,
   onNewSale,
   onBack,
 }: {
   sale: PosSaleDto;
   branchName?: string;
+  provisional?: boolean;
   onNewSale?: () => void;
   onBack?: () => void;
 }) {
@@ -109,6 +134,11 @@ function Receipt({
             <div className="mt-2 inline-block rounded-lg bg-slate-100 px-3 py-1 font-mono text-sm font-semibold text-slate-800">
               {sale.orderNo}
             </div>
+            {provisional ? (
+              <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                Offline receipt · pending server synchronization
+              </div>
+            ) : null}
           </div>
 
           <table className="mt-5 w-full text-sm">
@@ -407,27 +437,55 @@ export default function PosPage() {
   const [showHeld, setShowHeld] = useState(false);
   const [heldError, setHeldError] = useState<string>();
   const [returningSale, setReturningSale] = useState<PosSaleDto | null>(null);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine,
+  );
+  const [offlinePinReady, setOfflinePinReady] = useState(false);
+  const [offlineUnlocked, setOfflineUnlocked] = useState(false);
+  const [offlinePin, setOfflinePin] = useState('');
+  const [offlineError, setOfflineError] = useState<string>();
+  const [offlineSession, setOfflineSession] = useState<OfflineSession>();
+  const [offlineCatalog, setOfflineCatalog] = useState<OfflineCatalog>();
+  const [queuedSales, setQueuedSales] = useState<OfflineQueuedSale[]>([]);
+  const [queuedReceipt, setQueuedReceipt] = useState(false);
   const idempotencyKey = useRef<string>('');
   const scanRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const online = () => setIsOnline(true);
+    const offline = () => setIsOnline(false);
+    window.addEventListener('online', online);
+    window.addEventListener('offline', offline);
+    void hasOfflinePin().then(setOfflinePinReady);
+    setOfflineUnlocked(isOfflinePosUnlocked());
+    return () => {
+      window.removeEventListener('online', online);
+      window.removeEventListener('offline', offline);
+    };
+  }, []);
+
   const meQ = useQuery({
     queryKey: ['me'],
+    enabled: isOnline,
     queryFn: async () => {
       const r = await fetch('/api/me');
       return r.ok ? ((await r.json()) as MeResponse) : null;
     },
   });
-  const canRefund = meQ.data?.permissions?.includes('pos:refund') ?? false;
+  const effectiveMe = meQ.data ?? offlineSession?.staff;
+  const canRefund = effectiveMe?.permissions?.includes('pos:refund') ?? false;
 
   const branchesQ = useQuery({
     queryKey: ['admin-branches', 'pos'],
+    enabled: isOnline,
     queryFn: async () => {
       const res = await fetch('/api/admin/branches/available?limit=100');
       if (!res.ok) throw new Error('Failed to load branches');
       return (await res.json()) as Paginated<BranchSummaryDto>;
     },
   });
-  const branches = branchesQ.data?.data ?? [];
+  const onlineBranches = branchesQ.data?.data ?? [];
+  const branches = onlineBranches.length > 0 ? onlineBranches : (offlineSession?.branches ?? []);
 
   useEffect(() => {
     if (!branchId && branches[0]?.id) setBranchId(branches[0].id);
@@ -435,7 +493,7 @@ export default function PosPage() {
 
   const heldSalesQ = useQuery({
     queryKey: ['pos-held-sales', branchId],
-    enabled: Boolean(branchId),
+    enabled: isOnline && Boolean(branchId),
     queryFn: async () => {
       const res = await fetch(`/api/admin/pos/held-sales?branchId=${branchId}`);
       if (!res.ok) throw new Error('Failed to load held sales');
@@ -488,7 +546,7 @@ export default function PosPage() {
 
   const productsQ = useQuery({
     queryKey: ['pos-products', branchId, debouncedSearch],
-    enabled: Boolean(branchId),
+    enabled: isOnline && Boolean(branchId),
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams({ branchId, limit: '30' });
       if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim());
@@ -498,12 +556,14 @@ export default function PosPage() {
       return (await res.json()) as Paginated<ProductListItemDto>;
     },
   });
-  const products = productsQ.data?.data ?? [];
+  const products = isOnline
+    ? (productsQ.data?.data ?? [])
+    : searchOfflineCatalog(offlineCatalog, debouncedSearch);
 
   const [salesDate, setSalesDate] = useState(() => new Date().toISOString().slice(0, 10));
   const salesQ = useQuery({
     queryKey: ['pos-sales', branchId, salesDate],
-    enabled: Boolean(branchId),
+    enabled: isOnline && Boolean(branchId),
     queryFn: async () => {
       const params = new URLSearchParams({ branchId, date: salesDate });
       const res = await fetch(`/api/admin/pos/sales?${params.toString()}`);
@@ -513,6 +573,49 @@ export default function PosPage() {
   });
   const todaysSales = salesQ.data?.data ?? [];
   const todaysTotalKobo = todaysSales.reduce((sum, s) => sum + s.totals.totalKobo, 0);
+
+  async function reloadOfflineState() {
+    if (!isOfflinePosUnlocked()) return;
+    const [session, queue] = await Promise.all([getOfflineSession(), listQueuedSales()]);
+    setOfflineSession(session);
+    setQueuedSales(queue);
+  }
+
+  useEffect(() => {
+    if (!offlineUnlocked || !branchId) return;
+    void getCatalog(branchId).then(setOfflineCatalog);
+  }, [branchId, offlineUnlocked]);
+
+  useEffect(() => {
+    if (!offlineUnlocked || !isOnline || !branchId) return;
+    void refreshOfflineCatalog(branchId)
+      .then(setOfflineCatalog)
+      .catch(() => undefined);
+  }, [branchId, isOnline, offlineUnlocked]);
+
+  useEffect(() => {
+    if (!offlineUnlocked || !isOnline || !meQ.data || onlineBranches.length === 0) return;
+    const session: OfflineSession = {
+      staff: meQ.data,
+      branches: onlineBranches.map((branch) => ({ id: branch.id, name: branch.name })),
+      cachedAt: new Date().toISOString(),
+    };
+    void saveOfflineSession(session).then(() => setOfflineSession(session));
+  }, [isOnline, meQ.data, offlineUnlocked, onlineBranches]);
+
+  useEffect(() => {
+    if (!offlineUnlocked || !isOnline) return;
+    void syncOfflineSales().then(async (result) => {
+      await reloadOfflineState();
+      if (result.synced.length > 0) {
+        await queryClient.invalidateQueries({ queryKey: ['pos-sales'] });
+        await queryClient.invalidateQueries({ queryKey: ['pos-products'] });
+      }
+      if (result.sessionExpired) setOfflineError('Sign in again before pending sales can sync.');
+    });
+    // Connectivity is the trigger; queue mutations explicitly refresh state themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, offlineUnlocked]);
 
   const lines = useMemo(() => [...cart.values()], [cart]);
   const subtotalKobo = lines.reduce(
@@ -574,6 +677,20 @@ export default function PosPage() {
     const trimmed = code.trim();
     if (!trimmed || !branchId) return false;
     try {
+      if (!isOnline) {
+        const product = findOfflineProductByCode(offlineCatalog, trimmed);
+        if (!product) {
+          setSearchNotice({ tone: 'info', text: `No cached barcode/SKU match for “${trimmed}”.` });
+          return false;
+        }
+        if (isControlled(product) || product.price == null || product.inStock === false) {
+          setSearchNotice({ tone: 'warn', text: `${product.name} cannot be sold from this snapshot.` });
+          return false;
+        }
+        addToCart(product);
+        setSearchNotice(undefined);
+        return true;
+      }
       const res = await fetch(
         `/api/admin/pos/products?branchId=${branchId}&barcode=${encodeURIComponent(trimmed)}`,
       );
@@ -647,6 +764,7 @@ export default function PosPage() {
     setError(undefined);
     setSearchNotice(undefined);
     setCompletedSale(null);
+    setQueuedReceipt(false);
     setResumedHeldSaleId(undefined);
     idempotencyKey.current = '';
   }
@@ -762,50 +880,108 @@ export default function PosPage() {
     }
   }
 
+  function saleRequest(): PosCreateSaleInput {
+    const request = {
+      branchId,
+      items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
+      payments: payments
+        .filter((row) => Number(row.amountNaira) > 0)
+        .map((row) => ({
+          channel: row.channel as PosCreateSaleInput['payments'][number]['channel'],
+          amountKobo: Math.round(Number(row.amountNaira) * 100),
+        })),
+      discount:
+        discountKobo > 0
+          ? {
+              type: discountType,
+              value:
+                discountType === 'percent'
+                  ? Math.min(Number(discountValue), 100)
+                  : Math.round(Number(discountValue) * 100),
+            }
+          : undefined,
+      customer: customerPhone.trim()
+        ? {
+            phone: customerPhone.trim(),
+            firstName: customerFirst.trim() || undefined,
+            lastName: customerLast.trim() || undefined,
+          }
+        : undefined,
+      rxNote: rxNote.trim() || undefined,
+      idempotencyKey: idempotencyKey.current,
+      heldSaleId: resumedHeldSaleId,
+    };
+    return request as PosCreateSaleInput;
+  }
+
+  async function queueCurrentSale(baseRequest: PosCreateSaleInput) {
+    if (!offlineUnlocked || !offlineCatalog) {
+      throw new Error('Unlock offline POS and refresh this branch catalog before selling offline.');
+    }
+    if (resumedHeldSaleId) throw new Error('Held sales can only be completed while online.');
+    const capturedAt = new Date().toISOString();
+    const request = {
+      ...baseRequest,
+      offlineCapture: {
+        capturedAt,
+        deviceId: await getDeviceId(),
+        catalogUpdatedAt: offlineCatalog.updatedAt,
+      },
+    } as PosCreateSaleInput;
+    const queued: OfflineQueuedSale = {
+      id: request.idempotencyKey,
+      branchId,
+      branchName: branches.find((branch) => branch.id === branchId)?.name,
+      capturedAt,
+      request,
+      lines: lines.map((line) => ({
+        productId: line.product.id,
+        name: line.product.name,
+        form: line.product.form,
+        strength: line.product.strength,
+        unitPriceKobo: line.product.price?.priceKobo ?? 0,
+        quantity: line.quantity,
+      })),
+      totalKobo,
+      status: 'pending',
+      attempts: 0,
+    };
+    await enqueueSale(queued);
+    return queued;
+  }
+
   const saleMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/admin/pos/sales', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          branchId,
-          items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
-          payments: payments
-            .filter((row) => Number(row.amountNaira) > 0)
-            .map((row) => ({
-              channel: row.channel,
-              amountKobo: Math.round(Number(row.amountNaira) * 100),
-            })),
-          discount:
-            discountKobo > 0
-              ? {
-                  type: discountType,
-                  value:
-                    discountType === 'percent'
-                      ? Math.min(Number(discountValue), 100)
-                      : Math.round(Number(discountValue) * 100),
-                }
-              : undefined,
-          customer: customerPhone.trim()
-            ? {
-                phone: customerPhone.trim(),
-                firstName: customerFirst.trim() || undefined,
-                lastName: customerLast.trim() || undefined,
-              }
-            : undefined,
-          rxNote: rxNote.trim() || undefined,
-          idempotencyKey: idempotencyKey.current,
-          heldSaleId: resumedHeldSaleId,
-        }),
-      });
+    mutationFn: async (): Promise<{ sale: PosSaleDto; queued: boolean }> => {
+      const request = saleRequest();
+      if (!isOnline) {
+        const queued = await queueCurrentSale(request);
+        return { sale: provisionalSale(queued), queued: true };
+      }
+      let res: Response;
+      try {
+        res = await fetch('/api/admin/pos/sales', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(request),
+        });
+      } catch {
+        setIsOnline(false);
+        const queued = await queueCurrentSale(request);
+        return { sale: provisionalSale(queued), queued: true };
+      }
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error?.message ?? 'Could not record the sale');
-      return body as PosSaleDto;
+      return { sale: body as PosSaleDto, queued: false };
     },
-    onSuccess: async (sale) => {
+    onSuccess: async ({ sale, queued }) => {
       setViewingPastSale(false);
       setCompletedSale(sale);
+      setQueuedReceipt(queued);
       setError(undefined);
+      if (queued) {
+        await reloadOfflineState();
+        return;
+      }
       if (resumedHeldSaleId) {
         setResumedHeldSaleId(undefined);
         await queryClient.invalidateQueries({ queryKey: ['pos-held-sales', branchId] });
@@ -815,6 +991,71 @@ export default function PosPage() {
     },
     onError: (err) => setError(err instanceof Error ? err.message : 'Could not record the sale'),
   });
+
+  function provisionalSale(queued: OfflineQueuedSale): PosSaleDto {
+    const discount = subtotalKobo - queued.totalKobo;
+    return {
+      orderId: queued.id,
+      orderNo: `OFF-${queued.id.slice(0, 8).toUpperCase()}`,
+      branchId: queued.branchId,
+      items: queued.lines.map((line) => ({
+        ...line,
+        lineTotalKobo: line.unitPriceKobo * line.quantity,
+        requiresPrescription: lines.find((item) => item.product.id === line.productId)?.product
+          .requiresPrescription ?? false,
+      })),
+      totals: {
+        subtotalKobo,
+        discountKobo: discount,
+        totalKobo: queued.totalKobo,
+        currency: 'NGN',
+      },
+      payment: { channel: queued.request.payments[0].channel, paidAt: queued.capturedAt },
+      payments: queued.request.payments,
+      cashier: {
+        id: effectiveMe?.id ?? 'offline',
+        name: [effectiveMe?.profile.firstName, effectiveMe?.profile.lastName]
+          .filter(Boolean)
+          .join(' ') || 'Staff',
+      },
+      customer: queued.request.customer
+        ? {
+            id: queued.id,
+            name: [queued.request.customer.firstName, queued.request.customer.lastName]
+              .filter(Boolean)
+              .join(' ') || undefined,
+            phone: queued.request.customer.phone,
+          }
+        : undefined,
+      rxNote: queued.request.rxNote,
+      orderStatus: 'OFFLINE_PENDING',
+      createdAt: queued.capturedAt,
+    };
+  }
+
+  async function enableOfflineAccess() {
+    setOfflineError(undefined);
+    try {
+      if (offlinePinReady) await unlockOfflinePos(offlinePin);
+      else await configureOfflinePin(offlinePin);
+      setOfflineUnlocked(true);
+      setOfflinePinReady(true);
+      setOfflinePin('');
+      await reloadOfflineState();
+    } catch (cause) {
+      setOfflineError(cause instanceof Error ? cause.message : 'Could not unlock offline POS');
+    }
+  }
+
+  async function retryQueuedSale(queued: OfflineQueuedSale) {
+    await updateQueuedSale({ ...queued, status: 'pending', conflict: undefined });
+    const result = await syncOfflineSales();
+    await reloadOfflineState();
+    if (result.synced.length > 0) {
+      await queryClient.invalidateQueries({ queryKey: ['pos-sales'] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-products'] });
+    }
+  }
 
   function confirmSale() {
     setError(undefined);
@@ -845,14 +1086,15 @@ export default function PosPage() {
     return (
       <div>
         <PageHeader
-          title={viewingPastSale ? 'Receipt' : 'Sale recorded'}
-          subtitle={`${viewingPastSale ? 'A past counter sale' : 'Hand the customer their receipt'} · Paid by ${paymentSummary(
+          title={viewingPastSale ? 'Receipt' : queuedReceipt ? 'Sale queued' : 'Sale recorded'}
+          subtitle={`${viewingPastSale ? 'A past counter sale' : queuedReceipt ? 'Print this provisional receipt; synchronization is pending' : 'Hand the customer their receipt'} · Paid by ${paymentSummary(
             completedSale.payments,
           )}`}
         />
         <Receipt
           sale={completedSale}
           branchName={branchName}
+          provisional={queuedReceipt}
           onNewSale={viewingPastSale ? undefined : resetSale}
           onBack={
             viewingPastSale
@@ -871,10 +1113,20 @@ export default function PosPage() {
     <div>
       <PageHeader
         title="Point of Sale"
-        subtitle="Ring up walk-in counter sales — stock and reports update instantly"
+        subtitle={
+          isOnline
+            ? 'Ring up walk-in counter sales — stock and reports update instantly'
+            : 'Offline mode — sales use the cached catalog and will sync after reconnecting'
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={() => setShowHeld((open) => !open)}>
+            <Badge tone={isOnline ? 'success' : 'warn'}>{isOnline ? 'Online' : 'Offline'}</Badge>
+            <Button
+              variant="secondary"
+              onClick={() => setShowHeld((open) => !open)}
+              disabled={!isOnline}
+              title={!isOnline ? 'Held sales require connectivity' : undefined}
+            >
               Held sales{heldSales.length > 0 ? ` (${heldSales.length})` : ''}
             </Button>
             <select
@@ -894,6 +1146,86 @@ export default function PosPage() {
           </div>
         }
       />
+
+      {!offlineUnlocked ? (
+        <Panel
+          title={offlinePinReady ? 'Unlock offline POS' : 'Set up offline access'}
+          subtitle={
+            offlinePinReady
+              ? 'Enter this staff PIN to access the encrypted catalog and pending sales on this device.'
+              : 'Create a 6–12 digit staff PIN while online. Cached POS data will be encrypted on this device.'
+          }
+          className="mb-5"
+        >
+          <div className="flex max-w-lg flex-col gap-2 sm:flex-row">
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              value={offlinePin}
+              onChange={(event) => setOfflinePin(event.target.value.replace(/\D/g, '').slice(0, 12))}
+              placeholder="Offline PIN"
+              className={inputClass}
+              aria-label="Offline POS PIN"
+            />
+            <Button
+              onClick={() => void enableOfflineAccess()}
+              disabled={offlinePin.length < 6 || (!offlinePinReady && !isOnline)}
+            >
+              {offlinePinReady ? 'Unlock' : 'Enable offline POS'}
+            </Button>
+          </div>
+          {offlineError ? <p className="mt-2 text-sm text-rose-700">{offlineError}</p> : null}
+        </Panel>
+      ) : (
+        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+          <span className="font-semibold text-slate-800">Offline POS ready</span>
+          <span>·</span>
+          <span>
+            Catalog {offlineCatalog ? `updated ${formatDateTime(offlineCatalog.updatedAt)}` : 'is loading'}
+          </span>
+          <span>·</span>
+          <span>{queuedSales.length} pending</span>
+        </div>
+      )}
+
+      {offlineUnlocked && queuedSales.length > 0 ? (
+        <Panel
+          title={`Pending synchronization (${queuedSales.length})`}
+          subtitle="Sales remain encrypted on this device until the server accepts them."
+          className="mb-5"
+        >
+          <ul className="space-y-2">
+            {queuedSales.map((queued) => (
+              <li
+                key={queued.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2"
+              >
+                <div>
+                  <div className="text-sm font-semibold text-slate-800">
+                    OFF-{queued.id.slice(0, 8).toUpperCase()} · {formatKobo(queued.totalKobo)}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {formatDateTime(queued.capturedAt)} · {queued.status}
+                  </div>
+                  {queued.conflict ? (
+                    <div className="mt-1 text-sm text-rose-700">{queued.conflict.message}</div>
+                  ) : null}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    disabled={!isOnline}
+                    onClick={() => void retryQueuedSale(queued)}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
 
       {showHeld ? (
         <Panel
@@ -977,7 +1309,7 @@ export default function PosPage() {
             </p>
           ) : null}
 
-          {productsQ.isError ? (
+          {isOnline && productsQ.isError ? (
             <div className="mt-4">
               <EmptyState
                 title="Couldn’t load products"
@@ -990,7 +1322,7 @@ export default function PosPage() {
                 </Button>
               </div>
             </div>
-          ) : productsQ.isLoading ? (
+          ) : isOnline && productsQ.isLoading ? (
             <div className="mt-4 space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
@@ -1056,9 +1388,13 @@ export default function PosPage() {
               <Button
                 variant="secondary"
                 onClick={holdSale}
-                disabled={lines.length === 0}
+                disabled={lines.length === 0 || !isOnline}
                 title={
-                  lines.length === 0 ? 'Add items to the cart before holding the sale' : undefined
+                  !isOnline
+                    ? 'Held sales require connectivity'
+                    : lines.length === 0
+                      ? 'Add items to the cart before holding the sale'
+                      : undefined
                 }
               >
                 Hold sale
@@ -1319,7 +1655,11 @@ export default function PosPage() {
             <Button
               className="mt-4 w-full justify-center py-3"
               onClick={confirmSale}
-              disabled={saleMutation.isPending || lines.length === 0}
+              disabled={
+                saleMutation.isPending ||
+                lines.length === 0 ||
+                (!isOnline && (!offlineUnlocked || !offlineCatalog))
+              }
             >
               {saleMutation.isPending ? (
                 <>

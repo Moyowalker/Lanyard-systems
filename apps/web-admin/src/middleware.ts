@@ -4,7 +4,13 @@ import type { NextRequest } from 'next/server';
 /** Gate every page behind a staff session cookie; /login and /api are exempt. */
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (pathname.startsWith('/login') || pathname.startsWith('/api')) {
+  if (
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/api') ||
+    pathname === '/sw.js' ||
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/logo.png'
+  ) {
     return NextResponse.next();
   }
   if (!req.cookies.get('lny_at')?.value && !req.cookies.get('lny_rt')?.value) {

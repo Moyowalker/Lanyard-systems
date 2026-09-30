@@ -111,6 +111,14 @@ export const PosCreateSaleSchema = z.object({
   rxNote: z.string().trim().min(3).max(500).optional(),
   /** Client-minted UUID; makes double-submits return the same sale. */
   idempotencyKey: z.string().uuid(),
+  /** Provenance attached when a completed till sale was captured without connectivity. */
+  offlineCapture: z
+    .object({
+      capturedAt: z.string().datetime({ offset: true }),
+      deviceId: z.string().uuid(),
+      catalogUpdatedAt: z.string().datetime({ offset: true }),
+    })
+    .optional(),
   /** Optional held receipt consumed only when the sale completes successfully. */
   heldSaleId: objectId.optional(),
 });

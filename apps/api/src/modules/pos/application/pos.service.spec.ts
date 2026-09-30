@@ -276,6 +276,55 @@ describe('PosService.createSale', () => {
     expect(sale.orderNo).toBe('LNY-TEST01');
   });
 
+  it('persists and audits offline capture provenance', async () => {
+    const product = makeProduct();
+    const { service, mocks } = buildService({ products: [product], ...pricedAndStocked(product) });
+    const offlineCapture = {
+      capturedAt: '2026-09-29T09:15:00.000Z',
+      deviceId: '550e8400-e29b-41d4-a716-446655440000',
+      catalogUpdatedAt: '2026-09-29T08:30:00.000Z',
+    };
+
+    await service.createSale(
+      principal,
+      saleInput(product._id.toString(), { offlineCapture }),
+    );
+
+    const counterSale = mocks.orderCreate.mock.calls[0][0][0].counterSale;
+    expect(counterSale).toMatchObject({
+      capturedOfflineAt: new Date(offlineCapture.capturedAt),
+      offlineDeviceId: offlineCapture.deviceId,
+      offlineCatalogUpdatedAt: new Date(offlineCapture.catalogUpdatedAt),
+    });
+    expect(mocks.auditRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'pos.sale',
+        metadata: expect.objectContaining({ offlineCapture }),
+      }),
+      null,
+    );
+  });
+
+  it('rejects an offline capture timestamp outside the reconciliation window', async () => {
+    const product = makeProduct();
+    const { service, mocks } = buildService({ products: [product], ...pricedAndStocked(product) });
+
+    await expect(
+      service.createSale(
+        principal,
+        saleInput(product._id.toString(), {
+          offlineCapture: {
+            capturedAt: '2099-01-01T00:00:00.000Z',
+            deviceId: '550e8400-e29b-41d4-a716-446655440000',
+            catalogUpdatedAt: '2026-09-29T08:30:00.000Z',
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+
+    expect(mocks.orderCreate).not.toHaveBeenCalled();
+  });
+
   it('consumes the resumed held sale after completing the counter sale', async () => {
     const product = makeProduct();
     const heldId = new Types.ObjectId();

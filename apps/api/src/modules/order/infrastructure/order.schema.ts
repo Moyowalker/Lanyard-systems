@@ -171,6 +171,15 @@ export class OrderCounterSale {
   /** Client-minted UUID; the sparse unique index below makes double-submits idempotent. */
   @Prop({ type: String, required: true })
   idempotencyKey: string;
+
+  @Prop({ type: Date })
+  capturedOfflineAt?: Date;
+
+  @Prop({ type: String })
+  offlineDeviceId?: string;
+
+  @Prop({ type: Date })
+  offlineCatalogUpdatedAt?: Date;
 }
 export const OrderCounterSaleSchema = SchemaFactory.createForClass(OrderCounterSale);
 
@@ -236,3 +245,9 @@ OrderSchema.index({ requiresRxVerification: 1, status: 1 }); // pharmacist queue
 OrderSchema.index({ 'counterSale.idempotencyKey': 1 }, { unique: true, sparse: true });
 // Cashier's "today's sales" view.
 OrderSchema.index({ 'counterSale.cashierStaffId': 1, createdAt: -1 }, { sparse: true });
+// Reconcile offline sales by branch and the time they were captured at the till.
+OrderSchema.index({ branchId: 1, 'counterSale.capturedOfflineAt': -1 }, { sparse: true });
+OrderSchema.index(
+  { branchId: 1, 'counterSale.offlineDeviceId': 1, createdAt: -1 },
+  { sparse: true },
+);

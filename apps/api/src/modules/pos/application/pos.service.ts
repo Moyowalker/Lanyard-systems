@@ -157,6 +157,23 @@ export class PosService {
     });
     if (existing) return this.hydrateOne(existing, principal);
 
+    if (input.offlineCapture) {
+      const capturedAt = new Date(input.offlineCapture.capturedAt).getTime();
+      const catalogUpdatedAt = new Date(input.offlineCapture.catalogUpdatedAt).getTime();
+      const now = Date.now();
+      if (
+        capturedAt > now + 5 * 60_000 ||
+        capturedAt < now - 7 * 24 * 60 * 60_000 ||
+        catalogUpdatedAt > capturedAt + 5 * 60_000
+      ) {
+        throw new DomainError(
+          ErrorCode.VALIDATION_FAILED,
+          'Offline sale timestamps are outside the allowed reconciliation window',
+          [{ field: 'offlineCapture', issue: 'capture must be within 7 days and use an earlier catalog snapshot' }],
+        );
+      }
+    }
+
     // ── validate products ──
     const productIds = input.items.map((i) => i.productId);
     const products = await this.productModel
@@ -303,6 +320,13 @@ export class PosService {
                 rxNote: input.rxNote?.trim() || undefined,
                 heldSaleId: input.heldSaleId ? new Types.ObjectId(input.heldSaleId) : undefined,
                 idempotencyKey: input.idempotencyKey,
+                capturedOfflineAt: input.offlineCapture
+                  ? new Date(input.offlineCapture.capturedAt)
+                  : undefined,
+                offlineDeviceId: input.offlineCapture?.deviceId,
+                offlineCatalogUpdatedAt: input.offlineCapture
+                  ? new Date(input.offlineCapture.catalogUpdatedAt)
+                  : undefined,
               },
             },
           ],
@@ -364,6 +388,7 @@ export class PosService {
               items: itemSnapshots.length,
               rxNote: Boolean(input.rxNote),
               heldSaleId: input.heldSaleId,
+              offlineCapture: input.offlineCapture,
             },
           },
           session,

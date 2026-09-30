@@ -1,0 +1,17 @@
+{
+  "name": "Lanyard Pharmacy POS",
+  "short_name": "Lanyard POS",
+  "description": "Lanyard Pharmacy staff point of sale",
+  "start_url": "/pos",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}

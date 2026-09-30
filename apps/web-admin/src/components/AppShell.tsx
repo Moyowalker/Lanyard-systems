@@ -10,6 +10,7 @@ import { IconBell, IconClose, IconLogout, IconMenu } from './icons';
 import { BrandLogo } from './BrandLogo';
 import { cn } from './ui';
 import { visibleNav, personaFor, PERSONA_LABEL, initialsOf, type NavItem } from '@/lib/roles';
+import { lockOfflinePos } from '@/lib/offline-pos/vault';
 
 function useMe(enabled = true) {
   return useQuery({
@@ -105,6 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
   async function signOut() {
+    lockOfflinePos();
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
     router.refresh();
