@@ -844,6 +844,7 @@ export class InventoryService {
     nameById: Map<string, string>,
   ): Promise<void> {
     const totalUnits = input.lines.reduce((sum, line) => sum + line.quantity, 0);
+    const cost = this.invoiceCostSummary(input.lines);
     const supplied = input.invoiceDate.toISOString().slice(0, 10);
     try {
       await this.audit.record({
@@ -859,9 +860,12 @@ export class InventoryService {
           invoiceNo: input.invoiceNo,
           invoiceDate: supplied,
           totalUnits,
+          totalCostKobo: cost.totalCostKobo,
+          hasCompleteCost: cost.hasCompleteCost,
           lines: input.lines.map((line) => ({
             product: nameById.get(line.productId),
             quantity: line.quantity,
+            costKobo: line.costKobo,
             batchNo: line.batchNo,
             expiry: line.expiry?.toISOString().slice(0, 10),
           })),
@@ -887,6 +891,7 @@ export class InventoryService {
     nameById?: Map<string, string>,
   ): Promise<void> {
     try {
+      const cost = input ? this.invoiceCostSummary(input.lines) : undefined;
       await this.audit.record({
         actorId,
         actorType: ActorType.STAFF,
@@ -900,9 +905,12 @@ export class InventoryService {
               vendorName: input.vendorName,
               invoiceNo: input.invoiceNo,
               totalUnits: input.lines.reduce((sum, line) => sum + line.quantity, 0),
+              totalCostKobo: cost?.totalCostKobo,
+              hasCompleteCost: cost?.hasCompleteCost,
               lines: input.lines.map((line) => ({
                 product: nameById?.get(line.productId),
                 quantity: line.quantity,
+                costKobo: line.costKobo,
               })),
             }
           : undefined,
@@ -997,6 +1005,7 @@ export class InventoryService {
   ): StockInvoiceDto {
     const id = row.id ?? row._id?.toString();
     if (!id) throw new DomainError(ErrorCode.INTERNAL, 'Invoice identifier is missing');
+    const cost = this.invoiceCostSummary(row.lines);
     return {
       id,
       branchId: row.branchId.toString(),
@@ -1013,6 +1022,8 @@ export class InventoryService {
       receivedById: row.receivedByStaffId.toString(),
       receivedByName: receivedByName || undefined,
       totalUnits: row.lines.reduce((sum, line) => sum + line.quantity, 0),
+      totalCostKobo: cost.totalCostKobo,
+      hasCompleteCost: cost.hasCompleteCost,
       lines: row.lines.map((line) => ({
         productId: line.productId.toString(),
         productName: line.productName,
@@ -1025,6 +1036,23 @@ export class InventoryService {
         visibleOnStorefront: line.visibleOnStorefront,
       })),
       createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
+    };
+  }
+
+  private invoiceCostSummary(
+    lines: ReadonlyArray<{ quantity?: unknown; costKobo?: unknown }>,
+  ): { totalCostKobo: number | null; hasCompleteCost: boolean } {
+    const hasCompleteCost = lines.every(
+      (line) => typeof line.quantity === 'number' && typeof line.costKobo === 'number',
+    );
+    return {
+      totalCostKobo: hasCompleteCost
+        ? lines.reduce(
+            (sum, line) => sum + (line.quantity as number) * (line.costKobo as number),
+            0,
+          )
+        : null,
+      hasCompleteCost,
     };
   }
 

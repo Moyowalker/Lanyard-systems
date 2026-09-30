@@ -10,6 +10,7 @@ import {
   AvScanStatus,
   CreatePrescriptionMetaInput,
   ErrorCode,
+  FulfillmentType,
   Paginated,
   PaginationQuery,
   PrescriptionAdminListItemDto,
@@ -303,6 +304,27 @@ export class PrescriptionService {
       filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
     }
     if (query.status) filter.status = query.status;
+    const createdAt: Record<string, Date> = {};
+    if (query.from) createdAt.$gte = query.from;
+    if (query.to) createdAt.$lte = query.to;
+    if (Object.keys(createdAt).length > 0) filter.createdAt = createdAt;
+
+    if (query.fulfillmentType) {
+      const orderFilter: Record<string, unknown> = {
+        'fulfillment.type': query.fulfillmentType,
+      };
+      if (query.branchId) {
+        orderFilter.branchId = filter.branchId;
+      } else if (!branchScope.includes('ALL')) {
+        orderFilter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
+      }
+      const orders = await this.orderModel
+        .find(orderFilter)
+        .select('_id')
+        .lean<Array<{ _id: Types.ObjectId }>>();
+      if (orders.length === 0) return { data: [], meta: { nextCursor: null } };
+      filter.linkedOrderIds = { $in: orders.map((order) => order._id) };
+    }
 
     if (query.q) {
       const q = query.q.trim();
@@ -356,12 +378,18 @@ export class PrescriptionService {
       orderIds.length
         ? this.orderModel
             .find({ _id: { $in: orderIds.map((id) => new Types.ObjectId(id)) } })
-            .select('orderNo')
-            .lean<Array<{ _id: Types.ObjectId; orderNo: string }>>()
+            .select('orderNo fulfillment.type')
+            .lean<
+              Array<{
+                _id: Types.ObjectId;
+                orderNo: string;
+                fulfillment?: { type?: FulfillmentType };
+              }>
+            >()
         : Promise.resolve([]),
     ]);
     const customerById = new Map(customers.map((c) => [c._id.toString(), c]));
-    const orderNoById = new Map(orders.map((o) => [o._id.toString(), o.orderNo]));
+    const orderById = new Map(orders.map((order) => [order._id.toString(), order]));
 
     return rows.map((rx) => {
       const customer = customerById.get(rx.customerId.toString());
@@ -373,8 +401,15 @@ export class PrescriptionService {
           : undefined,
         customerPhone: customer?.phone,
         orderNos: rx.linkedOrderIds
-          .map((id) => orderNoById.get(id.toString()))
+          .map((id) => orderById.get(id.toString())?.orderNo)
           .filter((no): no is string => Boolean(no)),
+        fulfillmentTypes: [
+          ...new Set(
+            rx.linkedOrderIds
+              .map((id) => orderById.get(id.toString())?.fulfillment?.type)
+              .filter((type): type is FulfillmentType => Boolean(type)),
+          ),
+        ],
         fileCount: (rx.files as unknown as unknown[]).length,
         createdAt: (rx as unknown as { createdAt: Date }).createdAt.toISOString(),
       };

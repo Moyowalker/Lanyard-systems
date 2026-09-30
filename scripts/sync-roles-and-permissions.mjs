@@ -1,6 +1,6 @@
 /**
  * Reference-data migration: brings a database seeded before the POS/Vendor modules landed up
- * to what the code expects — the 4 missing permissions AND the 2 missing roles.
+ * to what the code expects — required permissions and missing built-in roles.
  *
  * Symptoms it fixes:
  *   - "Point of Sale" and "Vendors" missing from the admin sidebar, and the POS/VENDORS groups
@@ -11,7 +11,7 @@
  * The nav is permission-driven (visibleNav in apps/web-admin/src/lib/roles.ts), and
  * RoleAdminService.assertPermissionsExist refuses to grant a key with no permission document —
  * so this cannot be fixed from the UI. Nor can the roles: the Roles page has no create action,
- * its create endpoint needs `role:write` (unticked on Administrator), and createRole() hard-codes
+ * its create endpoint needs `role:write`, and createRole() hard-codes
  * isSystem:false, whereas these two are system roles.
  *
  * Why not just run the seeder: (1) it is excluded from the Nest build and needs ts-node plus
@@ -21,8 +21,8 @@
  *
  * This script is deliberately narrow and ADDITIVE: it upserts permission documents, creates
  * only genuinely missing roles, and $addToSet's grants onto existing roles. It never removes a
- * permission or overwrites an existing role's permission set, so hand-made edits (for example
- * role:write deliberately unticked on Administrator) are preserved.
+ * permission or overwrites an existing role's permission set. The ADMIN role is explicitly
+ * granted role-management permissions because administrators must be able to edit roles.
  *
  * Usage — reports what it WOULD do and changes nothing:
  *   MONGODB_URI="mongodb+srv://..." node scripts/sync-roles-and-permissions.mjs
@@ -50,6 +50,8 @@ if (!URI) {
 
 /** Mirrors the PERMISSIONS entries in apps/api/src/database/seed.ts. */
 const PERMISSIONS = [
+  { key: 'role:read', description: 'View roles', group: 'roles' },
+  { key: 'role:write', description: 'Manage roles', group: 'roles' },
   { key: 'pos:sell', description: 'Ring up counter (POS) sales', group: 'pos' },
   { key: 'pos:refund', description: 'Return/refund counter (POS) sales', group: 'pos' },
   { key: 'vendor:read', description: 'View vendors', group: 'vendors' },
@@ -87,7 +89,7 @@ const MISSING_ROLES = [
 /** Mirrors the ROLES grants in the seeder. ADMIN/SUPER_ADMIN receive every key. */
 const GRANTS = {
   SUPER_ADMIN: ['pos:sell', 'pos:refund', 'vendor:read', 'vendor:write'],
-  ADMIN: ['pos:sell', 'pos:refund', 'vendor:read', 'vendor:write'],
+  ADMIN: ['role:read', 'role:write', 'pos:sell', 'pos:refund', 'vendor:read', 'vendor:write'],
   BRANCH_MANAGER: ['pos:sell', 'pos:refund', 'vendor:read', 'vendor:write'],
   INVENTORY_OFFICER: ['vendor:read', 'vendor:write'],
   PHARMACIST: ['pos:sell'],

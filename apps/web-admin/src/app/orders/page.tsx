@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { OrderStatus, type OrderDto, type Paginated } from '@lanyard/contracts';
+import {
+  FulfillmentType,
+  OrderStatus,
+  type OrderDto,
+  type Paginated,
+} from '@lanyard/contracts';
 import { formatKobo, label, statusTone, timeAgo } from '@/lib/format';
 import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
 import {
@@ -43,6 +48,8 @@ const FILTERS: { key: string; label: string; statuses?: OrderStatus[] }[] = [
 
 export default function OrdersList() {
   const [filter, setFilter] = useState('all');
+  const [fulfillmentType, setFulfillmentType] = useState<'' | FulfillmentType>('');
+  const [orderType, setOrderType] = useState<'' | 'otc' | 'rx'>('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [from, setFrom] = useState('');
@@ -58,17 +65,29 @@ export default function OrdersList() {
   const statusKey = active.statuses?.join(',') ?? '';
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ['admin-orders', 'list', branchFilter.branchId, debouncedSearch, from, to, statusKey],
+    queryKey: [
+      'admin-orders',
+      'list',
+      branchFilter.branchId,
+      debouncedSearch,
+      from,
+      to,
+      statusKey,
+      fulfillmentType,
+      orderType,
+    ],
     enabled: branchFilter.canViewAllBranches || Boolean(branchFilter.branchId),
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '50' });
       if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
       if (debouncedSearch) params.set('q', debouncedSearch);
-      if (from) params.set('from', from);
-      if (to) params.set('to', to);
+      if (from) params.set('from', `${from}T00:00:00.000Z`);
+      if (to) params.set('to', `${to}T23:59:59.999Z`);
       if (active.statuses?.length === 1) params.set('status', active.statuses[0]);
       if (active.statuses && active.statuses.length > 1) params.set('statuses', statusKey);
+      if (fulfillmentType) params.set('fulfillmentType', fulfillmentType);
+      if (orderType) params.set('requiresRx', orderType === 'rx' ? 'true' : 'false');
       if (pageParam) params.set('cursor', pageParam);
       const r = await fetch(`/api/admin/orders?${params.toString()}`);
       if (!r.ok) throw new Error('Failed to load orders');
@@ -116,6 +135,26 @@ export default function OrdersList() {
           aria-label="To date"
           className={inputClass}
         />
+        <select
+          value={fulfillmentType}
+          onChange={(event) => setFulfillmentType(event.target.value as '' | FulfillmentType)}
+          aria-label="Filter by fulfillment type"
+          className={inputClass}
+        >
+          <option value="">All fulfillment</option>
+          <option value={FulfillmentType.DELIVERY}>Delivery</option>
+          <option value={FulfillmentType.PICKUP}>Pickup</option>
+        </select>
+        <select
+          value={orderType}
+          onChange={(event) => setOrderType(event.target.value as '' | 'otc' | 'rx')}
+          aria-label="Filter by prescription requirement"
+          className={inputClass}
+        >
+          <option value="">All order types</option>
+          <option value="otc">OTC</option>
+          <option value="rx">Prescription</option>
+        </select>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">

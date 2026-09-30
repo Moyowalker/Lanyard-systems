@@ -723,9 +723,11 @@ export default function BranchesPage() {
                   <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">Delivery zones</div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          Destination zones
+                        </div>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          Each zone sets its own delivery fee — customers pick a zone at checkout.
+                          Set fees from this source branch to each destination customers can select.
                         </p>
                       </div>
                       <Button
@@ -758,7 +760,7 @@ export default function BranchesPage() {
                           >
                             <div>
                               <label className={labelClass} htmlFor={`zone-name-${index}`}>
-                                Zone name
+                                Destination zone
                               </label>
                               <input
                                 id={`zone-name-${index}`}

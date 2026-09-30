@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AvScanStatus, RxStatus, VerificationDecision } from '../enums';
+import { AvScanStatus, FulfillmentType, RxStatus, VerificationDecision } from '../enums';
 import { BranchPaginationQuerySchema } from './common';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'must be a 24-char ObjectId');
@@ -95,6 +95,9 @@ export const PrescriptionAdminSearchQuerySchema = BranchPaginationQuerySchema.ex
   /** Free-text: a customer phone (E.164) or an order number. */
   q: z.string().trim().max(120).optional(),
   status: z.nativeEnum(RxStatus).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  fulfillmentType: z.nativeEnum(FulfillmentType).optional(),
 });
 export type PrescriptionAdminSearchQuery = z.infer<typeof PrescriptionAdminSearchQuerySchema>;
 
@@ -104,6 +107,7 @@ export interface PrescriptionAdminListItemDto {
   customerName?: string;
   customerPhone?: string;
   orderNos: string[];
+  fulfillmentTypes: FulfillmentType[];
   fileCount: number;
   createdAt: string;
 }

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  FulfillmentType,
   Paginated,
   PrescriptionAdminListItemDto,
   PrescriptionDto,
@@ -20,8 +21,11 @@ const selectClass =
 export default function PrescriptionQueue() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [fulfillmentType, setFulfillmentType] = useState<'' | FulfillmentType>('');
   const branchFilter = useOperationalBranchFilter();
-  const searching = search.trim().length > 0 || status.length > 0;
+  const searching = Boolean(search.trim() || status || from || to || fulfillmentType);
 
   const queueQ = useQuery({
     queryKey: ['rx-queue', branchFilter.branchId],
@@ -37,12 +41,23 @@ export default function PrescriptionQueue() {
   });
 
   const searchQ = useQuery({
-    queryKey: ['rx-search', search.trim(), status, branchFilter.branchId],
+    queryKey: [
+      'rx-search',
+      search.trim(),
+      status,
+      from,
+      to,
+      fulfillmentType,
+      branchFilter.branchId,
+    ],
     enabled: searching && (branchFilter.canViewAllBranches || Boolean(branchFilter.branchId)),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (search.trim()) params.set('q', search.trim());
       if (status) params.set('status', status);
+      if (from) params.set('from', `${from}T00:00:00.000Z`);
+      if (to) params.set('to', `${to}T23:59:59.999Z`);
+      if (fulfillmentType) params.set('fulfillmentType', fulfillmentType);
       if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
       const r = await fetch(`/api/admin/prescriptions/search?${params.toString()}`);
       if (!r.ok) throw new Error('Search failed');
@@ -91,12 +106,41 @@ export default function PrescriptionQueue() {
             </option>
           ))}
         </select>
+        <input
+          type="date"
+          value={from}
+          onChange={(event) => setFrom(event.target.value)}
+          aria-label="Prescriptions from date"
+          className={selectClass}
+        />
+        <input
+          type="date"
+          value={to}
+          onChange={(event) => setTo(event.target.value)}
+          aria-label="Prescriptions to date"
+          className={selectClass}
+        />
+        <select
+          value={fulfillmentType}
+          onChange={(event) =>
+            setFulfillmentType(event.target.value as '' | FulfillmentType)
+          }
+          className={selectClass}
+          aria-label="Filter by fulfillment type"
+        >
+          <option value="">All fulfillment</option>
+          <option value={FulfillmentType.DELIVERY}>Delivery</option>
+          <option value={FulfillmentType.PICKUP}>Pickup</option>
+        </select>
         {searching ? (
           <button
             type="button"
             onClick={() => {
               setSearch('');
               setStatus('');
+              setFrom('');
+              setTo('');
+              setFulfillmentType('');
             }}
             className="text-sm font-medium text-slate-500 hover:text-slate-700"
           >
@@ -150,6 +194,9 @@ export default function PrescriptionQueue() {
                     </div>
                     <div className="mt-0.5 text-sm text-slate-500">
                       {rx.orderNos.length ? `Orders ${rx.orderNos.join(', ')} · ` : ''}
+                      {rx.fulfillmentTypes.length
+                        ? `${rx.fulfillmentTypes.join(', ').toLowerCase()} · `
+                        : ''}
                       {rx.fileCount} file{rx.fileCount === 1 ? '' : 's'} · {timeAgo(rx.createdAt)}
                     </div>
                   </div>

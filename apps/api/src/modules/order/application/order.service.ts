@@ -259,13 +259,16 @@ export class OrderService {
     let etaMins: number | undefined;
     if (fulfillment.type === FulfillmentType.DELIVERY) {
       const branch = await this.branchModel.findById(res.branchId).lean();
+      if (!branch?.fulfillment?.delivery) {
+        throw new DomainError(ErrorCode.CONFLICT, 'This branch does not offer delivery');
+      }
       const zone = this.selectDeliveryZone(
-        branch?.fulfillment?.deliveryZones,
+        branch.fulfillment.deliveryZones,
         fulfillment.deliveryZoneName,
       );
-      deliveryKobo = zone?.feeKobo ?? 0;
-      deliveryZoneName = zone?.name;
-      etaMins = zone?.etaMins;
+      deliveryKobo = zone.feeKobo;
+      deliveryZoneName = zone.name;
+      etaMins = zone.etaMins;
     }
     return {
       branchId: res.branchId,
@@ -434,6 +437,8 @@ export class OrderService {
     if (query.q) {
       filter.orderNo = { $regex: escapeRegex(query.q.trim()), $options: 'i' };
     }
+    if (query.fulfillmentType) filter['fulfillment.type'] = query.fulfillmentType;
+    if (query.requiresRx !== undefined) filter.requiresRxVerification = query.requiresRx;
     const createdAt: Record<string, Date> = {};
     if (query.from) createdAt.$gte = query.from;
     if (query.to) createdAt.$lte = query.to;
@@ -669,9 +674,22 @@ export class OrderService {
     zones?: Array<{ name: string; feeKobo: number; etaMins?: number }>,
     requestedName?: string,
   ) {
-    if (!zones || zones.length === 0) return undefined;
-    if (!requestedName) return zones[0];
-    return zones.find((zone) => zone.name === requestedName) ?? zones[0];
+    if (!zones || zones.length === 0) {
+      throw new DomainError(ErrorCode.CONFLICT, 'No delivery zones are configured for this branch');
+    }
+    if (!requestedName) {
+      throw new DomainError(ErrorCode.VALIDATION_FAILED, 'Select a delivery zone');
+    }
+    const zone = zones.find(
+      (candidate) => candidate.name.toLocaleLowerCase() === requestedName.toLocaleLowerCase(),
+    );
+    if (!zone) {
+      throw new DomainError(
+        ErrorCode.VALIDATION_FAILED,
+        'The selected delivery zone is no longer available',
+      );
+    }
+    return zone;
   }
 
   private toDto(o: OrderDocument): OrderDto {

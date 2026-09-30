@@ -63,7 +63,7 @@ export function ProductCard({
   const priceKobo = product.price?.priceKobo;
   const compareAtKobo = product.price?.compareAtKobo;
   const hasDiscount = compareAtKobo != null && priceKobo != null && compareAtKobo > priceKobo;
-  const meta = [product.form, product.strength, product.packSize].filter(Boolean).join(' · ');
+  const meta = [product.form, product.strength].filter(Boolean).join(' · ');
 
   const stockLabel = outOfStock
     ? 'Out of stock'
@@ -107,6 +107,11 @@ export function ProductCard({
             </span>
           ) : null}
         </div>
+        {product.packSize ? (
+          <p className="mt-0.5 text-xs text-ink-900/55">
+            Quantity per price: {product.packSize}
+          </p>
+        ) : null}
 
         {stockLabel ? (
           <div className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${stockTone}`}>

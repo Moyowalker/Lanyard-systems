@@ -204,6 +204,8 @@ export interface StockInvoiceDto {
   receivedById: string;
   receivedByName?: string;
   totalUnits: number;
+  totalCostKobo: number | null;
+  hasCompleteCost: boolean;
   lines: StockInvoiceLineDto[];
   createdAt: string;
 }

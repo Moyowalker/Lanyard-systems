@@ -33,7 +33,6 @@ import {
 } from '@/components/ui';
 import { formatDateTime, formatKobo } from '@/lib/format';
 import { useBranchPrices } from '@/components/use-branch-prices';
-import { useFileDownload } from '@/lib/use-download';
 import { InvoiceReceiveForm } from '@/components/inventory/InvoiceReceiveForm';
 import { RecentInvoices } from '@/components/inventory/RecentInvoices';
 import { ActivityFeed } from '@/components/inventory/ActivityFeed';
@@ -157,7 +156,6 @@ export default function InventoryPage() {
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<StockInvoiceDto | null>(null);
   const [manageMessage, setManageMessage] = useState<FormMessage | null>(null);
-  const { download: runDownload, error: exportError } = useFileDownload();
 
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedSearch(search), 250);
@@ -252,14 +250,6 @@ export default function InventoryPage() {
     },
   });
 
-  function downloadExport(format: 'xlsx' | 'csv') {
-    if (!branchId) return;
-    void runDownload(
-      `/api/admin/branches/${branchId}/inventory/export?format=${format}`,
-      `inventory-${branchId}.${format}`,
-    );
-  }
-
   const rows = inventoryQ.data?.data ?? [];
   const inventoryByProductId = useMemo(
     () => new Map(rows.map((row) => [row.productId, row])),
@@ -316,20 +306,6 @@ export default function InventoryPage() {
         subtitle="Stock levels, pricing, receiving, and a full audit trail — all on one page"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="secondary"
-              disabled={!branchId || rows.length === 0}
-              onClick={() => downloadExport('xlsx')}
-            >
-              Export Excel
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={!branchId || rows.length === 0}
-              onClick={() => downloadExport('csv')}
-            >
-              Export CSV
-            </Button>
             <select
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
@@ -344,10 +320,6 @@ export default function InventoryPage() {
           </div>
         }
       />
-
-      {exportError ? (
-        <p className="mb-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{exportError}</p>
-      ) : null}
 
       {initialLoading ? (
         <Card className="p-5">

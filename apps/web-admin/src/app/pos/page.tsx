@@ -786,8 +786,24 @@ export default function PosPage() {
       const res = await fetch(`/api/admin/pos/held-sales/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to discard held sale');
     },
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['pos-held-sales', branchId] }); },
-    onError: (err) => setHeldError(err instanceof Error ? err.message : 'Failed to discard held sale'),
+    onMutate: async (id) => {
+      const queryKey = ['pos-held-sales', branchId] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<{ data: HeldSale[] }>(queryKey);
+      queryClient.setQueryData<{ data: HeldSale[] }>(queryKey, (current) => ({
+        data: (current?.data ?? []).filter((held) => held.id !== id),
+      }));
+      return { previous, queryKey };
+    },
+    onError: (err, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(context.queryKey, context.previous);
+      setHeldError(err instanceof Error ? err.message : 'Failed to discard held sale');
+    },
+    onSettled: async (_data, _error, _id, context) => {
+      await queryClient.invalidateQueries({
+        queryKey: context?.queryKey ?? ['pos-held-sales', branchId],
+      });
+    },
   });
 
   function holdSale() {

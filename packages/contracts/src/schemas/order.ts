@@ -46,6 +46,13 @@ export const AdminOrderQuerySchema = BranchPaginationQuerySchema.extend({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   q: z.string().trim().min(1).max(80).optional(),
+  fulfillmentType: z.nativeEnum(FulfillmentType).optional(),
+  requiresRx: z
+    .preprocess(
+      (value) => (value === 'true' ? true : value === 'false' ? false : value),
+      z.boolean(),
+    )
+    .optional(),
 });
 export type AdminOrderQuery = z.infer<typeof AdminOrderQuerySchema>;
 

@@ -205,6 +205,11 @@ function RecentInvoicesInner({
                       <span>
                         {invoice.lines.length} product(s) · {invoice.totalUnits} units
                       </span>
+                      <span className="font-semibold text-slate-700">
+                        {invoice.hasCompleteCost && invoice.totalCostKobo != null
+                          ? `Total cost ${formatKobo(invoice.totalCostKobo)}`
+                          : 'Cost unavailable'}
+                      </span>
                       {invoice.receivedByName ? <span>by {invoice.receivedByName}</span> : null}
                     </span>
                   </summary>

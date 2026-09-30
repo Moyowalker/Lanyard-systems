@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import type { AuditLogDto, Paginated } from '@lanyard/contracts';
-import { formatDateTime, timeAgo } from '@/lib/format';
+import { formatDateTime, formatKobo, timeAgo } from '@/lib/format';
 import {
   Badge,
   Button,
@@ -285,6 +285,7 @@ function AuditRow({
 }
 
 function AuditDetail({ entry }: { entry: AuditLogDto }) {
+  const invoiceCost = getInvoiceCost(entry);
   const facts: { label: string; value?: string }[] = [
     { label: 'Action', value: entry.action },
     { label: 'Actor type', value: entry.actorType },
@@ -309,6 +310,12 @@ function AuditDetail({ entry }: { entry: AuditLogDto }) {
               <dd className="break-all font-mono text-xs text-slate-700">{f.value}</dd>
             </div>
           ))}
+          {invoiceCost ? (
+            <div className="contents">
+              <dt className="text-slate-400">Total cost</dt>
+              <dd className="font-semibold text-slate-700">{invoiceCost}</dd>
+            </div>
+          ) : null}
         </dl>
         {entry.userAgent && (
           <p className="mt-2 break-all text-xs text-slate-400">{entry.userAgent}</p>
@@ -324,6 +331,32 @@ function AuditDetail({ entry }: { entry: AuditLogDto }) {
       </div>
     </div>
   );
+}
+
+function getInvoiceCost(entry: AuditLogDto): string | undefined {
+  if (entry.targetType !== 'stock_invoice') return undefined;
+  const metadata = entry.metadata;
+  if (!metadata || metadata.hasCompleteCost === false) return 'Cost unavailable';
+  if (typeof metadata.totalCostKobo === 'number') return formatKobo(metadata.totalCostKobo);
+
+  const lines = Array.isArray(metadata.lines) ? metadata.lines : [];
+  if (
+    lines.length > 0 &&
+    lines.every(
+      (line) =>
+        typeof line === 'object' &&
+        line !== null &&
+        typeof (line as Record<string, unknown>).quantity === 'number' &&
+        typeof (line as Record<string, unknown>).costKobo === 'number',
+    )
+  ) {
+    const total = lines.reduce((sum, line) => {
+      const item = line as Record<string, number>;
+      return sum + item.quantity * item.costKobo;
+    }, 0);
+    return formatKobo(total);
+  }
+  return 'Cost unavailable';
 }
 
 /** Turn a camelCase metadata key into a readable label ("invoiceNo" → "Invoice no"). */

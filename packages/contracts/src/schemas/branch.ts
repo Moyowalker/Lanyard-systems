@@ -42,11 +42,33 @@ const deliveryZoneSchema = z.object({
   etaMins: z.number().int().min(0).optional(),
 });
 
-const fulfillmentSchema = z.object({
-  pickup: z.boolean().default(true),
-  delivery: z.boolean().default(false),
-  deliveryZones: z.array(deliveryZoneSchema).default([]),
-});
+const fulfillmentSchema = z
+  .object({
+    pickup: z.boolean().default(true),
+    delivery: z.boolean().default(false),
+    deliveryZones: z.array(deliveryZoneSchema).default([]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.delivery && value.deliveryZones.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['deliveryZones'],
+        message: 'At least one destination zone is required when delivery is enabled',
+      });
+    }
+    const names = new Set<string>();
+    value.deliveryZones.forEach((zone, index) => {
+      const name = zone.name.toLocaleLowerCase();
+      if (names.has(name)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['deliveryZones', index, 'name'],
+          message: 'Destination zone names must be unique',
+        });
+      }
+      names.add(name);
+    });
+  });
 
 export const CreateBranchSchema = z.object({
   code: z.string().trim().min(1).max(40),

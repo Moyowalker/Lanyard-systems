@@ -9,11 +9,13 @@ import { IconShield } from '@/components/icons';
 const SUPER_ADMIN_KEY = 'SUPER_ADMIN';
 
 export default function RolesPage() {
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['roles', 'manage'],
     queryFn: async () => {
       const r = await fetch('/api/admin/roles');
-      return r.ok ? ((await r.json()) as RolesAndPermissionsDto) : null;
+      const body = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(body?.error?.message ?? 'Could not load roles and permissions.');
+      return body as RolesAndPermissionsDto;
     },
   });
 
@@ -30,6 +32,10 @@ export default function RolesPage() {
       {isLoading ? (
         <Card className="p-5">
           <Skeleton className="h-40 w-full" />
+        </Card>
+      ) : isError ? (
+        <Card className="p-5 text-sm text-rose-700">
+          {error instanceof Error ? error.message : 'Could not load roles and permissions.'}
         </Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[20rem_1fr]">
