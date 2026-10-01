@@ -4,9 +4,16 @@ import { SectionTitle } from '@/components/SectionTitle';
 import { StoreLink } from '@/components/StoreLink';
 import { getMarketingBranches } from '@/lib/branches';
 import { faqs, heroStats, principles, serviceTracks } from '@/lib/content';
-import { branchListJsonLd, marketingOrganizationJsonLd } from '@/lib/seo';
+import { branchListJsonLd, marketingOrganizationJsonLd, marketingPageMetadata } from '@/lib/seo';
 
 export const revalidate = 300;
+
+export const metadata = marketingPageMetadata({
+  title: 'Lanyard Pharmacy',
+  description:
+    'Order genuine, NAFDAC-registered medicines from Lanyard Pharmacy for delivery across Lagos or free branch pickup.',
+  path: '/',
+});
 
 const benefits = [
   { icon: 'truck', title: 'Fast delivery', sub: '~60 min across Lagos' },

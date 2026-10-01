@@ -1,6 +1,69 @@
 import type { BranchSummaryDto } from '@lanyard/contracts';
+import type { Metadata } from 'next';
 
 import { SITE_URL, STORE_URL } from './config';
+
+const brandName = 'Lanyard Pharmacy';
+const socialImagePath = '/opengraph-image';
+
+type MarketingPageMetadataOptions = {
+  title: string;
+  description: string;
+  path: `/${string}`;
+};
+
+type BreadcrumbItem = {
+  name: string;
+  path: `/${string}`;
+};
+
+function absoluteUrl(path: string) {
+  return new URL(path, SITE_URL).toString();
+}
+
+export function marketingPageMetadata({
+  title,
+  description,
+  path,
+}: MarketingPageMetadataOptions): Metadata {
+  const pageTitle = title === brandName ? title : `${title} | ${brandName}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    openGraph: {
+      type: 'website',
+      url: absoluteUrl(path),
+      title: pageTitle,
+      description,
+      siteName: brandName,
+      images: [{ url: socialImagePath, width: 1200, height: 630, alt: brandName }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: pageTitle,
+      description,
+      images: [socialImagePath],
+    },
+  };
+}
+
+export function breadcrumbJsonLd(items: BreadcrumbItem[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: absoluteUrl('/') },
+      ...items.map((item, index) => ({
+        '@type': 'ListItem',
+        position: index + 2,
+        name: item.name,
+        item: absoluteUrl(item.path),
+      })),
+    ],
+  };
+}
 
 function toPostalAddress(branch: BranchSummaryDto) {
   return {

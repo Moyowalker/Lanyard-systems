@@ -4,7 +4,7 @@ import { Suspense, type ReactNode } from 'react';
 import { MarketingAnalytics } from '@/components/MarketingAnalytics';
 import { SiteHeader } from '@/components/SiteHeader';
 import { SiteFooter } from '@/components/SiteFooter';
-import { GA_MEASUREMENT_ID, SITE_URL } from '@/lib/config';
+import { GA_MEASUREMENT_ID, SEO_INDEXING_ENABLED, SITE_URL } from '@/lib/config';
 import { marketingWebsiteJsonLd } from '@/lib/seo';
 
 export const metadata: Metadata = {
@@ -18,9 +18,7 @@ export const metadata: Metadata = {
     'branch pharmacy Lagos',
     'prescription pharmacy',
   ],
-  alternates: {
-    canonical: '/',
-  },
+  robots: SEO_INDEXING_ENABLED ? { index: true, follow: true } : { index: false, follow: false },
   icons: { icon: '/logo.png', apple: '/logo.png' },
   openGraph: {
     type: 'website',

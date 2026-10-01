@@ -1,14 +1,14 @@
-import type { Metadata } from 'next';
 import { BranchGrid } from '@/components/BranchGrid';
 import { SectionTitle } from '@/components/SectionTitle';
 import { getMarketingBranches } from '@/lib/branches';
-import { branchListJsonLd } from '@/lib/seo';
+import { breadcrumbJsonLd, branchListJsonLd, marketingPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = marketingPageMetadata({
   title: 'Branches',
   description:
     'Find a Lanyard Pharmacy branch near you for medicine delivery, pickup, and prescription support.',
-};
+  path: '/branches',
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +20,12 @@ export default async function BranchesPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(branchListJsonLd(branches)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbJsonLd([{ name: 'Branches', path: '/branches' }])),
+        }}
       />
 
       <section className="hero-shell p-8 sm:p-10 lg:p-12">

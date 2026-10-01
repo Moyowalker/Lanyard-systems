@@ -286,3 +286,22 @@ reset flows, load testing at projected volume.
 
 **Go only when every Phase 0 and Phase 1 box is checked**, Phase 2 observability is live, and the
 compliance `gap` items are either implemented or signed off as named manual controls with an owner.
+
+---
+
+## Marketing SEO release checks
+
+- The marketing site's canonical production domain is `https://lanyardpharmacy.com`. The image
+  build sets `SEO_INDEXING_ENABLED=true` only for the production `web-marketing` image; preview
+  and local builds must leave it disabled so they emit `noindex, nofollow`, a disallow-all
+  `robots.txt`, and an empty sitemap.
+- Verify `https://lanyardpharmacy.com/robots.txt`,
+  `https://lanyardpharmacy.com/sitemap.xml`, and
+  `https://lanyardpharmacy.com/opengraph-image` after a production deployment. The sitemap must
+  contain only the six public marketing routes; API and store URLs do not belong in it.
+- In Google Search Console, add the production property, submit
+  `https://lanyardpharmacy.com/sitemap.xml`, then inspect the homepage, branch finder, and FAQ
+  URLs for their canonical and indexability status.
+- Validate the homepage, branch finder, and FAQ structured data with Schema Markup Validator or
+  Google Rich Results Test before requesting indexing. Do not publish rating, review, opening-hour,
+  product, or medicine markup until those facts are sourced and verified.

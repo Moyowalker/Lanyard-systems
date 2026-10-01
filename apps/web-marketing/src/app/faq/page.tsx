@@ -1,12 +1,12 @@
-import type { Metadata } from 'next';
 import { faqs } from '@/lib/content';
-import { faqJsonLd } from '@/lib/seo';
+import { breadcrumbJsonLd, faqJsonLd, marketingPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = marketingPageMetadata({
   title: 'FAQ',
   description:
     'Answers about Lanyard Pharmacy delivery, pickup, prescriptions, payment, and branch stock.',
-};
+  path: '/faq',
+});
 
 export default function FaqPage() {
   return (
@@ -14,6 +14,12 @@ export default function FaqPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd(faqs)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbJsonLd([{ name: 'FAQ', path: '/faq' }])),
+        }}
       />
 
       <section className="hero-shell p-8 sm:p-10 lg:p-12">

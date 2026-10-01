@@ -43,3 +43,4 @@ export const SITE_URL = resolvePublicUrl(
   'http://localhost:3002',
 );
 export const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? '';
+export const SEO_INDEXING_ENABLED = process.env.SEO_INDEXING_ENABLED === 'true';

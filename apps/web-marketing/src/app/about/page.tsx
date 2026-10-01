@@ -1,17 +1,24 @@
-import type { Metadata } from 'next';
 import { SectionTitle } from '@/components/SectionTitle';
 import { StoreLink } from '@/components/StoreLink';
 import { principles } from '@/lib/content';
+import { breadcrumbJsonLd, marketingPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = marketingPageMetadata({
   title: 'About',
   description:
     'Lanyard Pharmacy helps people in Lagos get genuine medicines from licensed pharmacy branches.',
-};
+  path: '/about',
+});
 
 export default function AboutPage() {
   return (
     <div className="space-y-16 pb-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbJsonLd([{ name: 'About', path: '/about' }])),
+        }}
+      />
       <section className="hero-shell p-8 sm:p-10 lg:p-12">
         <div className="eyebrow">About Lanyard</div>
         <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-ink-900 sm:text-5xl">

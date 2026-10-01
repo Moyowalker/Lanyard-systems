@@ -60,6 +60,7 @@ jobs:
           tags: ${{ env.IMAGE_REGISTRY }}/${{ matrix.image }}:${{ env.RELEASE_SHA }}
           build-args: |
             APP=${{ matrix.app }}
+            SEO_INDEXING_ENABLED=${{ matrix.app == 'web-marketing' && 'true' || 'false' }}
             NEXT_PUBLIC_SITE_URL=${{ matrix.app == 'web-store' && 'https://store.lanyardpharmacy.com' || matrix.app == 'web-marketing' && 'https://lanyardpharmacy.com' || '' }}
             NEXT_PUBLIC_STORE_URL=${{ matrix.app == 'web-marketing' && 'https://store.lanyardpharmacy.com' || '' }}
             NEXT_PUBLIC_GA_ID=${{ vars.NEXT_PUBLIC_GA_ID }}

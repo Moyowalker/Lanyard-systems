@@ -1,17 +1,24 @@
-import type { Metadata } from 'next';
 import { ContactForm } from '@/components/ContactForm';
 import { StoreLink } from '@/components/StoreLink';
 import { contactChannels } from '@/lib/content';
+import { breadcrumbJsonLd, marketingPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = marketingPageMetadata({
   title: 'Contact',
   description:
     'Contact Lanyard Pharmacy for help with orders, delivery, pickup, prescriptions, and partnerships.',
-};
+  path: '/contact',
+});
 
 export default function ContactPage() {
   return (
     <div className="space-y-16 pb-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbJsonLd([{ name: 'Contact', path: '/contact' }])),
+        }}
+      />
       <section className="hero-shell p-8 sm:p-10 lg:p-12">
         <div className="eyebrow">Contact</div>
         <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-ink-900 sm:text-5xl">
