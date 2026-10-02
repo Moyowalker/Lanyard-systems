@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
+  AdminDeliveryQuery,
   ActorType,
   DeliveryActionInput,
   DeliveryBoardDto,
@@ -64,11 +65,12 @@ export class DeliveryService {
   ) {}
 
   /** Delivery-bound orders in scope, each annotated with its delivery record (if any). */
-  async board(branchScope: string[], branchId?: string): Promise<DeliveryBoardDto> {
+  async board(branchScope: string[], query: AdminDeliveryQuery): Promise<DeliveryBoardDto> {
     const filter: Record<string, unknown> = {
       'fulfillment.type': FulfillmentType.DELIVERY,
       status: { $in: BOARD_STATES },
     };
+    const { branchId } = query;
     if (branchId) {
       filter.branchId =
         branchScope.includes('ALL') || branchScope.includes(branchId)
@@ -76,6 +78,44 @@ export class DeliveryService {
           : new Types.ObjectId('000000000000000000000000');
     } else if (!branchScope.includes('ALL')) {
       filter.branchId = { $in: branchScope.map((id) => new Types.ObjectId(id)) };
+    }
+
+    if (query.from || query.to) {
+      filter.createdAt = {
+        ...(query.from ? { $gte: query.from } : {}),
+        ...(query.to ? { $lte: query.to } : {}),
+      };
+    }
+    if (query.q) {
+      const escaped = query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [
+        { orderNo: { $regex: escaped, $options: 'i' } },
+        { 'fulfillment.address.contactPhone': { $regex: escaped, $options: 'i' } },
+        { 'fulfillment.address.line1': { $regex: escaped, $options: 'i' } },
+        { 'fulfillment.address.city': { $regex: escaped, $options: 'i' } },
+      ];
+    }
+    if (query.status) {
+      const matchingDeliveries = await this.deliveryModel
+        .find(
+          query.status === DeliveryStatus.QUEUED
+            ? {
+                status: {
+                  $in: [
+                    DeliveryStatus.DISPATCHED,
+                    DeliveryStatus.OUT_FOR_DELIVERY,
+                    DeliveryStatus.FAILED,
+                  ],
+                },
+              }
+            : { status: query.status },
+        )
+        .select('orderId')
+        .lean<Array<{ orderId: Types.ObjectId }>>();
+      const matchingOrderIds = matchingDeliveries.map((delivery) => delivery.orderId);
+      filter._id = query.status === DeliveryStatus.QUEUED
+        ? { $nin: matchingOrderIds }
+        : { $in: matchingOrderIds };
     }
 
     const orders = await this.orderModel.find(filter).sort({ _id: -1 }).limit(100).lean();

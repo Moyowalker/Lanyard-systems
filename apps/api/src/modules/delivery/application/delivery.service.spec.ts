@@ -24,8 +24,8 @@ describe('DeliveryService branch filter', () => {
       {} as never,
     );
 
-    await service.board([assignedBranchId], assignedBranchId);
-    await service.board([assignedBranchId], otherBranchId);
+    await service.board([assignedBranchId], { branchId: assignedBranchId, limit: 20 });
+    await service.board([assignedBranchId], { branchId: otherBranchId, limit: 20 });
 
     expect((find.mock.calls[0][0].branchId as Types.ObjectId).toString()).toBe(assignedBranchId);
     expect((find.mock.calls[1][0].branchId as Types.ObjectId).toString()).toBe(
@@ -60,7 +60,7 @@ describe('DeliveryService branch filter', () => {
       {} as never,
     );
 
-    const board = await service.board(['ALL']);
+    const board = await service.board(['ALL'], { limit: 20 });
 
     expect(board.data[0].address?.contactPhone).toBe('+2348012345678');
   });
@@ -92,9 +92,60 @@ describe('DeliveryService branch filter', () => {
       {} as never,
     );
 
-    const board = await service.board(['ALL']);
+    const board = await service.board(['ALL'], { limit: 20 });
 
     expect(board.data[0].address?.contactPhone).toBe('+2348012345678');
+  });
+
+  it('applies search and date filters before limiting the board', async () => {
+    const chain = listChain();
+    const orderFind = jest.fn().mockReturnValue(chain);
+    const service = new DeliveryService(
+      { find: jest.fn().mockResolvedValue([]) } as never,
+      { find: orderFind } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const from = new Date('2026-09-01T00:00:00.000Z');
+    const to = new Date('2026-09-30T23:59:59.999Z');
+
+    await service.board(['ALL'], { limit: 20, q: 'LNY-123', from, to });
+
+    expect(orderFind).toHaveBeenCalledWith(expect.objectContaining({
+      createdAt: { $gte: from, $lte: to },
+      $or: expect.arrayContaining([
+        { orderNo: { $regex: 'LNY-123', $options: 'i' } },
+      ]),
+    }));
+    expect(chain.limit).toHaveBeenCalledWith(100);
+  });
+
+  it('treats orders without a delivery record as queued', async () => {
+    const deliveryOrderId = new Types.ObjectId();
+    const deliveryLean = jest.fn().mockResolvedValue([{ orderId: deliveryOrderId }]);
+    const deliveryFind = jest
+      .fn()
+      .mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({ lean: deliveryLean }),
+      })
+      .mockResolvedValueOnce([]);
+    const chain = listChain();
+    const orderFind = jest.fn().mockReturnValue(chain);
+    const service = new DeliveryService(
+      { find: deliveryFind } as never,
+      { find: orderFind } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await service.board(['ALL'], { limit: 20, status: 'queued' });
+
+    expect(deliveryFind).toHaveBeenCalledWith({
+      status: { $in: ['dispatched', 'out_for_delivery', 'failed'] },
+    });
+    expect(orderFind.mock.calls[0][0]._id).toEqual({ $nin: [deliveryOrderId] });
   });
 });
 

@@ -1,10 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { DeliveryBoardDto, DeliveryBoardItemDto } from '@lanyard/contracts';
+import type {
+  ActiveDeliveryStatusValue,
+  DeliveryBoardDto,
+  DeliveryBoardItemDto,
+} from '@lanyard/contracts';
 import { formatKobo, label, statusTone, timeAgo } from '@/lib/format';
-import { Badge, Button, Card, EmptyState, PageHeader, Skeleton, type Tone } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, PageHeader, Skeleton, cn, type Tone } from '@/components/ui';
 import { IconBranch, IconCheck, IconOrders } from '@/components/icons';
 import { BranchFilter, useOperationalBranchFilter } from '@/components/branch-filter';
 
@@ -16,6 +20,17 @@ const DELIVERY_LABEL: Record<string, string> = {
   failed: 'Failed',
 };
 const deliveryLabel = (s?: string): string => (s ? (DELIVERY_LABEL[s] ?? s) : '');
+
+const FILTERS: Array<{ value: '' | ActiveDeliveryStatusValue; label: string }> = [
+  { value: '', label: 'All active' },
+  { value: 'queued', label: 'Queued' },
+  { value: 'dispatched', label: 'Dispatched' },
+  { value: 'out_for_delivery', label: 'Out for delivery' },
+  { value: 'failed', label: 'Failed' },
+];
+
+const inputClass =
+  'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
 
 function deliveryTone(status?: string): Tone {
   switch (status) {
@@ -33,15 +48,31 @@ function deliveryTone(status?: string): Tone {
 }
 
 export default function DeliveriesPage() {
+  const [status, setStatus] = useState<'' | ActiveDeliveryStatusValue>('');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const branchFilter = useOperationalBranchFilter();
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['deliveries', branchFilter.branchId],
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['deliveries', branchFilter.branchId, status, debouncedSearch, from, to],
     enabled: branchFilter.canViewAllBranches || Boolean(branchFilter.branchId),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (branchFilter.branchId) params.set('branchId', branchFilter.branchId);
+      if (status) params.set('status', status);
+      if (debouncedSearch) params.set('q', debouncedSearch);
+      if (from) params.set('from', `${from}T00:00:00.000Z`);
+      if (to) params.set('to', `${to}T23:59:59.999Z`);
       const r = await fetch(`/api/admin/deliveries?${params.toString()}`);
-      return r.ok ? ((await r.json()) as DeliveryBoardDto) : null;
+      if (!r.ok) throw new Error('Failed to load deliveries');
+      return (await r.json()) as DeliveryBoardDto;
     },
     refetchInterval: 10000,
   });
@@ -61,17 +92,69 @@ export default function DeliveriesPage() {
         }
       />
 
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search order, phone, or address"
+          className={cn(inputClass, 'min-w-64 flex-1')}
+        />
+        <input
+          type="date"
+          value={from}
+          max={to || undefined}
+          onChange={(event) => setFrom(event.target.value)}
+          aria-label="From date"
+          className={inputClass}
+        />
+        <input
+          type="date"
+          value={to}
+          min={from || undefined}
+          onChange={(event) => setTo(event.target.value)}
+          aria-label="To date"
+          className={inputClass}
+        />
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {FILTERS.map((filter) => (
+          <button
+            key={filter.value || 'all'}
+            type="button"
+            onClick={() => setStatus(filter.value)}
+            className={cn(
+              'rounded-full px-3.5 py-1.5 text-sm font-medium transition',
+              status === filter.value
+                ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/15'
+                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+            )}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-28 w-full rounded-2xl" />
           ))}
         </div>
+      ) : isError ? (
+        <Card className="p-5 text-sm text-rose-700">
+          <p role="alert">Deliveries could not be loaded. Try again.</p>
+        </Card>
       ) : items.length === 0 ? (
         <Card>
           <EmptyState
-            title="No delivery orders right now"
-            description="Paid delivery orders appear here, ready to dispatch."
+            title={status || debouncedSearch || from || to ? 'No matching deliveries' : 'No delivery orders right now'}
+            description={
+              status || debouncedSearch || from || to
+                ? 'Change or clear the filters to see other active deliveries.'
+                : 'Paid delivery orders appear here, ready to dispatch.'
+            }
             icon={IconOrders}
           />
         </Card>

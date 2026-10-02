@@ -108,9 +108,12 @@ export async function proxy(path: string, init: RequestInit = {}): Promise<Respo
 }
 
 export async function relay(res: Response): Promise<Response> {
+  if (res.status === 204 || res.status === 205 || res.status === 304) {
+    return new Response(null, { status: res.status });
+  }
   const text = await res.text();
   return new Response(text, {
     status: res.status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': res.headers.get('content-type') ?? 'application/json' },
   });
 }

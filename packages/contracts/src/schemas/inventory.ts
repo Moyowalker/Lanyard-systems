@@ -203,6 +203,12 @@ export interface StockInvoiceDto {
   hasAttachment?: boolean;
   receivedById: string;
   receivedByName?: string;
+  voidedAt?: string;
+  voidedById?: string;
+  voidedByName?: string;
+  deletedAt?: string;
+  deletedById?: string;
+  deletedByName?: string;
   totalUnits: number;
   totalCostKobo: number | null;
   hasCompleteCost: boolean;
@@ -210,8 +216,10 @@ export interface StockInvoiceDto {
   createdAt: string;
 }
 
+export const StockInvoiceListStatus = z.union([InvoiceStatus, z.literal('deleted')]);
+
 export const StockInvoiceQuerySchema = PaginationQuerySchema.extend({
-  status: InvoiceStatus.optional(),
+  status: StockInvoiceListStatus.optional(),
   q: z.string().trim().min(1).max(120).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),

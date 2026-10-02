@@ -37,7 +37,7 @@ function RecentInvoicesInner({
   onResume: (invoice: StockInvoiceDto) => void;
   onChanged: () => void;
 }) {
-  const [filter, setFilter] = useState<'received' | 'draft' | 'voided'>('received');
+  const [filter, setFilter] = useState<'received' | 'draft' | 'voided' | 'deleted'>('received');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -134,6 +134,13 @@ function RecentInvoicesInner({
         >
           Voided
         </button>
+        <button
+          type="button"
+          className={chipClass(filter === 'deleted')}
+          onClick={() => setFilter('deleted')}
+        >
+          Deleted
+        </button>
         <input
           type="search"
           value={search}
@@ -175,7 +182,11 @@ function RecentInvoicesInner({
         <p className="text-sm text-slate-500">
           {filter === 'draft'
             ? 'No draft invoices — start one above and “Save as draft”.'
-            : 'No invoices received yet — use the form above to record the first delivery.'}
+            : filter === 'voided'
+              ? 'No voided invoices match these filters.'
+              : filter === 'deleted'
+                ? 'No deleted invoices match these filters.'
+                : 'No invoices received yet — use the form above to record the first delivery.'}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -183,6 +194,7 @@ function RecentInvoicesInner({
             const pay = paymentBadge(invoice);
             const isDraft = invoice.status === 'draft';
             const isVoided = invoice.status === 'voided';
+            const isDeleted = Boolean(invoice.deletedAt);
             return (
               <li key={invoice.id}>
                 <details className="rounded-xl border border-slate-200 bg-white">
@@ -192,7 +204,9 @@ function RecentInvoicesInner({
                         {invoice.invoiceNo}
                       </span>
                       <span className="text-sm text-slate-600">{invoice.vendorName}</span>
-                      {isDraft ? (
+                      {isDeleted ? (
+                        <Badge tone="danger">Deleted</Badge>
+                      ) : isDraft ? (
                         <Badge tone="warn">Draft</Badge>
                       ) : isVoided ? (
                         <Badge tone="danger">Voided</Badge>
@@ -243,9 +257,21 @@ function RecentInvoicesInner({
                     {invoice.note ? (
                       <p className="mt-2 text-xs text-slate-500">Note: {invoice.note}</p>
                     ) : null}
+                    {isVoided && invoice.voidedAt ? (
+                      <p className="mt-2 text-xs font-medium text-rose-700">
+                        Voided {new Date(invoice.voidedAt).toLocaleString()}
+                        {invoice.voidedByName ? ` by ${invoice.voidedByName}` : ''}
+                      </p>
+                    ) : null}
+                    {isDeleted && invoice.deletedAt ? (
+                      <p className="mt-2 text-xs font-medium text-rose-700">
+                        Deleted {new Date(invoice.deletedAt).toLocaleString()}
+                        {invoice.deletedByName ? ` by ${invoice.deletedByName}` : ''}
+                      </p>
+                    ) : null}
 
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {isDraft ? (
+                      {isDeleted ? null : isDraft ? (
                         <>
                           <Button variant="secondary" onClick={() => onResume(invoice)}>
                             Resume
@@ -302,7 +328,7 @@ function RecentInvoicesInner({
                           View scan
                         </button>
                       ) : null}
-                      <label className="cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">
+                      {!isDeleted ? <label className="cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">
                         {busyId === invoice.id
                           ? 'Uploading…'
                           : invoice.hasAttachment
@@ -319,7 +345,7 @@ function RecentInvoicesInner({
                             e.target.value = '';
                           }}
                         />
-                      </label>
+                      </label> : null}
                     </div>
                   </div>
                 </details>

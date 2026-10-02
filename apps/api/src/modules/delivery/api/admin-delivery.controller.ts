@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
-  BranchPaginationQuery,
-  BranchPaginationQuerySchema,
+  AdminDeliveryQuery,
+  AdminDeliveryQuerySchema,
   DeliveryActionInput,
   DeliveryActionSchema,
   DispatchDeliveryInput,
@@ -28,9 +28,9 @@ export class AdminDeliveryController {
   @RequirePermissions('order:read')
   board(
     @CurrentUser() user: AuthPrincipal,
-    @Query(new ZodValidationPipe(BranchPaginationQuerySchema)) query: BranchPaginationQuery,
+    @Query(new ZodValidationPipe(AdminDeliveryQuerySchema)) query: AdminDeliveryQuery,
   ) {
-    return this.deliveries.board(user.branchScope, query.branchId);
+    return this.deliveries.board(user.branchScope, query);
   }
 
   @Post(':orderId/dispatch')

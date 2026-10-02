@@ -402,6 +402,7 @@ export class InventoryService {
     const invoice = await this.invoiceModel.findOne({
       _id: new Types.ObjectId(id),
       branchId: new Types.ObjectId(branchId),
+      deletedAt: { $exists: false },
     });
     if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
     if (invoice.status !== 'draft') {
@@ -440,6 +441,7 @@ export class InventoryService {
     const invoice = await this.invoiceModel.findOne({
       _id: new Types.ObjectId(id),
       branchId: new Types.ObjectId(branchId),
+      deletedAt: { $exists: false },
     });
     if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
     if (invoice.status !== 'draft') {
@@ -452,7 +454,12 @@ export class InventoryService {
     });
     await this.tx.run(async (session) => {
       const draft = await this.invoiceModel.findOne(
-        { _id: new Types.ObjectId(id), branchId: new Types.ObjectId(branchId), status: 'draft' },
+        {
+          _id: new Types.ObjectId(id),
+          branchId: new Types.ObjectId(branchId),
+          status: 'draft',
+          deletedAt: { $exists: false },
+        },
         null,
         { session },
       );
@@ -467,32 +474,46 @@ export class InventoryService {
     return this.toInvoiceDto(invoice.toObject(), undefined);
   }
 
-  /** Delete a draft invoice (received invoices cannot be deleted). */
+  /** Soft-delete a draft invoice while retaining its audit artefacts. */
   async deleteInvoice(branchId: string, actorId: string, id: string): Promise<void> {
     const invoice = await this.invoiceModel.findOne({
       _id: new Types.ObjectId(id),
       branchId: new Types.ObjectId(branchId),
+      deletedAt: { $exists: false },
     });
     if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
     if (invoice.status !== 'draft') {
       throw new DomainError(ErrorCode.CONFLICT, 'Only draft invoices can be deleted');
     }
-    await this.invoiceModel.deleteOne({ _id: invoice._id });
-    if (invoice.attachmentKey) {
-      try {
-        await this.storage.deleteObject(invoice.attachmentKey);
-      } catch (error) {
-        this.logger.error(
-          `Could not delete invoice attachment: key=${invoice.attachmentKey} reason=${error instanceof Error ? error.message : 'unknown error'}`,
-        );
-      }
-    }
+    const deletedAt = new Date();
+    await this.tx.run(async (session) => {
+      const current = await this.invoiceModel.findOne(
+        {
+          _id: new Types.ObjectId(id),
+          branchId: new Types.ObjectId(branchId),
+          status: 'draft',
+          deletedAt: { $exists: false },
+        },
+        null,
+        { session },
+      );
+      if (!current) throw new DomainError(ErrorCode.CONFLICT, 'Invoice is already deleted');
+      current.deletedAt = deletedAt;
+      current.deletedByStaffId = new Types.ObjectId(actorId);
+      await current.save({ session });
+    });
+    const input = this.invoiceDocToInput(invoice);
+    const nameById = new Map(
+      invoice.lines.map((line) => [line.productId.toString(), line.productName]),
+    );
     await this.recordInvoiceAudit(
       branchId,
       actorId,
       id,
       'inventory.invoice_draft_deleted',
       `Draft invoice ${invoice.invoiceNo} from ${invoice.vendorName} deleted`,
+      input,
+      nameById,
     );
   }
 
@@ -505,6 +526,7 @@ export class InventoryService {
     const invoice = await this.invoiceModel.findOne({
       _id: new Types.ObjectId(id),
       branchId: new Types.ObjectId(branchId),
+      deletedAt: { $exists: false },
     });
     if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
     if (invoice.status !== 'received') {
@@ -537,9 +559,14 @@ export class InventoryService {
           session,
         );
       }
+      const voidedAt = new Date();
       current.status = 'voided';
+      current.voidedAt = voidedAt;
+      current.voidedByStaffId = new Types.ObjectId(actorId);
       await current.save({ session });
       invoice.status = 'voided';
+      invoice.voidedAt = voidedAt;
+      invoice.voidedByStaffId = new Types.ObjectId(actorId);
     });
 
     await this.recordInvoiceAudit(
@@ -562,6 +589,7 @@ export class InventoryService {
     const invoice = await this.invoiceModel.findOne({
       _id: new Types.ObjectId(id),
       branchId: new Types.ObjectId(branchId),
+      deletedAt: { $exists: false },
     });
     if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
 
@@ -590,6 +618,7 @@ export class InventoryService {
     const invoice = await this.invoiceModel.findOne({
       _id: new Types.ObjectId(id),
       branchId: new Types.ObjectId(branchId),
+      deletedAt: { $exists: false },
     });
     if (!invoice) throw new DomainError(ErrorCode.NOT_FOUND, 'Invoice not found');
 
@@ -933,7 +962,13 @@ export class InventoryService {
       branchId: new Types.ObjectId(branchId),
       ...cursorFilterDesc(query.cursor),
     };
-    if (query.status) filter.status = query.status;
+    if (query.status === 'deleted') {
+      filter.status = 'draft';
+      filter.deletedAt = { $exists: true };
+    } else {
+      filter.deletedAt = { $exists: false };
+      if (query.status) filter.status = query.status;
+    }
     if (query.from || query.to) {
       filter.invoiceDate = {
         ...(query.from ? { $gte: query.from } : {}),
@@ -953,9 +988,15 @@ export class InventoryService {
       .limit(query.limit + 1)
       .lean();
 
-    const staffIds = [...new Set(rows.map((row) => row.receivedByStaffId?.toString()))].filter(
-      (id): id is string => Boolean(id),
-    );
+    const staffIds = [
+      ...new Set(
+        rows.flatMap((row) => [
+          row.receivedByStaffId?.toString(),
+          row.voidedByStaffId?.toString(),
+          row.deletedByStaffId?.toString(),
+        ]),
+      ),
+    ].filter((id): id is string => Boolean(id));
     const staff = staffIds.length
       ? await this.staffModel
           .find({ _id: { $in: staffIds.map((id) => new Types.ObjectId(id)) } })
@@ -966,9 +1007,7 @@ export class InventoryService {
       staff.map((s) => [s._id.toString(), [s.firstName, s.lastName].filter(Boolean).join(' ')]),
     );
 
-    const mapped = rows.map((row) =>
-      this.toInvoiceDto(row, staffById.get(row.receivedByStaffId?.toString() ?? '')),
-    );
+    const mapped = rows.map((row) => this.toInvoiceDto(row, staffById));
     return paginate(mapped, query.limit);
   }
 
@@ -988,6 +1027,10 @@ export class InventoryService {
       idempotencyKey?: string;
       attachmentKey?: string;
       receivedByStaffId: Types.ObjectId;
+      voidedAt?: Date;
+      voidedByStaffId?: Types.ObjectId;
+      deletedAt?: Date;
+      deletedByStaffId?: Types.ObjectId;
       lines: Array<{
         productId: Types.ObjectId;
         productName: string;
@@ -1001,7 +1044,7 @@ export class InventoryService {
       }>;
       createdAt?: Date;
     },
-    receivedByName?: string,
+    staffById?: Map<string, string>,
   ): StockInvoiceDto {
     const id = row.id ?? row._id?.toString();
     if (!id) throw new DomainError(ErrorCode.INTERNAL, 'Invoice identifier is missing');
@@ -1020,7 +1063,13 @@ export class InventoryService {
       idempotencyKey: row.idempotencyKey,
       hasAttachment: Boolean(row.attachmentKey),
       receivedById: row.receivedByStaffId.toString(),
-      receivedByName: receivedByName || undefined,
+      receivedByName: staffById?.get(row.receivedByStaffId.toString()) || undefined,
+      voidedAt: row.voidedAt?.toISOString(),
+      voidedById: row.voidedByStaffId?.toString(),
+      voidedByName: staffById?.get(row.voidedByStaffId?.toString() ?? '') || undefined,
+      deletedAt: row.deletedAt?.toISOString(),
+      deletedById: row.deletedByStaffId?.toString(),
+      deletedByName: staffById?.get(row.deletedByStaffId?.toString() ?? '') || undefined,
       totalUnits: row.lines.reduce((sum, line) => sum + line.quantity, 0),
       totalCostKobo: cost.totalCostKobo,
       hasCompleteCost: cost.hasCompleteCost,

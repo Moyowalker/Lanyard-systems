@@ -610,6 +610,8 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
       findOne?: unknown;
       priceMap?: Map<string, unknown>;
       inventoryRow?: unknown;
+      invoiceRows?: unknown[];
+      staffRows?: unknown[];
     } = {},
   ) {
     const invoiceId = new Types.ObjectId();
@@ -630,7 +632,6 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
         }),
       },
     ]);
-    const invoiceDeleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
     const movementCreate = jest.fn().mockResolvedValue(undefined);
     const auditRecord = jest.fn().mockResolvedValue(undefined);
     const upsertPrice = jest.fn().mockResolvedValue(undefined);
@@ -645,11 +646,20 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
       find: jest.fn().mockReturnValue(findOneLean([{ _id: productA, name: 'Paracetamol' }])),
       findById: jest.fn(),
     };
+    const invoiceLean = jest.fn().mockResolvedValue(overrides.invoiceRows ?? []);
+    const invoiceLimit = jest.fn().mockReturnValue({ lean: invoiceLean });
+    const invoiceSort = jest.fn().mockReturnValue({ limit: invoiceLimit });
+    const invoiceFind = jest.fn().mockReturnValue({ sort: invoiceSort });
     const invoiceModel = {
       create: invoiceCreate,
-      find: jest.fn(),
+      find: invoiceFind,
       findOne: jest.fn().mockResolvedValue(overrides.findOne ?? null),
-      deleteOne: invoiceDeleteOne,
+    };
+    const staffLean = jest.fn().mockResolvedValue(overrides.staffRows ?? []);
+    const staffModel = {
+      find: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({ lean: staffLean }),
+      }),
     };
 
     const service = new InventoryService(
@@ -657,7 +667,7 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
       { create: movementCreate } as never,
       invoiceModel as never,
       productModel as never,
-      { find: jest.fn() } as never,
+      staffModel as never,
       {
         getPriceMap: jest.fn().mockResolvedValue(overrides.priceMap ?? new Map()),
         upsertPrice,
@@ -670,10 +680,10 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
     return {
       service,
       invoiceCreate,
-      invoiceDeleteOne,
       movementCreate,
       auditRecord,
       invoiceId,
+      invoiceFind,
     };
   }
 
@@ -743,11 +753,78 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
   });
 
   it('rejects deleting a received invoice', async () => {
-    const { service, invoiceDeleteOne } = makeService({ findOne: { status: 'received' } });
+    const { service } = makeService({ findOne: { status: 'received' } });
     await expect(
       service.deleteInvoice(branchId, actorId, new Types.ObjectId().toString()),
     ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
-    expect(invoiceDeleteOne).not.toHaveBeenCalled();
+  });
+
+  it('soft-deletes a draft while retaining its invoice data and attachment', async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const invoiceId = new Types.ObjectId();
+    const draft = {
+      _id: invoiceId,
+      branchId: new Types.ObjectId(branchId),
+      status: 'draft' as const,
+      vendorName: 'Emzor',
+      invoiceNo: 'INV-9',
+      invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
+      paymentStatus: 'paid' as const,
+      receivedByStaffId: new Types.ObjectId(actorId),
+      attachmentKey: 'invoices/scan.pdf',
+      deletedAt: undefined as Date | undefined,
+      deletedByStaffId: undefined as Types.ObjectId | undefined,
+      lines: [{ productId: productA, productName: 'Paracetamol', quantity: 100 }],
+      save,
+    };
+    const { service, auditRecord } = makeService({ findOne: draft });
+
+    await service.deleteInvoice(branchId, actorId, invoiceId.toString());
+
+    expect(draft.deletedAt).toBeInstanceOf(Date);
+    expect(draft.deletedByStaffId?.toString()).toBe(actorId);
+    expect(save).toHaveBeenCalledWith({ session: { transaction: true } });
+    expect(draft.attachmentKey).toBe('invoices/scan.pdf');
+    expect(auditRecord.mock.calls.at(-1)?.[0]).toMatchObject({
+      action: 'inventory.invoice_draft_deleted',
+      metadata: expect.objectContaining({ invoiceNo: 'INV-9', totalUnits: 100 }),
+    });
+  });
+
+  it('lists deleted drafts with deletion actor details', async () => {
+    const deletedByStaffId = new Types.ObjectId();
+    const deletedAt = new Date('2026-09-30T12:00:00.000Z');
+    const row = {
+      _id: new Types.ObjectId(),
+      branchId: new Types.ObjectId(branchId),
+      status: 'draft' as const,
+      vendorName: 'Emzor',
+      invoiceNo: 'INV-DELETED',
+      invoiceDate: new Date('2026-09-01T00:00:00.000Z'),
+      paymentStatus: 'paid' as const,
+      receivedByStaffId: new Types.ObjectId(actorId),
+      deletedAt,
+      deletedByStaffId,
+      lines: [{ productId: productA, productName: 'Paracetamol', quantity: 5 }],
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+    };
+    const { service, invoiceFind } = makeService({
+      invoiceRows: [row],
+      staffRows: [{ _id: deletedByStaffId, firstName: 'Ada', lastName: 'Okafor' }],
+    });
+
+    const result = await service.listInvoices(branchId, { status: 'deleted', limit: 20 });
+
+    expect(invoiceFind).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'draft',
+      deletedAt: { $exists: true },
+    }));
+    expect(result.data[0]).toMatchObject({
+      invoiceNo: 'INV-DELETED',
+      deletedAt: deletedAt.toISOString(),
+      deletedById: deletedByStaffId.toString(),
+      deletedByName: 'Ada Okafor',
+    });
   });
 
   it('voids a received invoice once by recording compensating stock movement', async () => {
@@ -762,6 +839,8 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
       invoiceDate: new Date('2026-07-01T00:00:00.000Z'),
       paymentStatus: 'paid' as const,
       receivedByStaffId: new Types.ObjectId(actorId),
+      voidedAt: undefined as Date | undefined,
+      voidedByStaffId: undefined as Types.ObjectId | undefined,
       lines: [{ productId: productA, productName: 'Paracetamol', quantity: 100 }],
       save,
       toObject() {
@@ -784,6 +863,8 @@ describe('InventoryService invoice lifecycle (drafts, publish, payment)', () => 
     await service.voidInvoice(branchId, actorId, invoiceId.toString());
 
     expect(received.status).toBe('voided');
+    expect(received.voidedAt).toBeInstanceOf(Date);
+    expect(received.voidedByStaffId?.toString()).toBe(actorId);
     expect(save).toHaveBeenCalled();
     const movement = movementCreate.mock.calls[0][0][0];
     expect(movement).toMatchObject({ type: StockMovementType.ADJUST, quantity: -100, refType: 'invoice' });

@@ -169,6 +169,18 @@ export class StockInvoice {
   @Prop({ type: String, trim: true })
   attachmentKey?: string;
 
+  @Prop({ type: Date })
+  voidedAt?: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'StaffUser' })
+  voidedByStaffId?: Types.ObjectId;
+
+  @Prop({ type: Date, index: true })
+  deletedAt?: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'StaffUser' })
+  deletedByStaffId?: Types.ObjectId;
+
   @Prop({ type: [StockInvoiceLineSchema], required: true })
   lines: StockInvoiceLine[];
 }
@@ -177,7 +189,7 @@ export const StockInvoiceSchema = SchemaFactory.createForClass(StockInvoice);
 StockInvoiceSchema.index({ branchId: 1, createdAt: -1 });
 StockInvoiceSchema.index({ branchId: 1, invoiceNo: 1 });
 StockInvoiceSchema.index({ branchId: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
-StockInvoiceSchema.index({ branchId: 1, status: 1, createdAt: -1 });
+StockInvoiceSchema.index({ branchId: 1, status: 1, deletedAt: 1, createdAt: -1 });
 // NOTE: no immutableGuard here. Invoices are NOT append-only: drafts are editable
 // and deletable, and received invoices accept payment-status updates. The service
 // enforces which transitions are allowed (received docs accept payment fields only).
